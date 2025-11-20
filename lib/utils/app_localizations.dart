@@ -443,6 +443,18 @@ class AppLocalizations {
       'config_update_check_failed': '检查更新失败',
       'config_date_today': '今天',
       'config_date_yesterday': '昨天',
+      // Codex 官方配置相关
+      'codex_official_config_description': '配置官方 OpenAI API Key，用于 Codex 官方配置。API Key 将安全存储在本地，切换到官方配置时自动写入。',
+      'codex_official_api_key_label': 'OpenAI API Key',
+      'codex_official_api_key_placeholder': '请输入 OpenAI API Key (sk-...)',
+      // Gemini 官方配置相关
+      'gemini_official_config_description': '配置官方 Google Gemini API Key，用于 Gemini 官方配置。API Key 将安全存储在本地，切换到官方配置时自动写入到 .env 文件。',
+      'gemini_official_api_key_label': 'Gemini API Key',
+      'gemini_official_api_key_placeholder': '请输入 Gemini API Key',
+      // MCP 状态标签相关
+      'mcp_status_identical': '一致',
+      'mcp_status_only_local': '仅本地',
+      'mcp_status_only_tool': '仅工具',
     },
     'en': {
       'app_name': 'Key Core',
@@ -846,6 +858,18 @@ class AppLocalizations {
       'config_update_check_failed': 'Update check failed',
       'config_date_today': 'Today',
       'config_date_yesterday': 'Yesterday',
+      // Codex official config related
+      'codex_official_config_description': 'Configure official OpenAI API Key for Codex official config. API Key will be securely stored locally and automatically written when switching to official config.',
+      'codex_official_api_key_label': 'OpenAI API Key',
+      'codex_official_api_key_placeholder': 'Please enter OpenAI API Key (sk-...)',
+      // Gemini official config related
+      'gemini_official_config_description': 'Configure official Google Gemini API Key for Gemini official config. API Key will be securely stored locally and automatically written to .env file when switching to official config.',
+      'gemini_official_api_key_label': 'Gemini API Key',
+      'gemini_official_api_key_placeholder': 'Please enter Gemini API Key',
+      // MCP status labels related
+      'mcp_status_identical': 'Identical',
+      'mcp_status_only_local': 'Local Only',
+      'mcp_status_only_tool': 'Tool Only',
     },
   };
 
@@ -1013,8 +1037,7 @@ class AppLocalizations {
   String get securitySettingsDesc => translate('security_settings_desc');
   String get chinese => translate('chinese');
   String get english => translate('english');
-  String get languageChangedZh => translate('language_changed_zh');
-  String get languageChangedEn => translate('language_changed_en');
+  String get languageChangedSuccess => translate('language_changed_success');
   String get minimizeToTrayDescDetail => translate('minimize_to_tray_desc_detail');
   String get minimizeToTrayEnabled => translate('minimize_to_tray_enabled');
   String get refreshKeyList => translate('refresh_key_list');
@@ -1261,6 +1284,18 @@ class AppLocalizations {
   String get configUpdateCheckFailed => translate('config_update_check_failed');
   String get configDateToday => translate('config_date_today');
   String get configDateYesterday => translate('config_date_yesterday');
+  // Codex official config related
+  String get codexOfficialConfigDescription => translate('codex_official_config_description');
+  String get codexOfficialApiKeyLabel => translate('codex_official_api_key_label');
+  String get codexOfficialApiKeyPlaceholder => translate('codex_official_api_key_placeholder');
+  // Gemini official config related
+  String get geminiOfficialConfigDescription => translate('gemini_official_config_description');
+  String get geminiOfficialApiKeyLabel => translate('gemini_official_api_key_label');
+  String get geminiOfficialApiKeyPlaceholder => translate('gemini_official_api_key_placeholder');
+  // MCP status labels related
+  String get mcpStatusIdentical => translate('mcp_status_identical');
+  String get mcpStatusOnlyLocal => translate('mcp_status_only_local');
+  String get mcpStatusOnlyTool => translate('mcp_status_only_tool');
 }
 
 class _AppLocalizationsDelegate
@@ -1276,18 +1311,45 @@ class _AppLocalizationsDelegate
 
   @override
   Future<AppLocalizations> load(Locale locale) async {
+    // 构建完整的 locale 代码：如果有国家代码，使用 languageCode_countryCode 格式
+    final fullLocaleCode = locale.countryCode != null && locale.countryCode!.isNotEmpty
+        ? '${locale.languageCode}_${locale.countryCode}'
+        : locale.languageCode;
+    
+    print('AppLocalizations.load: ===== 开始加载 locale: $fullLocaleCode =====');
+    print('AppLocalizations.load: 语言代码: ${locale.languageCode}, 国家代码: ${locale.countryCode}');
+    
     // 初始化语言包服务
     await AppLocalizations._languagePackService.init();
     
-    // 尝试加载语言包
-    final languageCode = locale.languageCode;
-    final jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(languageCode);
+    // 尝试加载语言包（优先使用完整的 locale 代码）
+    print('AppLocalizations.load: 准备加载语言包: $fullLocaleCode');
+    var jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(fullLocaleCode, forceRefresh: true);
+    
+    // 如果完整的 locale 代码加载失败，尝试只使用语言代码
+    if (jsonTranslations == null && fullLocaleCode != locale.languageCode) {
+      print('AppLocalizations.load: 完整 locale 加载失败，尝试基础语言代码: ${locale.languageCode}');
+      jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(locale.languageCode, forceRefresh: true);
+    }
+    
+    if (jsonTranslations == null) {
+      print('AppLocalizations.load: ❌ 加载语言包失败: $fullLocaleCode');
+    } else {
+      print('AppLocalizations.load: ✅ 成功加载 ${jsonTranslations.length} 条翻译: $fullLocaleCode');
+    }
     
     // 创建 AppLocalizations 实例，传入 JSON 翻译
+    print('AppLocalizations.load: ===== 完成加载 locale: $fullLocaleCode =====');
     return AppLocalizations(locale, jsonTranslations);
   }
 
   @override
-  bool shouldReload(_AppLocalizationsDelegate old) => false;
+  bool shouldReload(_AppLocalizationsDelegate old) {
+    // 总是返回 true，确保语言包能够重新加载
+    // 这样可以保证在语言切换时，新的语言包能够被正确加载
+    // 性能影响很小，因为 LanguagePackService 内部有缓存机制
+    print('AppLocalizations.shouldReload: 返回 true，允许重新加载');
+    return true;
+  }
 }
 

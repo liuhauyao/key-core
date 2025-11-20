@@ -332,7 +332,81 @@ class LanguagePackService {
     await _prefs?.setString(key, lastUpdated);
   }
 
-  /// 加载语言包（优先级：内存缓存 > 内置资源 > 本地缓存（如果更新）> 云端下载（如果需要更新））
+  /// 检查语言包是否需要下载或更新
+  /// 返回 true 表示需要下载，false 表示本地已有可用版本
+  Future<bool> needsDownload(String languageCode) async {
+    await init();
+    
+    // 1. 检查是否有内置资源（基础语言：zh, en）
+    final builtinPack = await loadBuiltinLanguagePack(languageCode);
+    if (builtinPack != null) {
+      // 有内置资源，检查本地缓存是否需要更新
+      final localLastUpdated = await _getLocalLanguagePackLastUpdated(languageCode);
+      if (localLastUpdated != null) {
+        try {
+          final supportedLanguages = await getSupportedLanguages();
+          final languageInfo = supportedLanguages.firstWhere(
+            (lang) => lang.code == languageCode,
+            orElse: () => SupportedLanguage(
+              code: languageCode,
+              name: languageCode,
+              nativeName: languageCode,
+              file: '$languageCode.json',
+              lastUpdated: DateTime.now().toIso8601String(),
+            ),
+          );
+          
+          final cloudDate = DateTime.parse(languageInfo.lastUpdated);
+          final localDate = DateTime.parse(localLastUpdated);
+          
+          // 如果云端版本更新，需要下载
+          return cloudDate.isAfter(localDate);
+        } catch (e) {
+          print('LanguagePackService: 检查更新时间失败: $e');
+          return false; // 出错时使用本地版本
+        }
+      }
+      return false; // 有内置资源，不需要下载
+    }
+    
+    // 2. 检查本地缓存是否存在
+    final cachedPack = await loadLocalLanguagePack(languageCode);
+    if (cachedPack != null) {
+      // 本地缓存存在，检查是否需要更新
+      final localLastUpdated = await _getLocalLanguagePackLastUpdated(languageCode);
+      if (localLastUpdated != null) {
+        try {
+          final supportedLanguages = await getSupportedLanguages();
+          final languageInfo = supportedLanguages.firstWhere(
+            (lang) => lang.code == languageCode,
+            orElse: () => SupportedLanguage(
+              code: languageCode,
+              name: languageCode,
+              nativeName: languageCode,
+              file: '$languageCode.json',
+              lastUpdated: DateTime.now().toIso8601String(),
+            ),
+          );
+          
+          final cloudDate = DateTime.parse(languageInfo.lastUpdated);
+          final localDate = DateTime.parse(localLastUpdated);
+          
+          // 如果云端版本更新，需要下载
+          return cloudDate.isAfter(localDate);
+        } catch (e) {
+          print('LanguagePackService: 检查更新时间失败: $e');
+          return false; // 出错时使用本地版本
+        }
+      }
+      return false; // 有本地缓存，不需要下载
+    }
+    
+    // 3. 本地没有缓存，需要下载
+    return true;
+  }
+
+  /// 加载语言包（优先级：内存缓存 > 内置资源（仅基础语言zh/en）> 本地缓存 > 云端下载）
+  /// 新增语言包（如日语）不会内置在应用中，需要从云端下载
   Future<Map<String, String>?> loadLanguagePack(String languageCode, {bool forceRefresh = false}) async {
     await init();
     
@@ -347,7 +421,8 @@ class LanguagePackService {
       return _cachedPacks[languageCode];
     }
     
-    // 2. 优先使用内置资源（应用打包时内置的语言包）
+    // 2. 尝试使用内置资源（仅基础语言：zh, en）
+    // 新增语言包（如 ja）不应该内置，会跳过此步骤，直接从云端下载
     final builtinPack = await loadBuiltinLanguagePack(languageCode);
     if (builtinPack != null) {
       // 检查本地缓存是否有更新的版本
@@ -394,15 +469,18 @@ class LanguagePackService {
       return builtinPack;
     }
     
-    // 3. 如果内置资源不存在，尝试加载本地缓存
+    // 3. 如果内置资源不存在（新增语言包），尝试加载本地缓存
     final cachedPack = await loadLocalLanguagePack(languageCode);
     if (cachedPack != null) {
       _cachedPacks[languageCode] = cachedPack;
       print('LanguagePackService: 使用本地缓存语言包: $languageCode');
+      // 后台检查是否有更新（不阻塞）
+      _checkAndUpdateLanguagePack(languageCode);
       return cachedPack;
     }
     
-    // 4. 最后尝试从云端下载（用于新增语言包的情况）
+    // 4. 最后尝试从云端下载（新增语言包的情况）
+    print('LanguagePackService: 内置资源不存在，从云端下载语言包: $languageCode');
     final cloudPack = await fetchLanguagePack(languageCode);
     if (cloudPack != null) {
       await saveLanguagePackToCache(languageCode, cloudPack);
@@ -419,7 +497,7 @@ class LanguagePackService {
       );
       await _saveLocalLanguagePackLastUpdated(languageCode, languageInfo.lastUpdated);
       _cachedPacks[languageCode] = cloudPack;
-      print('LanguagePackService: 使用云端语言包: $languageCode');
+      print('LanguagePackService: 成功从云端下载语言包: $languageCode');
       return cloudPack;
     }
     

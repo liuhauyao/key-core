@@ -15,6 +15,7 @@ import '../../services/language_pack_service.dart';
 import '../../config/provider_config.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/mcp_server_presets.dart';
+import '../../services/platform_registry.dart';
 import '../../utils/app_localizations.dart';
 import '../../models/cloud_config.dart';
 import '../../models/mcp_server.dart';
@@ -58,6 +59,86 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     _checkPasswordStatus();
     _loadConfigDate();
     _loadSupportedLanguages();
+    
+    // ⭐ 自动在后台检查配置更新（静默刷新）
+    _autoCheckForUpdates();
+  }
+  
+  /// 自动后台检查配置更新（静默刷新，不显示加载状态）
+  Future<void> _autoCheckForUpdates() async {
+    // 延迟 500ms 执行，避免影响页面初始化
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (!mounted) return;
+    
+    try {
+      await _cloudConfigService.init();
+      // ⭐ 使用 force: true 强制检查，确保每次都能检测到最新配置
+      final hasUpdate = await _cloudConfigService.checkForUpdates(force: true);
+      
+      if (!mounted) return;
+      
+      if (hasUpdate) {
+        print('SettingsScreen: ========== 检测到配置更新，开始后台刷新 ==========');
+        
+        // ⭐⭐⭐ 步骤0: 先强制刷新 CloudConfigService，确保所有后续操作使用最新配置
+        print('SettingsScreen: 0/7 强制刷新 CloudConfigService 缓存...');
+        await _cloudConfigService.loadConfig(forceRefresh: true);
+        final freshConfig = await _cloudConfigService.getConfigData();
+        print('SettingsScreen: CloudConfigService 已刷新，版本: ${freshConfig?.supportedLanguages?.length} 种语言');
+        
+        // 静默刷新所有配置模块
+        print('SettingsScreen: 1/7 刷新 ProviderConfig...');
+        await ProviderConfig.init(forceRefresh: true);
+        print('SettingsScreen: 2/7 刷新 PlatformPresets...');
+        await PlatformPresets.init(forceRefresh: true);
+        print('SettingsScreen: 3/7 刷新 McpServerPresets...');
+        await McpServerPresets.init(forceRefresh: true);
+        
+        // 重新加载日期和语言列表
+        print('SettingsScreen: 4/7 重新加载配置日期...');
+        await _loadConfigDate();
+        print('SettingsScreen: 5/7 重新加载支持的语言列表...');
+        await _loadSupportedLanguages(forceRefresh: true);
+        print('SettingsScreen: 本地语言列表已更新: ${_supportedLanguages.map((l) => l.code).join(", ")} (共 ${_supportedLanguages.length} 种)');
+        
+        // ⭐ 刷新 SettingsViewModel 的配置，触发 MaterialApp 更新 supportedLocales
+        if (!mounted) return;
+        print('SettingsScreen: 6/7 刷新 SettingsViewModel...');
+        final settingsViewModel = Provider.of<SettingsViewModel>(context, listen: false);
+        await settingsViewModel.refreshConfig();
+        
+        // ⭐ 步骤7: 强制刷新 UI，确保语言选择下拉框更新
+        print('SettingsScreen: 7/7 强制刷新 UI...');
+        if (mounted) {
+          setState(() {
+            // 触发 UI 重建，包括语言选择下拉框
+          });
+        }
+        
+        print('SettingsScreen: ========== 配置后台刷新完成 ==========');
+        
+        // 可选：显示一个小提示（不打扰用户）
+        if (mounted) {
+          final localizations = AppLocalizations.of(context);
+          if (localizations != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(localizations.configUpdateSuccess),
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+                width: 300,
+              ),
+            );
+          }
+        }
+      } else {
+        print('SettingsScreen: 配置已是最新版本，无需更新');
+      }
+    } catch (e) {
+      print('SettingsScreen: 后台检查配置更新失败: $e');
+      // 静默失败，不影响用户体验
+    }
   }
 
   Future<void> _loadSupportedLanguages({bool forceRefresh = false}) async {
@@ -66,7 +147,14 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     if (forceRefresh) {
       await _cloudConfigService.loadConfig(forceRefresh: true);
     }
-    final languages = await _languagePackService.getSupportedLanguages();
+    
+    // ⭐ 直接从 _cloudConfigService 获取语言列表，避免使用不同实例的缓存
+    final configData = await _cloudConfigService.getConfigData(forceRefresh: forceRefresh);
+    final languages = configData?.supportedLanguages ?? [];
+    
+    print('SettingsScreen._loadSupportedLanguages: 从 CloudConfigService 获取到 ${languages.length} 种语言');
+    print('SettingsScreen._loadSupportedLanguages: 语言列表: ${languages.map((l) => l.code).join(", ")}');
+    
     if (mounted) {
       setState(() {
         _supportedLanguages = languages;
@@ -144,13 +232,49 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
       if (!mounted) return;
       
       if (hasUpdate) {
+        print('SettingsScreen: ========== 手动检查发现配置更新 ==========');
+        
+        // ⭐⭐⭐ 步骤0: 先强制刷新 CloudConfigService，确保所有后续操作使用最新配置
+        print('SettingsScreen: 0/7 强制刷新 CloudConfigService 缓存...');
+        await _cloudConfigService.loadConfig(forceRefresh: true);
+        final freshConfig = await _cloudConfigService.getConfigData();
+        print('SettingsScreen: CloudConfigService 已刷新，版本: ${freshConfig?.supportedLanguages?.length} 种语言');
+        
         // 重新加载所有配置模块（强制刷新）
+        print('SettingsScreen: 1/8 刷新 PlatformRegistry...');
+        await PlatformRegistry.reloadDynamicPlatforms(_cloudConfigService);
+        print('SettingsScreen: PlatformRegistry 已刷新，总平台数量: ${PlatformRegistry.count} (内置: ${PlatformRegistry.builtinCount}, 动态: ${PlatformRegistry.dynamicCount})');
+        
+        print('SettingsScreen: 2/8 刷新 ProviderConfig...');
         await ProviderConfig.init(forceRefresh: true);
+        print('SettingsScreen: 3/8 刷新 PlatformPresets...');
         await PlatformPresets.init(forceRefresh: true);
+        print('SettingsScreen: 4/8 刷新 McpServerPresets...');
         await McpServerPresets.init(forceRefresh: true);
+        
         // 重新加载日期和语言列表（强制刷新）
+        print('SettingsScreen: 5/8 重新加载配置日期...');
         await _loadConfigDate();
+        print('SettingsScreen: 6/8 重新加载支持的语言列表...');
         await _loadSupportedLanguages(forceRefresh: true);
+        print('SettingsScreen: 本地语言列表已更新: ${_supportedLanguages.map((l) => l.code).join(", ")} (共 ${_supportedLanguages.length} 种)');
+        
+        // ⭐ 刷新 SettingsViewModel 的配置，触发 MaterialApp 更新 supportedLocales
+        if (!mounted) return;
+        print('SettingsScreen: 7/8 刷新 SettingsViewModel...');
+        final settingsViewModel = Provider.of<SettingsViewModel>(context, listen: false);
+        await settingsViewModel.refreshConfig();
+        
+        // ⭐ 步骤8: 强制刷新 UI，确保语言选择下拉框更新
+        print('SettingsScreen: 8/8 强制刷新 UI...');
+        if (mounted) {
+          setState(() {
+            // 触发 UI 重建，包括语言选择下拉框
+          });
+        }
+        
+        print('SettingsScreen: ========== 配置刷新完成 ==========');
+        
         final localizations = AppLocalizations.of(context);
         if (localizations != null && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -688,7 +812,11 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
           ]
         : _supportedLanguages;
     
+    // ⭐ 使用语言代码列表作为 key，确保语言列表变化时 ShadSelect 重新构建
+    final languagesKey = languages.map((l) => l.code).join('_');
+    
     return ShadSelect<String>(
+      key: ValueKey('language_select_$languagesKey'),
       initialValue: currentLanguage,
       placeholder: Text(
         localizations.interfaceLanguage,
@@ -713,33 +841,79 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
           style: shadTheme.textTheme.small,
         );
       },
-      onChanged: (String? newLanguage) async {
-        if (newLanguage != null && newLanguage != currentLanguage) {
-          // 确保语言包已下载
-          await _languagePackService.loadLanguagePack(newLanguage);
-          // 切换语言
-          await settingsViewModel.setLanguage(newLanguage);
-          // 显示提示消息
-          if (mounted) {
-            final selectedLang = languages.firstWhere(
-              (l) => l.code == newLanguage,
-              orElse: () => languages.first,
-            );
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  newLanguage == 'zh'
-                      ? localizations.languageChangedZh
-                      : newLanguage == 'en'
-                          ? localizations.languageChangedEn
-                          : 'Language changed to ${selectedLang.nativeName}',
-                ),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-        }
-      },
+          onChanged: (String? newLanguage) async {
+            if (newLanguage != null && newLanguage != currentLanguage) {
+              if (!mounted) return;
+              
+              final selectedLang = languages.firstWhere(
+                (l) => l.code == newLanguage,
+                orElse: () => languages.first,
+              );
+              
+              // 检查是否需要下载语言包
+              final needsDownload = await _languagePackService.needsDownload(newLanguage);
+              
+              ScaffoldMessengerState? messengerState;
+              if (needsDownload) {
+                // 显示下载提示（使用当前语言的本地化）
+                messengerState = ScaffoldMessenger.of(context);
+                final currentLocalizations = AppLocalizations.of(context);
+                final downloadingMessage = currentLocalizations?.translate('downloading_language_pack') ?? '正在下载语言包...';
+                
+                messengerState.showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(downloadingMessage),
+                        ),
+                      ],
+                    ),
+                    duration: const Duration(seconds: 30), // 给足够的时间下载
+                  ),
+                );
+              }
+              
+              // 切换语言（setLanguage 内部会加载语言包）
+              await settingsViewModel.setLanguage(newLanguage);
+              
+              if (!mounted) return;
+              
+              // 如果显示了下载提示，关闭它
+              if (needsDownload && messengerState != null) {
+                messengerState.hideCurrentSnackBar();
+              }
+              
+              // 等待 MaterialApp 重建和 Localizations 重新加载
+              await Future.delayed(const Duration(milliseconds: 200));
+              
+              // 再次检查 mounted
+              if (!mounted) return;
+              
+              // 显示切换成功消息（使用新语言的翻译）
+              final newLocalizations = AppLocalizations.of(context);
+              final successMessage = newLocalizations?.languageChangedSuccess ?? 
+                                    'Language changed to ${selectedLang.nativeName}';
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(successMessage),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            }
+          },
     );
   }
 

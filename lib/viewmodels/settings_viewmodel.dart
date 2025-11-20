@@ -5,12 +5,17 @@ import '../services/macos_preferences_bridge.dart';
 import '../services/ai_tool_config_service.dart';
 import '../services/tool_enable_service.dart';
 import '../services/status_bar_menu_bridge.dart';
+import '../services/language_pack_service.dart';
+import '../services/cloud_config_service.dart';
 import '../models/mcp_server.dart';
+import '../models/cloud_config.dart';
 import 'base_viewmodel.dart';
 
 /// 设置ViewModel
 class SettingsViewModel extends BaseViewModel {
   final SettingsService _settingsService = SettingsService();
+  final LanguagePackService _languagePackService = LanguagePackService();
+  final CloudConfigService _cloudConfigService = CloudConfigService();
 
   String _currentLanguage = 'zh';
   ThemeMode _themeMode = ThemeMode.system;
@@ -52,10 +57,38 @@ class SettingsViewModel extends BaseViewModel {
   bool get isEnglish => _currentLanguage == 'en';
   bool get isDarkTheme => _themeMode == ThemeMode.dark;
   bool get isSystemTheme => _themeMode == ThemeMode.system;
+  
+  /// 获取支持的语言列表（包含当前选择的语言，确保 MaterialApp 支持）
+  /// 语言列表完全来自云端配置，不在应用中硬编码
+  /// 这样可以在应用不更新的情况下，通过云端推送新语言
+  List<SupportedLanguage> get supportedLanguages {
+    final languages = _cloudConfigService.supportedLanguages;
+    
+    // 确保当前选择的语言在支持列表中
+    // 如果配置文件中没有当前语言，但用户已经下载并选择了该语言
+    // 则动态添加到列表中（使用语言代码作为显示名称的回退）
+    if (!languages.any((lang) => lang.code == _currentLanguage)) {
+      print('SettingsViewModel: 当前语言 $_currentLanguage 不在配置列表中，动态添加');
+      return [
+        ...languages,
+        SupportedLanguage(
+          code: _currentLanguage,
+          name: _currentLanguage, // 使用语言代码作为名称
+          nativeName: _currentLanguage, // 使用语言代码作为本地名称
+          file: '$_currentLanguage.json',
+          lastUpdated: DateTime.now().toIso8601String(),
+        ),
+      ];
+    }
+    
+    return languages;
+  }
 
   Future<void> init() async {
+    print('SettingsViewModel.init: 开始初始化');
     await _settingsService.init();
     _currentLanguage = _settingsService.getLanguage();
+    print('SettingsViewModel.init: 从 SharedPreferences 读取的语言: $_currentLanguage');
     _themeMode = _settingsService.getThemeMode();
     _minimizeToTray = _settingsService.getMinimizeToTray();
     _claudeConfigDir = _settingsService.getClaudeConfigDir();
@@ -105,17 +138,80 @@ class SettingsViewModel extends BaseViewModel {
     }
     
     notifyListeners();
+    
+    // ⭐ 启动后台配置更新检查（不阻塞初始化）
+    _autoCheckConfigUpdate();
   }
 
   Future<void> setLanguage(String language) async {
+    print('SettingsViewModel.setLanguage: 开始切换语言到 $language');
+    
+    // 先保存语言设置
     await _settingsService.setLanguage(language);
+    print('SettingsViewModel.setLanguage: 已保存语言设置到 SharedPreferences: $language');
+    
+    // 确保语言包已加载（强制刷新以清除缓存）
+    await _languagePackService.init();
+    await _languagePackService.loadLanguagePack(language, forceRefresh: true);
+    print('SettingsViewModel.setLanguage: 已加载语言包: $language');
+    
+    // 更新当前语言
     _currentLanguage = language;
+    print('SettingsViewModel.setLanguage: 已更新 _currentLanguage = $language');
+    
+    // 通知监听者，触发 MaterialApp 重新构建以应用新语言
     notifyListeners();
+    print('SettingsViewModel.setLanguage: 已调用 notifyListeners()');
+    
+    // 等待一帧，确保 MaterialApp 已经重建
+    await Future.delayed(const Duration(milliseconds: 50));
+    print('SettingsViewModel.setLanguage: 语言切换完成: $language');
   }
 
   Future<void> toggleLanguage() async {
     final newLanguage = _currentLanguage == 'zh' ? 'en' : 'zh';
     await setLanguage(newLanguage);
+  }
+
+  /// 刷新云端配置（用于配置更新后刷新语言列表等）
+  Future<void> refreshConfig() async {
+    print('SettingsViewModel.refreshConfig: 开始刷新配置');
+    
+    // ⭐ 强制重新加载配置，清除所有缓存
+    await _cloudConfigService.init();
+    await _cloudConfigService.loadConfig(forceRefresh: true);  // 强制刷新
+    await _languagePackService.init();
+    
+    final languages = _cloudConfigService.supportedLanguages;
+    print('SettingsViewModel.refreshConfig: 配置已刷新，当前支持 ${languages.length} 种语言');
+    print('SettingsViewModel.refreshConfig: 语言列表: ${languages.map((l) => l.code).join(", ")}');
+    
+    // 通知监听者，触发 MaterialApp 重新构建以更新 supportedLocales
+    notifyListeners();
+    print('SettingsViewModel.refreshConfig: 已通知监听者更新');
+  }
+  
+  /// 自动后台检查配置更新（在 init 完成后执行）
+  Future<void> _autoCheckConfigUpdate() async {
+    // 延迟执行，避免影响初始化
+    await Future.delayed(const Duration(milliseconds: 1000));
+    
+    try {
+      print('SettingsViewModel: 开始后台检查配置更新...');
+      // ⭐ 使用 force: true 强制检查，确保能检测到最新配置
+      final hasUpdate = await _cloudConfigService.checkForUpdates(force: true);
+      
+      if (hasUpdate) {
+        print('SettingsViewModel: 检测到配置更新，自动刷新配置');
+        await refreshConfig();
+        print('SettingsViewModel: 配置自动刷新完成');
+      } else {
+        print('SettingsViewModel: 配置已是最新版本');
+      }
+    } catch (e) {
+      print('SettingsViewModel: 后台检查配置更新失败: $e');
+      // 静默失败，不影响用户体验
+    }
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

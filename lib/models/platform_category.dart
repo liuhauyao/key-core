@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'platform_type.dart';
 import '../config/provider_config.dart';
 import '../utils/app_localizations.dart';
+import '../services/platform_registry.dart';
+import '../services/cloud_config_service.dart';
 
 /// 平台分类枚举
 enum PlatformCategory {
@@ -49,79 +51,116 @@ class PlatformCategoryManager {
   static List<PlatformType> getPlatformsByCategory(PlatformCategory category) {
     switch (category) {
       case PlatformCategory.popular:
-        // 常用平台：OpenAI, Anthropic, DeepSeek, 智谱AI, 通义千问, Gemini, Mistral, Kimi, 零一万物, GitHub Copilot
-        return [
-          PlatformType.openAI,
-          PlatformType.anthropic,
-          PlatformType.deepSeek,
-          PlatformType.zhipu,
-          PlatformType.qwen,
-          PlatformType.openRouter,
-          PlatformType.gemini,
-          PlatformType.mistral,
-          PlatformType.kimi,
-          PlatformType.zeroOne,
-          PlatformType.githubCopilot,
+        // 常用平台
+        final popularIds = [
+          'openAI',
+          'anthropic',
+          'deepSeek',
+          'zhipu',
+          'qwen',
+          'openRouter',
+          'gemini',
+          'mistral',
+          'kimi',
+          'zeroOne',
+          'githubCopilot',
         ];
+        final platforms = popularIds
+            .map((id) => PlatformRegistry.get(id))
+            .where((p) => p != null)
+            .cast<PlatformType>()
+            .toList();
+        
+        // 添加动态的 popular 平台
+        platforms.addAll(PlatformRegistry.getDynamicPlatformsByCategory('popular'));
+        return platforms;
       case PlatformCategory.llm:
         // 大语言模型提供商
-        return [
-          PlatformType.openAI,
-          PlatformType.anthropic,
-          PlatformType.google,
-          PlatformType.gemini,
-          PlatformType.deepSeek,
-          PlatformType.minimax,
-          PlatformType.zhipu,
-          PlatformType.bailian,
-          PlatformType.baidu,
-          PlatformType.wenxin,
-          PlatformType.qwen,
-          PlatformType.openRouter,
-          PlatformType.huggingFace,
-          PlatformType.mistral,
-          PlatformType.cohere,
-          PlatformType.xai,
-          PlatformType.ollama,
-          PlatformType.moonshot,
-          PlatformType.zeroOne,
-          PlatformType.baichuan,
-          PlatformType.kimi,
-          PlatformType.nova,
+        final llmIds = [
+          'openAI',
+          'anthropic',
+          'google',
+          'gemini',
+          'deepSeek',
+          'minimax',
+          'zhipu',
+          'bailian',
+          'baidu',
+          'wenxin',
+          'qwen',
+          'openRouter',
+          'huggingFace',
+          'mistral',
+          'cohere',
+          'xai',
+          'ollama',
+          'moonshot',
+          'zeroOne',
+          'baichuan',
+          'kimi',
+          'nova',
         ];
+        return llmIds
+            .map((id) => PlatformRegistry.get(id))
+            .where((p) => p != null)
+            .cast<PlatformType>()
+            .toList();
       case PlatformCategory.cloud:
         // 云服务平台
-        return [
-          PlatformType.azureOpenAI,
-          PlatformType.aws,
-          PlatformType.volcengine,
-          PlatformType.tencent,
-          PlatformType.alibaba,
+        final cloudIds = [
+          'azureOpenAI',
+          'aws',
+          'volcengine',
+          'tencent',
+          'alibaba',
         ];
+        return cloudIds
+            .map((id) => PlatformRegistry.get(id))
+            .where((p) => p != null)
+            .cast<PlatformType>()
+            .toList();
       case PlatformCategory.tools:
         // AI工具平台
-        return [
-          PlatformType.n8n,
-          PlatformType.dify,
-          PlatformType.openRouter,
-          PlatformType.huggingFace,
-          PlatformType.supabase,
-          PlatformType.notion,
-          PlatformType.ollama,
-          PlatformType.github,
-          PlatformType.githubCopilot,
-          PlatformType.gitee,
-          PlatformType.coze,
-          PlatformType.figma,
-          PlatformType.v0,
+        final toolsIds = [
+          'n8n',
+          'dify',
+          'openRouter',
+          'huggingFace',
+          'supabase',
+          'notion',
+          'ollama',
+          'github',
+          'githubCopilot',
+          'gitee',
+          'coze',
+          'figma',
+          'v0',
         ];
+        
+        // 从 PlatformRegistry 获取内置平台实例
+        final platforms = toolsIds
+            .map((id) => PlatformRegistry.get(id))
+            .where((p) => p != null)
+            .cast<PlatformType>()
+            .toList();
+        
+        // 添加云端配置中 categories 包含 "tools" 的动态平台
+        final dynamicToolsPlatforms = PlatformRegistry.getDynamicPlatformsByCategory('tools');
+        platforms.addAll(dynamicToolsPlatforms);
+        
+        return platforms;
       case PlatformCategory.vector:
         // 其他平台
-        return [
-          PlatformType.qdrant,
-          PlatformType.pinecone,
-          PlatformType.weaviate,
+        final vectorIds = [
+          'qdrant',
+          'pinecone',
+          'weaviate',
         ];
+        return vectorIds
+            .map((id) => PlatformRegistry.get(id))
+            .where((p) => p != null)
+            .cast<PlatformType>()
+            .toList();
       case PlatformCategory.claudeCode:
         // ClaudeCode 支持的平台
         return ProviderConfig.supportedClaudeCodePlatforms;
@@ -129,7 +168,8 @@ class PlatformCategoryManager {
         // Codex 支持的平台
         return ProviderConfig.supportedCodexPlatforms;
       case PlatformCategory.custom:
-        return [PlatformType.custom];
+        final customPlatform = PlatformRegistry.get('custom');
+        return customPlatform != null ? [customPlatform] : [];
     }
   }
 

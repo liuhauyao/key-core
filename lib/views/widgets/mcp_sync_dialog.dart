@@ -550,7 +550,7 @@ class _McpSyncDialogState extends State<McpSyncDialog> {
       statusColor = Colors.orange;
     } else {
       // 正常状态标签
-      statusLabel = McpComparison.getStatusLabel(finalStatus);
+      statusLabel = McpComparison.getStatusLabel(finalStatus, localizations: localizations);
       statusColor = Color(McpComparison.getStatusColor(finalStatus));
     }
     
@@ -956,7 +956,7 @@ class _McpSyncDialogState extends State<McpSyncDialog> {
                         ),
                       ),
                       child: Text(
-                        McpComparison.getStatusLabel(result.status),
+                        McpComparison.getStatusLabel(result.status, localizations: AppLocalizations.of(context)),
                         style: shadTheme.textTheme.small.copyWith(
                           color: Color(McpComparison.getStatusColor(result.status)),
                           fontSize: 12,

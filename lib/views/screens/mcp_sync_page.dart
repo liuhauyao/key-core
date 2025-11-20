@@ -572,7 +572,7 @@ class _McpSyncPageState extends State<McpSyncPage> {
       statusLabel = localizations?.mcpWillBeOverridden ?? '将被覆盖';
       statusColor = Colors.orange;
     } else {
-      statusLabel = McpComparison.getStatusLabel(finalStatus);
+      statusLabel = McpComparison.getStatusLabel(finalStatus, localizations: localizations);
       statusColor = Color(McpComparison.getStatusColor(finalStatus));
     }
     
@@ -945,7 +945,7 @@ class _McpSyncPageState extends State<McpSyncPage> {
                         ),
                       ),
                       child: Text(
-                        McpComparison.getStatusLabel(result.status),
+                        McpComparison.getStatusLabel(result.status, localizations: AppLocalizations.of(context)),
                         style: shadTheme.textTheme.small.copyWith(
                           color: Color(McpComparison.getStatusColor(result.status)),
                           fontSize: 12,

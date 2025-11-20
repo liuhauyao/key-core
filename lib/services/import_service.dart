@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import '../models/ai_key.dart';
 import '../models/platform_type.dart';
+import '../services/platform_registry.dart';
 import '../models/mcp_server.dart';
 import '../services/database_service.dart';
 import '../services/crypt_service.dart';
@@ -127,14 +128,15 @@ class ImportService {
           PlatformType platformType;
           if (keyMap['platform_type'] != null) {
             final typeIndex = keyMap['platform_type'] as int;
-            if (typeIndex >= 0 && typeIndex < PlatformType.values.length) {
-              platformType = PlatformType.values[typeIndex];
+            final allPlatforms = PlatformRegistry.values;
+            if (typeIndex >= 0 && typeIndex < allPlatforms.length) {
+              platformType = allPlatforms[typeIndex];
             } else {
-              platformType = PlatformType.fromString(
+              platformType = PlatformRegistry.fromString(
                   keyMap['platform'] as String? ?? 'Custom');
             }
           } else {
-            platformType = PlatformType.fromString(
+            platformType = PlatformRegistry.fromString(
                 keyMap['platform'] as String? ?? 'Custom');
           }
 

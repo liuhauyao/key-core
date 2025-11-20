@@ -1,5 +1,6 @@
 import '../models/platform_type.dart';
 import '../services/cloud_config_service.dart';
+import '../services/platform_registry.dart';
 import '../models/unified_provider_config.dart';
 
 /// ClaudeCode/Codex 供应商分类
@@ -159,7 +160,7 @@ class ProviderConfig {
     
     for (final provider in providers) {
       try {
-        final platformType = PlatformType.fromString(provider.platformType);
+        final platformType = PlatformRegistry.fromString(provider.platformType);
         
         // 加载 ClaudeCode 供应商（只要有配置就加载）
         if (provider.claudeCode != null) {

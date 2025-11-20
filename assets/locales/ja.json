@@ -154,8 +154,8 @@
   "security_settings_desc": "マスターパスワードと暗号化設定を管理します。",
   "chinese": "中国語",
   "english": "英語",
-  "language_changed_zh": "言語を中国語に切り替えました。アプリを再起動すると有効になります",
-  "language_changed_en": "言語を英語に切り替えました。アプリを再起動すると有効になります",
+  "downloading_language_pack": "言語パックをダウンロード中...",
+  "language_changed_success": "言語を日本語に切り替えました",
   "minimize_to_tray_desc_detail": "チェックすると、閉じるボタンをクリックした際にシステムメニューバーに非表示になります。チェックを外すと直接アプリが終了します。",
   "minimize_to_tray_enabled": "メニューバーへの最小化が有効になりました。ウィンドウを閉じた後、メニューバーアイコンが表示されます",
   "refresh_key_list": "キーリストを更新",
@@ -411,5 +411,14 @@
   "config_already_latest": "設定テンプレートは最新バージョンです",
   "config_update_check_failed": "更新確認に失敗しました",
   "config_date_today": "今日",
-  "config_date_yesterday": "昨日"
+  "config_date_yesterday": "昨日",
+  "codex_official_config_description": "Codex公式設定用の公式OpenAI API Keyを設定します。API Keyはローカルに安全に保存され、公式設定に切り替える際に自動的に書き込まれます。",
+  "codex_official_api_key_label": "OpenAI API Key",
+  "codex_official_api_key_placeholder": "OpenAI API Key (sk-...) を入力してください",
+  "gemini_official_config_description": "Gemini公式設定用の公式Google Gemini API Keyを設定します。API Keyはローカルに安全に保存され、公式設定に切り替える際に.envファイルに自動的に書き込まれます。",
+  "gemini_official_api_key_label": "Gemini API Key",
+  "gemini_official_api_key_placeholder": "Gemini API Keyを入力してください",
+  "mcp_status_identical": "一致",
+  "mcp_status_only_local": "ローカルのみ",
+  "mcp_status_only_tool": "ツールのみ"
 }

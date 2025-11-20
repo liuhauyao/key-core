@@ -16,6 +16,10 @@ import 'services/status_bar_menu_bridge.dart';
 import 'config/provider_config.dart';
 import 'utils/platform_presets.dart';
 import 'utils/mcp_server_presets.dart';
+import 'services/platform_registry.dart';
+
+// 全局 NavigatorKey，用于保持导航状态
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +47,14 @@ void main() async {
     print('Main: 加载默认配置失败: $e');
   }
   
+  // 初始化平台注册表（内置平台）
+  PlatformRegistry.initBuiltinPlatforms();
+  print('Main: PlatformRegistry 内置平台数量: ${PlatformRegistry.builtinCount}');
+  
+  // 加载动态平台（从云端配置）
+  await PlatformRegistry.loadDynamicPlatforms(cloudConfigService);
+  print('Main: PlatformRegistry 总平台数量: ${PlatformRegistry.count} (内置: ${PlatformRegistry.builtinCount}, 动态: ${PlatformRegistry.dynamicCount})');
+  
   // 初始化所有配置模块
   await ProviderConfig.init();
   await PlatformPresets.init();
@@ -69,7 +81,10 @@ void main() async {
   cloudConfigService.checkForUpdates(force: true).then((hasUpdate) async {
     if (hasUpdate) {
       print('Main: 配置已更新，重新加载所有配置模块');
-      // 如果有更新，强制刷新并重新加载配置模块
+      // 如果有更新，重新加载动态平台
+      await PlatformRegistry.reloadDynamicPlatforms(cloudConfigService);
+      print('Main: 更新后 - PlatformRegistry 总平台数量: ${PlatformRegistry.count} (内置: ${PlatformRegistry.builtinCount}, 动态: ${PlatformRegistry.dynamicCount})');
+      // 强制刷新并重新加载配置模块
       await ProviderConfig.init(forceRefresh: true);
       await PlatformPresets.init(forceRefresh: true);
       await McpServerPresets.init(forceRefresh: true);
@@ -106,6 +121,7 @@ class KeyCoreApp extends StatelessWidget {
       ],
       child: Consumer2<SettingsViewModel, KeyManagerViewModel>(
         builder: (context, settingsViewModel, keyManagerViewModel, _) {
+          
           // 初始化状态栏菜单桥接（延迟调用，确保 MethodChannel 已注册）
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (Platform.isMacOS) {
@@ -156,9 +172,12 @@ class KeyCoreApp extends StatelessWidget {
               ? shadDarkTheme
               : shadLightTheme;
           
-          return ShadTheme(
-            data: currentShadTheme,
-            child: MaterialApp(
+        return ShadTheme(
+          data: currentShadTheme,
+          child: MaterialApp(
+            // 使用全局 NavigatorKey 保持导航状态
+            // 不使用 key，避免 MaterialApp 重建导致导航栈重置
+            navigatorKey: navigatorKey,
               title: '密枢',
               // 国际化支持
               localizationsDelegates: const [
@@ -167,11 +186,57 @@ class KeyCoreApp extends StatelessWidget {
                 GlobalWidgetsLocalizations.delegate,
                 GlobalCupertinoLocalizations.delegate,
               ],
-              supportedLocales: const [
-                Locale('zh', ''),
-                Locale('en', ''),
-              ],
-              locale: Locale(settingsViewModel.currentLanguage),
+            supportedLocales: settingsViewModel.supportedLanguages.map((lang) {
+              print('MaterialApp: 支持的语言 - ${lang.code}');
+              // 解析语言代码，支持 language_COUNTRY 格式（如 zh_TW）
+              final parts = lang.code.split('_');
+              if (parts.length == 2) {
+                return Locale(parts[0], parts[1]); // 如 zh_TW -> Locale('zh', 'TW')
+              }
+              return Locale(lang.code);
+            }).toList(),
+            locale: () {
+              // 解析当前语言代码
+              final parts = settingsViewModel.currentLanguage.split('_');
+              final currentLocale = parts.length == 2
+                  ? Locale(parts[0], parts[1])
+                  : Locale(settingsViewModel.currentLanguage);
+              print('MaterialApp: 当前 locale = ${currentLocale.languageCode}_${currentLocale.countryCode}');
+              return currentLocale;
+            }(),
+            // Locale 解析回调：处理 Flutter 不原生支持的 locale
+            // 例如 zh_TW 会被映射到 zh，但我们的自定义 AppLocalizations 仍然使用 zh_TW
+            localeResolutionCallback: (locale, supportedLocales) {
+              if (locale == null) return supportedLocales.first;
+              
+              print('MaterialApp: localeResolutionCallback - 请求的 locale: ${locale.languageCode}_${locale.countryCode}');
+              
+              // 对于我们的自定义 locale（如 zh_TW），返回基础语言代码
+              // 这样 Material 和 Cupertino 组件会使用 zh 的本地化
+              // 但我们的 AppLocalizations 仍然会使用完整的 locale 代码
+              final languageCode = locale.languageCode;
+              
+              // 检查是否有完全匹配的 locale
+              for (final supportedLocale in supportedLocales) {
+                if (supportedLocale.languageCode == locale.languageCode &&
+                    supportedLocale.countryCode == locale.countryCode) {
+                  print('MaterialApp: 找到完全匹配的 locale: ${supportedLocale.languageCode}_${supportedLocale.countryCode}');
+                  return supportedLocale;
+                }
+              }
+              
+              // 如果没有完全匹配，查找语言代码匹配的
+              for (final supportedLocale in supportedLocales) {
+                if (supportedLocale.languageCode == languageCode) {
+                  print('MaterialApp: 使用语言代码匹配的 locale: ${supportedLocale.languageCode}');
+                  return supportedLocale;
+                }
+              }
+              
+              // 如果都没有匹配，返回第一个支持的 locale
+              print('MaterialApp: 没有匹配的 locale，使用默认: ${supportedLocales.first.languageCode}');
+              return supportedLocales.first;
+            },
               // 主题设置 - 使用 Shadcn UI 提供的主题，同时保留自定义配置
               themeMode: settingsViewModel.themeMode,
               theme: ThemeData(

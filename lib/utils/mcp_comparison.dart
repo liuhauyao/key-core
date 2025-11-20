@@ -1,6 +1,7 @@
 import 'dart:convert';
 import '../models/mcp_server.dart';
 import '../models/mcp_server.dart' as models;
+import '../utils/app_localizations.dart';
 
 /// MCP 服务比对状态枚举
 enum McpComparisonStatus {
@@ -471,14 +472,14 @@ class McpComparison {
   }
 
   /// 根据状态获取显示标签
-  static String getStatusLabel(McpComparisonStatus status) {
+  static String getStatusLabel(McpComparisonStatus status, {AppLocalizations? localizations}) {
     switch (status) {
       case McpComparisonStatus.onlyInLocal:
-        return '仅本地';
+        return localizations?.mcpStatusOnlyLocal ?? '仅本地';
       case McpComparisonStatus.onlyInTool:
-        return '仅工具';
+        return localizations?.mcpStatusOnlyTool ?? '仅工具';
       case McpComparisonStatus.identical:
-        return '一致';
+        return localizations?.mcpStatusIdentical ?? '一致';
       case McpComparisonStatus.different:
         return '不同';
     }

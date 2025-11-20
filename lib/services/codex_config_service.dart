@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../models/ai_key.dart';
 import '../models/platform_type.dart';
+import '../services/platform_registry.dart';
 import '../services/auth_service.dart';
 import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
@@ -81,7 +82,7 @@ class CodexConfigService {
           // 检查平台类型匹配
           if (rule.platformType != null) {
             try {
-              final rulePlatformType = PlatformType.fromString(rule.platformType!);
+              final rulePlatformType = PlatformRegistry.fromString(rule.platformType!);
               platformMatches = rulePlatformType == platformType;
             } catch (e) {
               print('CodexConfigService: 无法解析平台类型 ${rule.platformType}: $e');

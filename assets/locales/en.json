@@ -152,8 +152,8 @@
   "security_settings_desc": "Manage master password and encryption settings.",
   "chinese": "中文",
   "english": "English",
-  "language_changed_zh": "Language switched to Chinese, restart app to take effect",
-  "language_changed_en": "Language changed to English, restart app to apply",
+  "downloading_language_pack": "Downloading language pack...",
+  "language_changed_success": "Language changed to English",
   "minimize_to_tray_desc_detail": "When checked, clicking close button will hide to system menu bar, otherwise exit app directly.",
   "minimize_to_tray_enabled": "Minimize to menu bar enabled, menu bar icon will appear after closing window",
   "refresh_key_list": "Refresh Key List",
@@ -388,5 +388,14 @@
   "config_already_latest": "Config template is already the latest version",
   "config_update_check_failed": "Update check failed",
   "config_date_today": "Today",
-  "config_date_yesterday": "Yesterday"
+  "config_date_yesterday": "Yesterday",
+  "codex_official_config_description": "Configure official OpenAI API Key for Codex official config. API Key will be securely stored locally and automatically written when switching to official config.",
+  "codex_official_api_key_label": "OpenAI API Key",
+  "codex_official_api_key_placeholder": "Please enter OpenAI API Key (sk-...)",
+  "gemini_official_config_description": "Configure official Google Gemini API Key for Gemini official config. API Key will be securely stored locally and automatically written to .env file when switching to official config.",
+  "gemini_official_api_key_label": "Gemini API Key",
+  "gemini_official_api_key_placeholder": "Please enter Gemini API Key",
+  "mcp_status_identical": "Identical",
+  "mcp_status_only_local": "Local Only",
+  "mcp_status_only_tool": "Tool Only"
 }

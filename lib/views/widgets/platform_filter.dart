@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/platform_type.dart';
+import '../../services/platform_registry.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/platform_icon_helper.dart';
 
@@ -43,7 +44,7 @@ class PlatformFilter extends StatelessWidget {
                                   value: null,
                                   child: Text(localizations?.allPlatforms ?? '全部平台'),
                                 ),
-                ...PlatformType.all.map((platform) {
+                ...PlatformRegistry.all.map((platform) {
                   return DropdownMenuItem<PlatformType>(
                     value: platform,
                     child: Row(

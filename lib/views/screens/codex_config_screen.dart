@@ -1310,7 +1310,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                '配置官方 OpenAI API Key，用于 Codex 官方配置。API Key 将安全存储在本地，切换到官方配置时自动写入。',
+                                localizations?.codexOfficialConfigDescription ?? '配置官方 OpenAI API Key，用于 Codex 官方配置。API Key 将安全存储在本地，切换到官方配置时自动写入。',
                                 style: shadTheme.textTheme.small.copyWith(
                                   color: shadTheme.colorScheme.mutedForeground,
                                 ),
@@ -1328,8 +1328,8 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
                           return ShadInputFormField(
                             id: 'openaiApiKey',
                             controller: apiKeyController,
-                            label: Text('OpenAI API Key'),
-                            placeholder: Text('请输入 OpenAI API Key (sk-...)'),
+                            label: Text(localizations?.codexOfficialApiKeyLabel ?? 'OpenAI API Key'),
+                            placeholder: Text(localizations?.codexOfficialApiKeyPlaceholder ?? '请输入 OpenAI API Key (sk-...)'),
                             leading: Padding(
                               padding: const EdgeInsets.all(4.0),
                               child: Icon(Icons.key, size: 18, color: iconColor),

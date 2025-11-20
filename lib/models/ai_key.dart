@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'platform_type.dart';
+import '../services/platform_registry.dart';
 
 /// AI密钥数据模型
 class AIKey extends Equatable {
@@ -206,7 +207,7 @@ class AIKey extends Equatable {
       id: map['id']?.toInt(),
       name: map['name'] ?? '',
       platform: map['platform'] ?? '',
-      platformType: PlatformType.values[map['platform_type']?.toInt() ?? 0],
+      platformType: PlatformRegistry.values[map['platform_type']?.toInt() ?? 0],
       managementUrl: map['management_url'],
       apiEndpoint: map['api_endpoint'],
       keyValue: map['key_value'] ?? '',

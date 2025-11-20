@@ -394,6 +394,34 @@ class CloudConfigService {
     return config?.config;
   }
 
+  /// 获取缓存的配置数据（同步访问）
+  CloudConfigData? get cachedConfigData => _cachedConfig?.config;
+  
+  /// 获取支持的语言列表
+  List<SupportedLanguage> get supportedLanguages {
+    final configData = _cachedConfig?.config;
+    if (configData?.supportedLanguages != null && configData!.supportedLanguages!.isNotEmpty) {
+      return configData.supportedLanguages!;
+    }
+    // 默认返回中英文
+    return [
+      SupportedLanguage(
+        code: 'zh',
+        name: 'Chinese',
+        nativeName: '简体中文',
+        file: 'zh.json',
+        lastUpdated: DateTime.now().toIso8601String(),
+      ),
+      SupportedLanguage(
+        code: 'en',
+        name: 'English',
+        nativeName: 'English',
+        file: 'en.json',
+        lastUpdated: DateTime.now().toIso8601String(),
+      ),
+    ];
+  }
+
   /// 清除缓存
   Future<void> clearCache() async {
     await init();

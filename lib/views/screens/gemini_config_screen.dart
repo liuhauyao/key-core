@@ -1214,7 +1214,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                '配置官方 Google Gemini API Key，用于 Gemini 官方配置。API Key 将安全存储在本地，切换到官方配置时自动写入到 .env 文件。',
+                                localizations?.geminiOfficialConfigDescription ?? '配置官方 Google Gemini API Key，用于 Gemini 官方配置。API Key 将安全存储在本地，切换到官方配置时自动写入到 .env 文件。',
                                 style: shadTheme.textTheme.small.copyWith(
                                   color: shadTheme.colorScheme.mutedForeground,
                                 ),
@@ -1232,8 +1232,8 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
                           return ShadInputFormField(
                             id: 'geminiApiKey',
                             controller: apiKeyController,
-                            label: Text('Gemini API Key'),
-                            placeholder: Text('请输入 Gemini API Key'),
+                            label: Text(localizations?.geminiOfficialApiKeyLabel ?? 'Gemini API Key'),
+                            placeholder: Text(localizations?.geminiOfficialApiKeyPlaceholder ?? '请输入 Gemini API Key'),
                             leading: Padding(
                               padding: const EdgeInsets.all(4.0),
                               child: Icon(Icons.key, size: 18, color: iconColor),

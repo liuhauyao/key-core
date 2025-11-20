@@ -154,8 +154,8 @@
   "security_settings_desc": "管理主密码和加密设置。",
   "chinese": "中文",
   "english": "English",
-  "language_changed_zh": "语言已切换为中文，重启应用后生效",
-  "language_changed_en": "Language changed to English, restart app to apply",
+  "downloading_language_pack": "正在下载语言包...",
+  "language_changed_success": "语言已切换为简体中文",
   "minimize_to_tray_desc_detail": "勾选后点击关闭按钮会隐藏到系统状态栏，取消则直接退出应用。",
   "minimize_to_tray_enabled": "已启用最小化到状态栏，关闭窗口后状态栏图标将出现",
   "refresh_key_list": "刷新密钥列表",
@@ -411,5 +411,14 @@
   "config_already_latest": "配置模板已是最新版本",
   "config_update_check_failed": "检查更新失败",
   "config_date_today": "今天",
-  "config_date_yesterday": "昨天"
+  "config_date_yesterday": "昨天",
+  "codex_official_config_description": "配置官方 OpenAI API Key，用于 Codex 官方配置。API Key 将安全存储在本地，切换到官方配置时自动写入。",
+  "codex_official_api_key_label": "OpenAI API Key",
+  "codex_official_api_key_placeholder": "请输入 OpenAI API Key (sk-...)",
+  "gemini_official_config_description": "配置官方 Google Gemini API Key，用于 Gemini 官方配置。API Key 将安全存储在本地，切换到官方配置时自动写入到 .env 文件。",
+  "gemini_official_api_key_label": "Gemini API Key",
+  "gemini_official_api_key_placeholder": "请输入 Gemini API Key",
+  "mcp_status_identical": "一致",
+  "mcp_status_only_local": "仅本地",
+  "mcp_status_only_tool": "仅工具"
 }

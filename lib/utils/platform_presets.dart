@@ -1,5 +1,6 @@
 import '../models/platform_type.dart';
 import '../services/cloud_config_service.dart';
+import '../services/platform_registry.dart';
 import '../models/unified_provider_config.dart';
 
 /// 平台预设信息
@@ -9,7 +10,7 @@ class PlatformPreset {
   final String? apiEndpoint;
   final String? defaultName;
 
-  const PlatformPreset({
+  PlatformPreset({
     required this.platformType,
     this.managementUrl,
     this.apiEndpoint,
@@ -52,8 +53,9 @@ class PlatformPresets {
     for (final provider in providers) {
       try {
         if (provider.platform != null) {
-          final platformType = PlatformType.fromString(provider.platformType);
-          if (platformType != PlatformType.custom) {
+          final platformType = PlatformRegistry.fromString(provider.platformType);
+          final customType = PlatformRegistry.get('custom');
+          if (platformType != customType) {
             loadedPresets[platformType] = PlatformPreset(
               platformType: platformType,
               managementUrl: provider.platform!.managementUrl,
@@ -94,7 +96,8 @@ class PlatformPresets {
   }
 
   /// 默认平台预设信息（向后兼容）
-  static const Map<PlatformType, PlatformPreset> _defaultPresets = {
+  /// 注意：改为 final 而不是 const，因为 PlatformType 不再是枚举
+  static final Map<PlatformType, PlatformPreset> _defaultPresets = {
     PlatformType.openAI: PlatformPreset(
       platformType: PlatformType.openAI,
       managementUrl: 'https://platform.openai.com/api-keys',
