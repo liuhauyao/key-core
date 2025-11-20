@@ -1,4 +1,0 @@
-
-module file_picker.__Swift {
-  exclude header "file_picker-Swift.h"
-}

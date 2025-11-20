@@ -1,4 +1,0 @@
-
-module clipboard_watcher.__Swift {
-  exclude header "clipboard_watcher-Swift.h"
-}

@@ -1,5 +1,0 @@
-
-module clipboard_watcher.Swift {
-  header "clipboard_watcher-Swift.h"
-  requires objc
-}
