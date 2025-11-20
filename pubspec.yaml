@@ -59,3 +59,4 @@ flutter:
     - assets/icons/
     - assets/icons/platforms/
     - assets/config/
+    - assets/locales/

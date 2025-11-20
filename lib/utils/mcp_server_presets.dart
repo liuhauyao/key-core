@@ -80,15 +80,15 @@ class McpServerPresets {
   static List<McpServerTemplate>? _cachedTemplates;
 
   /// 初始化配置（从云端或本地加载）
-  static Future<void> init() async {
+  static Future<void> init({bool forceRefresh = false}) async {
     await _configService.init();
-    await _loadTemplates();
+    await _loadTemplates(forceRefresh: forceRefresh);
   }
 
   /// 加载MCP服务器模板配置
-  static Future<void> _loadTemplates() async {
+  static Future<void> _loadTemplates({bool forceRefresh = false}) async {
     try {
-      final configData = await _configService.getConfigData();
+      final configData = await _configService.getConfigData(forceRefresh: forceRefresh);
       if (configData != null && configData.mcpServerTemplates.isNotEmpty) {
         final loadedTemplates = configData.mcpServerTemplates.map((templateConfig) {
           try {

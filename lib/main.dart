@@ -10,6 +10,7 @@ import 'views/screens/main_screen.dart';
 import 'utils/app_localizations.dart';
 import 'services/settings_service.dart';
 import 'services/cloud_config_service.dart';
+import 'services/language_pack_service.dart';
 import 'services/macos_preferences_bridge.dart';
 import 'services/status_bar_menu_bridge.dart';
 import 'config/provider_config.dart';
@@ -27,6 +28,10 @@ void main() async {
   final cloudConfigService = CloudConfigService();
   await cloudConfigService.init();
   
+  // 初始化语言包服务
+  final languagePackService = LanguagePackService();
+  await languagePackService.init();
+  
   // 强制从 assets 加载默认配置（确保首次启动时使用完整配置）
   try {
     final defaultConfig = await cloudConfigService.loadLocalDefaultConfig();
@@ -43,6 +48,16 @@ void main() async {
   await PlatformPresets.init();
   await McpServerPresets.init();
   
+  // 获取当前语言设置并检查语言包更新
+  final currentLanguage = await settingsService.getLanguage();
+  languagePackService.checkLanguagePackUpdate(currentLanguage).then((hasUpdate) {
+    if (hasUpdate) {
+      print('Main: 语言包已更新: $currentLanguage');
+    }
+  }).catchError((e) {
+    print('Main: 检查语言包更新失败: $e');
+  });
+  
   // 打印加载状态用于调试
   print('Main: ProviderConfig ClaudeCode 供应商数量: ${ProviderConfig.claudeCodeProviders.length}');
   print('Main: ProviderConfig Codex 供应商数量: ${ProviderConfig.codexProviders.length}');
@@ -50,12 +65,19 @@ void main() async {
   print('Main: McpServerPresets 模板数量: ${McpServerPresets.allTemplates.length}');
   
   // 异步检查配置更新（不阻塞应用启动）
-  cloudConfigService.checkForUpdates().then((hasUpdate) async {
+  // 测试时使用 force: true 强制检查更新
+  cloudConfigService.checkForUpdates(force: true).then((hasUpdate) async {
     if (hasUpdate) {
-      // 如果有更新，重新加载配置
-      await ProviderConfig.init();
-      await PlatformPresets.init();
-      await McpServerPresets.init();
+      print('Main: 配置已更新，重新加载所有配置模块');
+      // 如果有更新，强制刷新并重新加载配置模块
+      await ProviderConfig.init(forceRefresh: true);
+      await PlatformPresets.init(forceRefresh: true);
+      await McpServerPresets.init(forceRefresh: true);
+      // 打印更新后的状态
+      print('Main: 更新后 - ProviderConfig ClaudeCode 供应商数量: ${ProviderConfig.claudeCodeProviders.length}');
+      print('Main: 更新后 - ProviderConfig Codex 供应商数量: ${ProviderConfig.codexProviders.length}');
+      print('Main: 更新后 - PlatformPresets 预设数量: ${PlatformPresets.presetPlatforms.length}');
+      print('Main: 更新后 - McpServerPresets 模板数量: ${McpServerPresets.allTemplates.length}');
     }
   }).catchError((e) {
     // 静默忽略错误，不影响应用启动

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../services/language_pack_service.dart';
 
 /// 应用本地化
 class AppLocalizations {
   final Locale locale;
+  final Map<String, String>? _jsonTranslations; // 从JSON加载的翻译
 
-  AppLocalizations(this.locale);
+  AppLocalizations(this.locale, [this._jsonTranslations]);
 
   static AppLocalizations? of(BuildContext context) {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
@@ -12,6 +14,8 @@ class AppLocalizations {
 
   static const LocalizationsDelegate<AppLocalizations> delegate =
       _AppLocalizationsDelegate();
+  
+  static final LanguagePackService _languagePackService = LanguagePackService();
 
   static final Map<String, Map<String, String>> _localizedValues = {
     'zh': {
@@ -429,6 +433,16 @@ class AppLocalizations {
           '全局配置：存储在 ~/.claude.json 的 mcpServers 字段\n'
           '项目配置：存储在 ~/.claude.json 的 projects[项目路径].mcpServers 字段',
       'mcp_project_uses_global_config': '该项目没有单独配置，将使用全局配置',
+      // 配置模板更新相关
+      'config_template_update': '配置模板更新',
+      'cloud_config': '云端配置',
+      'config_current_date': '当前日期',
+      'check_update': '检查更新',
+      'config_update_success': '配置模板已更新',
+      'config_already_latest': '配置模板已是最新版本',
+      'config_update_check_failed': '检查更新失败',
+      'config_date_today': '今天',
+      'config_date_yesterday': '昨天',
     },
     'en': {
       'app_name': 'Key Core',
@@ -822,10 +836,25 @@ class AppLocalizations {
           'Global Config: Stored in mcpServers field of ~/.claude.json\n'
           'Project Config: Stored in projects[projectPath].mcpServers field of ~/.claude.json',
       'mcp_project_uses_global_config': 'This project has no separate config, will use global config',
+      // Config template update related
+      'config_template_update': 'Config Template Update',
+      'cloud_config': 'Cloud Config',
+      'config_current_date': 'Current Date',
+      'check_update': 'Check Update',
+      'config_update_success': 'Config template updated',
+      'config_already_latest': 'Config template is already the latest version',
+      'config_update_check_failed': 'Update check failed',
+      'config_date_today': 'Today',
+      'config_date_yesterday': 'Yesterday',
     },
   };
 
   String translate(String key) {
+    // 优先使用从JSON加载的翻译
+    if (_jsonTranslations != null && _jsonTranslations!.containsKey(key)) {
+      return _jsonTranslations![key]!;
+    }
+    // 回退到硬编码的翻译
     return _localizedValues[locale.languageCode]?[key] ?? key;
   }
 
@@ -1222,6 +1251,16 @@ class AppLocalizations {
   String get mcpGlobalConfig => translate('mcp_global_config');
   String get mcpClaudeCodeScopeHelp => translate('mcp_claude_code_scope_help');
   String get mcpProjectUsesGlobalConfig => translate('mcp_project_uses_global_config');
+  // Config template update related
+  String get configTemplateUpdate => translate('config_template_update');
+  String get cloudConfig => translate('cloud_config');
+  String get configCurrentDate => translate('config_current_date');
+  String get checkUpdate => translate('check_update');
+  String get configUpdateSuccess => translate('config_update_success');
+  String get configAlreadyLatest => translate('config_already_latest');
+  String get configUpdateCheckFailed => translate('config_update_check_failed');
+  String get configDateToday => translate('config_date_today');
+  String get configDateYesterday => translate('config_date_yesterday');
 }
 
 class _AppLocalizationsDelegate
@@ -1230,12 +1269,22 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) {
-    return ['zh', 'en'].contains(locale.languageCode);
+    // 支持动态语言列表，默认支持 zh 和 en
+    // 实际支持的语言列表从配置文件中获取
+    return true; // 允许所有语言代码，由 LanguagePackService 处理
   }
 
   @override
   Future<AppLocalizations> load(Locale locale) async {
-    return AppLocalizations(locale);
+    // 初始化语言包服务
+    await AppLocalizations._languagePackService.init();
+    
+    // 尝试加载语言包
+    final languageCode = locale.languageCode;
+    final jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(languageCode);
+    
+    // 创建 AppLocalizations 实例，传入 JSON 翻译
+    return AppLocalizations(locale, jsonTranslations);
   }
 
   @override

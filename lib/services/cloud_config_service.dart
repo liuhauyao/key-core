@@ -17,12 +17,12 @@ class CloudConfigService {
   // 默认配置URL（GitHub Raw）- key-core-config 公开仓库
   // 格式: https://raw.githubusercontent.com/{owner}/{repo}/{branch}/app_config.json
   static const String _defaultConfigUrl = 
-      'https://raw.githubusercontent.com/liuhuayao/key-core-config/main/app_config.json';
+      'https://raw.githubusercontent.com/liuhauyao/key-core-config/main/app_config.json';
   
   // Gitee备选URL（国内用户）- key-core-config 公开仓库
   // 格式: https://gitee.com/{owner}/{repo}/raw/{branch}/app_config.json
   static const String _giteeConfigUrl = 
-      'https://gitee.com/liuhuayao/key-core-config/raw/main/app_config.json';
+      'https://gitee.com/liuhauyao/key-core-config/raw/main/app_config.json';
   
   // 更新检查间隔（24小时）
   static const Duration _updateCheckInterval = Duration(hours: 24);
@@ -62,6 +62,22 @@ class CloudConfigService {
   Future<String> getLocalConfigVersion() async {
     await init();
     return _prefs?.getString(_keyConfigVersion) ?? _defaultVersion;
+  }
+
+  /// 获取本地配置日期
+  Future<String?> getLocalConfigDate() async {
+    try {
+      final config = await loadLocalCachedConfig();
+      if (config != null) {
+        return config.lastUpdated;
+      }
+      // 如果缓存不存在，尝试从默认配置加载
+      final defaultConfig = await loadLocalDefaultConfig();
+      return defaultConfig?.lastUpdated;
+    } catch (e) {
+      print('CloudConfigService: 获取本地配置日期失败: $e');
+      return null;
+    }
   }
 
   /// 设置本地配置版本
@@ -214,6 +230,7 @@ class CloudConfigService {
 
   /// 检查更新
   /// 返回: true表示有更新，false表示无更新或检查失败
+  /// 基于时间戳比较，而非版本号
   Future<bool> checkForUpdates({bool force = false}) async {
     await init();
     
@@ -226,8 +243,10 @@ class CloudConfigService {
     // 记录检查时间
     await _recordUpdateCheck();
     
-    final localVersion = await getLocalConfigVersion();
-    print('CloudConfigService: 本地配置版本: $localVersion');
+    // 获取本地配置的时间戳
+    final localConfig = await loadLocalCachedConfig();
+    final localLastUpdated = localConfig?.lastUpdated;
+    print('CloudConfigService: 本地配置时间戳: $localLastUpdated');
     
     // 尝试从云端获取配置
     CloudConfig? cloudConfig = await fetchConfigFromCloud();
@@ -243,33 +262,59 @@ class CloudConfigService {
       return false;
     }
     
-    final cloudVersion = cloudConfig.version;
-    print('CloudConfigService: 云端配置版本: $cloudVersion');
+    final cloudLastUpdated = cloudConfig.lastUpdated;
+    print('CloudConfigService: 云端配置时间戳: $cloudLastUpdated');
     
-    // 比较版本
-    final versionCompare = compareVersions(localVersion, cloudVersion);
-    
-    if (versionCompare < 0) {
-      // 本地版本 < 云端版本，需要更新
-      print('CloudConfigService: 发现新版本，准备更新');
-      
-      // 保存到本地缓存
+    // 如果没有本地配置，直接更新
+    if (localLastUpdated == null) {
+      print('CloudConfigService: 本地无配置，准备更新');
       final saved = await saveConfigToCache(cloudConfig);
       if (saved) {
-        // 清除内存缓存，强制重新加载
         _cachedConfig = null;
         return true;
+      }
+      return false;
+    }
+    
+    // 比较时间戳
+    try {
+      final localDate = DateTime.parse(localLastUpdated);
+      final cloudDate = DateTime.parse(cloudLastUpdated);
+      
+      if (cloudDate.isAfter(localDate)) {
+        // 云端时间戳更新，需要更新
+        print('CloudConfigService: 发现新配置，准备更新');
+        final saved = await saveConfigToCache(cloudConfig);
+        if (saved) {
+          _cachedConfig = null;
+          return true;
+        } else {
+          print('CloudConfigService: 保存配置失败，更新中止');
+          return false;
+        }
       } else {
-        print('CloudConfigService: 保存配置失败，更新中止');
+        print('CloudConfigService: 配置已是最新版本');
         return false;
       }
-    } else if (versionCompare == 0) {
-      print('CloudConfigService: 配置已是最新版本');
-      return false;
-    } else {
-      // 本地版本 > 云端版本（开发环境可能）
-      print('CloudConfigService: 本地版本较新，使用本地配置');
-      return false;
+    } catch (e) {
+      print('CloudConfigService: 时间戳解析失败: $e，使用版本号比较');
+      // 回退到版本号比较
+      final localVersion = await getLocalConfigVersion();
+      final cloudVersion = cloudConfig.version;
+      final versionCompare = compareVersions(localVersion, cloudVersion);
+      
+      if (versionCompare < 0) {
+        print('CloudConfigService: 发现新版本，准备更新');
+        final saved = await saveConfigToCache(cloudConfig);
+        if (saved) {
+          _cachedConfig = null;
+          return true;
+        }
+        return false;
+      } else {
+        print('CloudConfigService: 配置已是最新版本');
+        return false;
+      }
     }
   }
 

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:file_picker/file_picker.dart';
 import '../../viewmodels/settings_viewmodel.dart';
@@ -12,10 +11,12 @@ import '../../viewmodels/mcp_viewmodel.dart';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/cloud_config_service.dart';
+import '../../services/language_pack_service.dart';
 import '../../config/provider_config.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/mcp_server_presets.dart';
 import '../../utils/app_localizations.dart';
+import '../../models/cloud_config.dart';
 import '../../models/mcp_server.dart';
 import '../widgets/master_password_dialog.dart';
 import '../widgets/tool_config_card.dart';
@@ -41,11 +42,12 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAliveClientMixin {
   final _authService = AuthService();
   final _cloudConfigService = CloudConfigService();
+  final _languagePackService = LanguagePackService();
   bool _hasPassword = false;
   SettingsCategory _selectedCategory = SettingsCategory.general;
   bool _isCheckingUpdate = false;
-  String? _updateStatus;
-  String? _configVersion;
+  String? _configDate;
+  List<SupportedLanguage> _supportedLanguages = [];
 
   @override
   bool get wantKeepAlive => true; // 保持状态，防止重建时丢失选中分类
@@ -54,7 +56,22 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
   void initState() {
     super.initState();
     _checkPasswordStatus();
-    _loadConfigVersion();
+    _loadConfigDate();
+    _loadSupportedLanguages();
+  }
+
+  Future<void> _loadSupportedLanguages({bool forceRefresh = false}) async {
+    await _languagePackService.init();
+    // 如果强制刷新，先清除 CloudConfigService 的缓存
+    if (forceRefresh) {
+      await _cloudConfigService.loadConfig(forceRefresh: true);
+    }
+    final languages = await _languagePackService.getSupportedLanguages();
+    if (mounted) {
+      setState(() {
+        _supportedLanguages = languages;
+      });
+    }
   }
 
   Future<void> _checkPasswordStatus() async {
@@ -64,47 +81,113 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     });
   }
 
-  Future<void> _loadConfigVersion() async {
+  Future<void> _loadConfigDate() async {
     await _cloudConfigService.init();
-    final version = await _cloudConfigService.getLocalConfigVersion();
-    setState(() {
-      _configVersion = version;
-    });
+    final dateStr = await _cloudConfigService.getLocalConfigDate();
+    if (dateStr != null && mounted) {
+      try {
+        final date = DateTime.parse(dateStr);
+        final localizations = AppLocalizations.of(context);
+        if (localizations != null) {
+          final formattedDate = _formatDate(date, localizations);
+          setState(() {
+            _configDate = formattedDate;
+          });
+        } else {
+          // 如果本地化未准备好，使用简单格式
+          setState(() {
+            _configDate = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _configDate = dateStr;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _configDate = null;
+        });
+      }
+    }
+  }
+
+  String _formatDate(DateTime date, AppLocalizations localizations) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    
+    if (dateOnly == today) {
+      return localizations.configDateToday;
+    } else if (dateOnly == today.subtract(const Duration(days: 1))) {
+      return localizations.configDateYesterday;
+    } else {
+      // 格式化日期：YYYY-MM-DD
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    }
   }
 
   Future<void> _checkForUpdates() async {
+    if (!mounted) return;
+    
     setState(() {
       _isCheckingUpdate = true;
-      _updateStatus = null;
     });
 
     try {
       await _cloudConfigService.init();
       final hasUpdate = await _cloudConfigService.checkForUpdates(force: true);
       
+      if (!mounted) return;
+      
       if (hasUpdate) {
-        // 重新加载所有配置模块
-        await ProviderConfig.init();
-        await PlatformPresets.init();
-        await McpServerPresets.init();
-        final newVersion = await _cloudConfigService.getLocalConfigVersion();
-        setState(() {
-          _updateStatus = '配置已更新到版本 $newVersion';
-          _configVersion = newVersion;
-        });
+        // 重新加载所有配置模块（强制刷新）
+        await ProviderConfig.init(forceRefresh: true);
+        await PlatformPresets.init(forceRefresh: true);
+        await McpServerPresets.init(forceRefresh: true);
+        // 重新加载日期和语言列表（强制刷新）
+        await _loadConfigDate();
+        await _loadSupportedLanguages(forceRefresh: true);
+        final localizations = AppLocalizations.of(context);
+        if (localizations != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localizations.configUpdateSuccess),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       } else {
-        setState(() {
-          _updateStatus = '配置已是最新版本';
-        });
+        final localizations = AppLocalizations.of(context);
+        if (localizations != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localizations.configAlreadyLatest),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       }
     } catch (e) {
-      setState(() {
-        _updateStatus = '检查更新失败: $e';
-      });
+      if (!mounted) return;
+      final localizations = AppLocalizations.of(context);
+      if (localizations != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${localizations.configUpdateCheckFailed}: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isCheckingUpdate = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isCheckingUpdate = false;
+        });
+      }
     }
   }
 
@@ -298,10 +381,10 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                 _buildWindowBehaviorControl(context, localizations, settingsViewModel),
               ),
         const SizedBox(height: 32),
-              // 配置更新
+              // 配置模板更新
               _buildSettingSection(
                 context,
-                '配置更新',
+                localizations.configTemplateUpdate,
                 _buildConfigUpdateSettings(context, localizations),
               ),
       ],
@@ -331,7 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '云端配置',
+                      localizations.cloudConfig,
                       style: shadTheme.textTheme.p.copyWith(
                         fontWeight: FontWeight.w600,
                         color: shadTheme.colorScheme.foreground,
@@ -339,9 +422,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _configVersion != null
-                          ? '当前版本: $_configVersion'
-                          : '加载中...',
+                      _configDate != null
+                          ? '${localizations.configCurrentDate}: $_configDate'
+                          : localizations.loading,
                       style: shadTheme.textTheme.small.copyWith(
                         color: shadTheme.colorScheme.mutedForeground,
                       ),
@@ -361,26 +444,10 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                             ),
                           ),
                         )
-                      : const Text('检查更新'),
+                      : Text(localizations.checkUpdate),
                 ),
               ],
             ),
-            if (_updateStatus != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: shadTheme.colorScheme.background,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _updateStatus!,
-                  style: shadTheme.textTheme.small.copyWith(
-                    color: shadTheme.colorScheme.foreground,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -599,81 +666,80 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     SettingsViewModel settingsViewModel,
   ) {
     final shadTheme = ShadTheme.of(context);
-    final isZh = settingsViewModel.currentLanguage == 'zh';
+    final currentLanguage = settingsViewModel.currentLanguage;
     
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: shadTheme.colorScheme.border,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildSegmentedItem(
-            context,
-            localizations.chinese,
-            isZh,
-            () {
-              settingsViewModel.setLanguage('zh');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(localizations.languageChangedZh),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
-          ),
-          _buildSegmentedItem(
-            context,
-            localizations.english,
-            !isZh,
-            () {
-              settingsViewModel.setLanguage('en');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(localizations.languageChangedEn),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSegmentedItem(
-    BuildContext context,
-    String label,
-    bool isActive,
-    VoidCallback onTap,
-  ) {
-    final shadTheme = ShadTheme.of(context);
+    // 如果没有加载到支持的语言列表，使用默认的中英文
+    final languages = _supportedLanguages.isEmpty
+        ? [
+            SupportedLanguage(
+              code: 'zh',
+              name: 'Chinese',
+              nativeName: '简体中文',
+              file: 'zh.json',
+              lastUpdated: DateTime.now().toIso8601String(),
+            ),
+            SupportedLanguage(
+              code: 'en',
+              name: 'English',
+              nativeName: 'English',
+              file: 'en.json',
+              lastUpdated: DateTime.now().toIso8601String(),
+            ),
+          ]
+        : _supportedLanguages;
     
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive 
-              ? shadTheme.colorScheme.primary
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          style: shadTheme.textTheme.small.copyWith(
-            color: isActive 
-                ? shadTheme.colorScheme.primaryForeground
-                : shadTheme.colorScheme.mutedForeground,
-            fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
-          ),
-        ),
+    return ShadSelect<String>(
+      initialValue: currentLanguage,
+      placeholder: Text(
+        localizations.interfaceLanguage,
+        style: shadTheme.textTheme.small,
       ),
+      options: languages.map((lang) {
+        return ShadOption<String>(
+          value: lang.code,
+          child: Text(
+            lang.nativeName,
+            style: shadTheme.textTheme.small,
+          ),
+        );
+      }).toList(),
+      selectedOptionBuilder: (context, value) {
+        final lang = languages.firstWhere(
+          (l) => l.code == value,
+          orElse: () => languages.first,
+        );
+        return Text(
+          lang.nativeName,
+          style: shadTheme.textTheme.small,
+        );
+      },
+      onChanged: (String? newLanguage) async {
+        if (newLanguage != null && newLanguage != currentLanguage) {
+          // 确保语言包已下载
+          await _languagePackService.loadLanguagePack(newLanguage);
+          // 切换语言
+          await settingsViewModel.setLanguage(newLanguage);
+          // 显示提示消息
+          if (mounted) {
+            final selectedLang = languages.firstWhere(
+              (l) => l.code == newLanguage,
+              orElse: () => languages.first,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  newLanguage == 'zh'
+                      ? localizations.languageChangedZh
+                      : newLanguage == 'en'
+                          ? localizations.languageChangedEn
+                          : 'Language changed to ${selectedLang.nativeName}',
+                ),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      },
     );
   }
 

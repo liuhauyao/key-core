@@ -405,6 +405,43 @@ class ProviderCategoryInfo {
   }
 }
 
+/// 支持的语言配置
+class SupportedLanguage {
+  final String code; // 语言代码，如 "zh", "en", "ja"
+  final String name; // 英文名称，如 "Chinese", "English"
+  final String nativeName; // 原生名称，如 "中文", "English", "日本語"
+  final String file; // 语言包文件名，如 "zh.json"
+  final String lastUpdated; // 最后更新时间（ISO 8601 格式）
+
+  SupportedLanguage({
+    required this.code,
+    required this.name,
+    required this.nativeName,
+    required this.file,
+    required this.lastUpdated,
+  });
+
+  factory SupportedLanguage.fromJson(Map<String, dynamic> json) {
+    return SupportedLanguage(
+      code: json['code'] as String,
+      name: json['name'] as String,
+      nativeName: json['nativeName'] as String,
+      file: json['file'] as String,
+      lastUpdated: json['lastUpdated'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'code': code,
+      'name': name,
+      'nativeName': nativeName,
+      'file': file,
+      'lastUpdated': lastUpdated,
+    };
+  }
+}
+
 /// 云端配置根对象
 class CloudConfig {
   final String version;
@@ -447,6 +484,7 @@ class CloudConfigData {
   final CodexAuthConfig codexAuthConfig;
   final PlatformIconMapping? platformIconMapping;
   final List<ProviderCategoryInfo>? providerCategories;
+  final List<SupportedLanguage>? supportedLanguages; // 支持的语言列表
 
   CloudConfigData({
     required this.providers,
@@ -454,6 +492,7 @@ class CloudConfigData {
     required this.codexAuthConfig,
     this.platformIconMapping,
     this.providerCategories,
+    this.supportedLanguages,
   });
 
   factory CloudConfigData.fromJson(Map<String, dynamic> json) {
@@ -477,6 +516,11 @@ class CloudConfigData {
               .map((e) => ProviderCategoryInfo.fromJson(e as Map<String, dynamic>))
               .toList()
           : null,
+      supportedLanguages: json['supportedLanguages'] != null
+          ? (json['supportedLanguages'] as List)
+              .map((e) => SupportedLanguage.fromJson(e as Map<String, dynamic>))
+              .toList()
+          : null,
     );
   }
 
@@ -491,6 +535,9 @@ class CloudConfigData {
       if (providerCategories != null)
         'providerCategories':
             providerCategories!.map((e) => e.toJson()).toList(),
+      if (supportedLanguages != null)
+        'supportedLanguages':
+            supportedLanguages!.map((e) => e.toJson()).toList(),
     };
   }
 }

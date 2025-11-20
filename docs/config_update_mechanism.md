@@ -1,8 +1,8 @@
-# 配置更新机制说明
+# 配置同步更新机制
 
 ## 概述
 
-本文档详细说明密枢（Key Core）项目的配置云端更新机制，包括架构设计、实现细节和使用流程。
+本文档说明密枢（Key Core）项目的配置云端同步更新机制，包括架构设计、实现细节和操作流程。
 
 ## 架构设计
 
@@ -11,7 +11,7 @@
 - **key-core**: 私有仓库，存储核心代码和应用逻辑
 - **key-core-config**: 公开仓库，存储配置文件和简单说明
 
-这种设计的优势：
+**优势**：
 1. **安全性**: 核心代码保持私有，配置信息可以公开
 2. **灵活性**: 配置更新无需重新编译和发布应用
 3. **可维护性**: 配置和代码分离，便于独立维护
@@ -21,7 +21,7 @@
 1. **开发阶段**: 在 key-core 私有仓库中修改 `assets/config/app_config.json`
 2. **更新版本**: 更新配置文件的 `version` 和 `lastUpdated` 字段
 3. **复制配置**: 手动将更新后的配置文件复制到 key-core-config 仓库
-4. **提交更新**: 提交并推送到 key-core-config 公开仓库
+4. **提交更新**: 提交并推送到 key-core-config 公开仓库（GitHub 和 Gitee）
 5. **用户更新**: 用户端应用自动检测并下载最新配置
 
 ## 配置加载优先级
@@ -87,10 +87,7 @@
 
 ### CloudConfigService
 
-`CloudConfigService` 是配置管理的核心服务，位于：
-```
-lib/services/cloud_config_service.dart
-```
+`CloudConfigService` 是配置管理的核心服务，位于 `lib/services/cloud_config_service.dart`。
 
 #### 主要功能
 
@@ -103,37 +100,26 @@ lib/services/cloud_config_service.dart
 
 默认配置 URL（GitHub）:
 ```dart
-https://raw.githubusercontent.com/liuhuayao/key-core-config/main/app_config.json
+https://raw.githubusercontent.com/liuhauyao/key-core-config/main/app_config.json
 ```
 
 备选配置 URL（Gitee，国内用户）:
 ```dart
-https://gitee.com/liuhuayao/key-core-config/raw/main/app_config.json
+https://gitee.com/liuhauyao/key-core-config/raw/main/app_config.json
 ```
+
+应用会优先尝试 GitHub，失败时自动切换到 Gitee。
 
 #### 关键方法
 
 - `init()`: 初始化服务
-- `loadConfig()`: 加载配置（按优先级）
+- `getConfigData()`: 获取配置数据（按优先级）
 - `checkForUpdates()`: 检查更新
 - `fetchConfigFromCloud()`: 从云端获取配置
 - `saveConfigToCache()`: 保存配置到本地缓存
 - `loadLocalCachedConfig()`: 加载本地缓存配置
 - `loadLocalDefaultConfig()`: 加载默认配置（assets）
-
-### 配置结构定义
-
-配置文件结构定义在：
-```
-lib/models/cloud_config.dart
-```
-
-主要类型：
-- `CloudConfig`: 配置根对象
-- `CloudConfigData`: 配置数据对象
-- `UnifiedProviderConfig`: 统一供应商配置
-- `McpServerTemplateConfig`: MCP 服务器模板配置
-- `CodexAuthConfig`: Codex 认证配置
+- `getLocalConfigDate()`: 获取本地配置日期
 
 ### 配置使用模块
 
@@ -151,32 +137,114 @@ lib/models/cloud_config.dart
    - 加载平台预设信息
    - 提供平台预设列表
 
-## 使用流程
+## 配置更新操作流程
 
-### 首次启动
+### 开发者操作步骤
 
-1. 应用启动时，`CloudConfigService.init()` 被调用
-2. 尝试从本地缓存加载配置
-3. 如果本地缓存不存在，从 assets 加载默认配置
-4. 保存默认配置到本地缓存
-5. 异步检查云端更新（不阻塞启动）
+1. **修改配置**
+   - 在 key-core 项目中编辑 `assets/config/app_config.json`
+   - 参考 `docs/config_format.md` 了解配置格式
 
-### 配置更新
+2. **更新版本信息**
+   - 更新 `version` 字段（遵循语义化版本规范）
+   - 更新 `lastUpdated` 字段为当前时间（ISO 8601 格式）
+   - 如有架构变更，更新 `schemaVersion`
 
-1. 应用检查是否需要更新（距离上次检查超过 24 小时）
-2. 从云端获取最新配置
-3. 比较版本号
-4. 如果有新版本，下载并保存到本地缓存
-5. 更新本地版本号
-6. 清除内存缓存，强制重新加载
-7. 重新初始化配置模块（ProviderConfig、McpServerPresets、PlatformPresets）
+3. **复制配置文件**
+   ```bash
+   cp /Users/liuhuayao/dev/key-core/assets/config/app_config.json \
+      /Users/liuhuayao/dev/key-core-config/app_config.json
+   ```
 
-### 配置加载
+4. **提交并推送**
+   ```bash
+   cd /Users/liuhuayao/dev/key-core-config
+   
+   # 添加文件
+   git add app_config.json
+   
+   # 提交（版本号会自动从配置文件中提取）
+   git commit -m "Update config: version X.Y.Z"
+   
+   # 推送到两个仓库
+   git push origin main
+   git push gitee main
+   ```
 
-1. 检查内存缓存
-2. 如果不存在，检查本地文件缓存
-3. 如果不存在，尝试从云端获取
-4. 如果失败，使用默认配置（assets）
+5. **验证更新**
+   - 等待几分钟让 CDN 更新
+   - 在应用中手动触发配置更新检查
+   - 验证新配置是否正确加载
+
+### 快速同步脚本
+
+可以创建脚本简化同步操作：
+
+```bash
+#!/bin/bash
+
+# 同步配置文件脚本
+
+KEY_CORE_DIR="/Users/liuhuayao/dev/key-core"
+CONFIG_DIR="/Users/liuhuayao/dev/key-core-config"
+
+# 复制配置文件
+cp "$KEY_CORE_DIR/assets/config/app_config.json" "$CONFIG_DIR/app_config.json"
+
+# 进入配置仓库目录
+cd "$CONFIG_DIR"
+
+# 检查是否有更改
+if git diff --quiet app_config.json; then
+    echo "配置文件无更改，无需同步"
+    exit 0
+fi
+
+# 获取版本号
+VERSION=$(jq -r '.version' app_config.json)
+
+# 添加并提交
+git add app_config.json
+git commit -m "Update config: version $VERSION"
+
+# 推送到两个仓库
+echo "推送到 GitHub..."
+git push origin main
+
+echo "推送到 Gitee..."
+git push gitee main
+
+echo "配置同步完成！"
+```
+
+## 仓库配置
+
+### 配置仓库地址
+
+- **GitHub**: https://github.com/liuhauyao/key-core-config
+- **Gitee**: https://gitee.com/liuhauyao/key-core-config
+
+### 本地仓库配置
+
+**位置**: `/Users/liuhuayao/dev/key-core-config`
+
+**远程仓库配置**:
+```bash
+origin   https://github.com/liuhauyao/key-core-config.git
+gitee    https://gitee.com/liuhauyao/key-core-config.git
+```
+
+**推送命令**:
+```bash
+# 推送到 GitHub
+git push origin main
+
+# 推送到 Gitee
+git push gitee main
+
+# 同时推送到两个仓库
+git push origin main && git push gitee main
+```
 
 ## 错误处理
 
@@ -221,37 +289,7 @@ lib/models/cloud_config.dart
 4. **超时控制**: 避免长时间等待网络响应
 5. **失败回退**: 快速回退到本地缓存或默认配置
 
-## 配置更新操作指南
-
-### 开发者操作流程
-
-1. **修改配置**
-   - 在 key-core 项目中编辑 `assets/config/app_config.json`
-   - 添加或修改供应商配置、MCP 模板等
-
-2. **更新版本信息**
-   - 更新 `version` 字段（遵循语义化版本规范）
-   - 更新 `lastUpdated` 字段为当前时间（ISO 8601 格式）
-   - 如有架构变更，更新 `schemaVersion`
-
-3. **复制配置文件**
-   - 将更新后的 `app_config.json` 复制到 key-core-config 仓库
-   - 确保文件路径正确：`key-core-config/app_config.json`
-
-4. **提交更新**
-   ```bash
-   cd /path/to/key-core-config
-   git add app_config.json
-   git commit -m "Update config: version X.Y.Z"
-   git push origin main
-   ```
-
-5. **验证更新**
-   - 等待几分钟让 CDN 更新
-   - 在应用中手动触发配置更新检查
-   - 验证新配置是否正确加载
-
-### 用户端体验
+## 用户端体验
 
 用户无需任何操作，应用会自动：
 
@@ -279,15 +317,6 @@ lib/models/cloud_config.dart
 - `README.md`: 仓库说明文档
 - `app_config.json`: 主配置文件
 
-## 总结
+## 相关文档
 
-通过 key-core-config 公开仓库实现配置云端更新，密枢应用可以：
-
-1. **灵活更新**: 无需重新编译即可更新配置
-2. **离线可用**: 本地缓存确保离线时也能使用
-3. **自动更新**: 自动检查并下载最新配置
-4. **安全可靠**: HTTPS 连接，错误处理完善
-5. **性能优化**: 多级缓存，异步加载
-
-这种设计既保证了配置的灵活性，又确保了应用的稳定性和性能。
-
+- `docs/config_format.md` - 配置文件格式详细说明

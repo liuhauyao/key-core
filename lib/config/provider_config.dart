@@ -131,15 +131,15 @@ class ProviderConfig {
   static List<CodexProvider>? _cachedCodexProviders;
 
   /// 初始化配置（从云端或本地加载）
-  static Future<void> init() async {
+  static Future<void> init({bool forceRefresh = false}) async {
     await _configService.init();
-    await _loadProviders();
+    await _loadProviders(forceRefresh: forceRefresh);
   }
 
   /// 加载供应商配置
-  static Future<void> _loadProviders() async {
+  static Future<void> _loadProviders({bool forceRefresh = false}) async {
     try {
-      final configData = await _configService.getConfigData();
+      final configData = await _configService.getConfigData(forceRefresh: forceRefresh);
       if (configData != null && configData.providers.isNotEmpty) {
         await _loadFromUnifiedProviders(configData.providers);
       } else {
