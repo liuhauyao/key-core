@@ -1,0 +1,11 @@
+/* 
+  InfoPlist.strings
+  English Application Name Localization
+*/
+
+/* Application display name (shown in Dock, menu bar, etc.) */
+"CFBundleDisplayName" = "Key Core";
+
+/* Application name (internal use, usually same as display name) */
+"CFBundleName" = "Key Core";
+

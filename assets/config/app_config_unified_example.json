@@ -1,0 +1,161 @@
+{
+  "version": "2.0.0",
+  "schemaVersion": 2,
+  "lastUpdated": "2024-01-01T00:00:00Z",
+  "config": {
+    "providers": [
+      {
+        "id": "anthropic",
+        "name": "Claude Official",
+        "platformType": "anthropic",
+        "categories": ["claudeCode", "popular"],
+        "providerCategory": "official",
+        "websiteUrl": "https://www.anthropic.com/claude-code",
+        "isOfficial": true,
+        "claudeCode": {
+          "baseUrl": "https://api.anthropic.com",
+          "modelConfig": {
+            "mainModel": ""
+          }
+        },
+        "platform": {
+          "managementUrl": "https://console.anthropic.com/settings/keys",
+          "apiEndpoint": "https://api.anthropic.com/v1",
+          "defaultName": "Anthropic API Key"
+        }
+      },
+      {
+        "id": "openAI",
+        "name": "OpenAI Official",
+        "platformType": "openAI",
+        "categories": ["codex", "popular"],
+        "providerCategory": "official",
+        "websiteUrl": "https://chatgpt.com/codex",
+        "isOfficial": true,
+        "codex": {
+          "baseUrl": "https://api.openai.com/v1",
+          "model": "gpt-5-codex"
+        },
+        "platform": {
+          "managementUrl": "https://platform.openai.com/api-keys",
+          "apiEndpoint": "https://api.openai.com/v1",
+          "defaultName": "OpenAI API Key"
+        }
+      },
+      {
+        "id": "deepSeek",
+        "name": "DeepSeek",
+        "platformType": "deepSeek",
+        "categories": ["claudeCode", "popular"],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://platform.deepseek.com",
+        "claudeCode": {
+          "baseUrl": "https://api.deepseek.com/anthropic",
+          "modelConfig": {
+            "mainModel": "DeepSeek-V3.2-Exp",
+            "haikuModel": "DeepSeek-V3.2-Exp",
+            "sonnetModel": "DeepSeek-V3.2-Exp",
+            "opusModel": "DeepSeek-V3.2-Exp"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://platform.deepseek.com",
+          "apiEndpoint": "https://api.deepseek.com/v1",
+          "defaultName": "DeepSeek API Key"
+        }
+      },
+      {
+        "id": "zhipu",
+        "name": "Zhipu GLM",
+        "platformType": "zhipu",
+        "categories": ["claudeCode", "popular"],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://open.bigmodel.cn",
+        "apiKeyUrl": "https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII",
+        "isPartner": true,
+        "claudeCode": {
+          "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+          "modelConfig": {
+            "mainModel": "glm-4.6",
+            "haikuModel": "glm-4.5-air",
+            "sonnetModel": "glm-4.6",
+            "opusModel": "glm-4.6"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://open.bigmodel.cn",
+          "apiEndpoint": "https://open.bigmodel.cn/api/paas/v4",
+          "defaultName": "智谱AI API Key"
+        }
+      },
+      {
+        "id": "openRouter",
+        "name": "OpenRouter",
+        "platformType": "openRouter",
+        "categories": ["claudeCode", "codex", "popular"],
+        "providerCategory": "aggregator",
+        "websiteUrl": "https://openrouter.ai",
+        "apiKeyUrl": "https://openrouter.ai/keys",
+        "claudeCode": {
+          "baseUrl": "https://openrouter.ai/api/v1",
+          "modelConfig": {
+            "mainModel": ""
+          }
+        },
+        "codex": {
+          "baseUrl": "https://openrouter.ai/api/v1",
+          "model": "gpt-5-codex"
+        },
+        "platform": {
+          "managementUrl": "https://openrouter.ai/keys",
+          "apiEndpoint": "https://openrouter.ai/api/v1",
+          "defaultName": "OpenRouter API Key"
+        }
+      },
+      {
+        "id": "packycode",
+        "name": "PackyCode",
+        "platformType": "packycode",
+        "categories": ["claudeCode", "codex"],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://www.packyapi.com",
+        "apiKeyUrl": "https://www.packyapi.com/register?aff=cc-switch",
+        "isPartner": true,
+        "claudeCode": {
+          "baseUrl": "https://www.packyapi.com",
+          "modelConfig": {
+            "mainModel": ""
+          },
+          "endpointCandidates": [
+            "https://www.packyapi.com",
+            "https://api-slb.packyapi.com"
+          ]
+        },
+        "codex": {
+          "baseUrl": "https://www.packyapi.com/v1",
+          "model": "gpt-5-codex",
+          "endpointCandidates": [
+            "https://www.packyapi.com/v1",
+            "https://api-slb.packyapi.com/v1"
+          ]
+        },
+        "platform": {
+          "managementUrl": "https://www.packyapi.com",
+          "apiEndpoint": "https://www.packyapi.com",
+          "defaultName": "PackyCode API Key"
+        }
+      }
+    ],
+    "mcpServerTemplates": [],
+    "codexAuthConfig": {
+      "rules": [],
+      "defaultRule": {
+        "supportsAuthJson": false,
+        "envKeyName": "CODX_API_KEY",
+        "requiresOpenaiAuth": false,
+        "wireApi": "chat"
+      }
+    }
+  }
+}
+

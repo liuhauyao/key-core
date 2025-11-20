@@ -1,0 +1,268 @@
+[
+  {
+    "name": "sentryIoServerApi",
+    "displayName": "Sentry.io Server API",
+    "baseUrl": "https://example.com",
+    "apiBaseUrl": null,
+    "documentationUrl": "sentryio",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/SentryIoServerApi.credentials.ts"
+  },
+  {
+    "name": "figmaApi",
+    "displayName": "Figma API",
+    "baseUrl": null,
+    "apiBaseUrl": null,
+    "documentationUrl": "figma",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/FigmaApi.credentials.ts"
+  },
+  {
+    "name": "githubApi",
+    "displayName": "GitHub API",
+    "baseUrl": "https://api.github.com",
+    "apiBaseUrl": null,
+    "documentationUrl": "github",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/GithubApi.credentials.ts"
+  },
+  {
+    "name": "sentryIoApi",
+    "displayName": "Sentry.io API",
+    "baseUrl": "https://sentry.io",
+    "apiBaseUrl": null,
+    "documentationUrl": "sentryio",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/SentryIoApi.credentials.ts"
+  },
+  {
+    "name": "githubOAuth2Api",
+    "displayName": "GitHub OAuth2 API",
+    "baseUrl": "https://api.github.com",
+    "apiBaseUrl": null,
+    "documentationUrl": "github",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/GithubOAuth2Api.credentials.ts"
+  },
+  {
+    "name": "notionOAuth2Api",
+    "displayName": "Notion OAuth2 API",
+    "baseUrl": "https://api.notion.com/v1/oauth/authorize",
+    "apiBaseUrl": null,
+    "documentationUrl": "notion",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/NotionOAuth2Api.credentials.ts"
+  },
+  {
+    "name": "perplexityApi",
+    "displayName": "Perplexity API",
+    "baseUrl": "https://api.perplexity.ai",
+    "apiBaseUrl": null,
+    "documentationUrl": "perplexity",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/PerplexityApi.credentials.ts"
+  },
+  {
+    "name": "sentryIoOAuth2Api",
+    "displayName": "Sentry.io OAuth2 API",
+    "baseUrl": "https://sentry.io/oauth/authorize/",
+    "apiBaseUrl": null,
+    "documentationUrl": "sentryio",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/SentryIoOAuth2Api.credentials.ts"
+  },
+  {
+    "name": "n8nApi",
+    "displayName": "n8n API",
+    "baseUrl": "https://docs.n8n.io/api/authentication/",
+    "apiBaseUrl": null,
+    "documentationUrl": "https://docs.n8n.io/api/authentication/",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/N8nApi.credentials.ts"
+  },
+  {
+    "name": "openAiApi",
+    "displayName": "OpenAi",
+    "baseUrl": "https://api.openai.com/v1",
+    "apiBaseUrl": null,
+    "documentationUrl": "openai",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/OpenAiApi.credentials.ts"
+  },
+  {
+    "name": "supabaseApi",
+    "displayName": "Supabase API",
+    "baseUrl": "https://your",
+    "apiBaseUrl": null,
+    "documentationUrl": "supabase",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/SupabaseApi.credentials.ts"
+  },
+  {
+    "name": "jinaAiApi",
+    "displayName": "Jina AI API",
+    "baseUrl": "https://embeddings-dashboard-api.jina.ai/api/v1/api_key/fe_user",
+    "apiBaseUrl": null,
+    "documentationUrl": "jinaai",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/JinaAiApi.credentials.ts"
+  },
+  {
+    "name": "notionApi",
+    "displayName": "Notion API",
+    "baseUrl": "https://api.notion.com/v1",
+    "apiBaseUrl": null,
+    "documentationUrl": "notion",
+    "icon": null,
+    "type": "credential",
+    "file": "packages/nodes-base/credentials/NotionApi.credentials.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Jina AI",
+    "baseUrl": "https://s.jina.ai/",
+    "icon": "jinaAi.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/JinaAI/JinaAi.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Customer Datastore (n8n training)",
+    "baseUrl": null,
+    "icon": "n8nTrainingCustomerDatastore.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/N8nTrainingCustomerDatastore/N8nTrainingCustomerDatastore.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Mistral AI",
+    "baseUrl": null,
+    "icon": "mistralAi.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/MistralAI/MistralAi.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Customer Messenger (n8n training)",
+    "baseUrl": null,
+    "icon": "n8nTrainingCustomerMessenger.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/N8nTrainingCustomerMessenger/N8nTrainingCustomerMessenger.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Notion",
+    "baseUrl": null,
+    "icon": "notion.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/Notion/Notion.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Notion Trigger",
+    "baseUrl": "https://www.notion.so/help/add-and-manage-connections-with-the-api",
+    "icon": "notion.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/Notion/NotionTrigger.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": null,
+    "baseUrl": null,
+    "icon": null,
+    "type": "node",
+    "file": "packages/nodes-base/nodes/Notion/v1/NotionV1.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": null,
+    "baseUrl": null,
+    "icon": null,
+    "type": "node",
+    "file": "packages/nodes-base/nodes/Notion/v2/NotionV2.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Supabase",
+    "baseUrl": "https://supabase.com/docs/guides/api/using-custom-schemas?queryGroups=language&language=curl#exposing-custom-schemas",
+    "icon": "supabase.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/Supabase/Supabase.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "n8n",
+    "baseUrl": "https://docs.n8n.io/api/api-reference/",
+    "icon": "n8n.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/N8n/N8n.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Sentry.io",
+    "baseUrl": null,
+    "icon": "sentryio.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/SentryIo/SentryIo.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Perplexity",
+    "baseUrl": "https://api.perplexity.ai",
+    "icon": "perplexity.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/Perplexity/Perplexity.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Github Trigger",
+    "baseUrl": "https://github.com/n8n-io",
+    "icon": "github.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/Github/GithubTrigger.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "GitHub",
+    "baseUrl": "https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#list-pull-requests",
+    "icon": "github.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/Github/Github.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "Figma Trigger (Beta)",
+    "baseUrl": null,
+    "icon": "figma.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/Figma/FigmaTrigger.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "n8n Trigger",
+    "baseUrl": null,
+    "icon": "n8nTrigger.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/N8nTrigger/N8nTrigger.node.ts"
+  },
+  {
+    "name": null,
+    "displayName": "OpenAI",
+    "baseUrl": "https://api.openai.com",
+    "icon": "openAi.svg",
+    "type": "node",
+    "file": "packages/nodes-base/nodes/OpenAi/OpenAi.node.ts"
+  }
+]

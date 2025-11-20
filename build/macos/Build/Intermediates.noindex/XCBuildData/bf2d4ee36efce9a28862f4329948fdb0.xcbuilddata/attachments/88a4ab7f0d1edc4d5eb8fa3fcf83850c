@@ -1,0 +1,4 @@
+
+module flutter_secure_storage_macos.__Swift {
+  exclude header "flutter_secure_storage_macos-Swift.h"
+}

@@ -1,0 +1,1768 @@
+{
+  "version": "2.0.0",
+  "schemaVersion": 2,
+  "lastUpdated": "2025-11-20T16:10:59.293987",
+  "config": {
+    "providers": [
+      {
+        "id": "anthropic",
+        "name": "Claude Official",
+        "platformType": "anthropic",
+        "categories": [
+          "claudeCode",
+          "popular"
+        ],
+        "providerCategory": "official",
+        "websiteUrl": "https://www.anthropic.com/claude-code",
+        "isOfficial": true,
+        "isPartner": false,
+        "claudeCode": {
+          "baseUrl": "https://api.anthropic.com",
+          "modelConfig": {
+            "mainModel": ""
+          }
+        },
+        "platform": {
+          "managementUrl": "https://console.anthropic.com/settings/keys",
+          "apiEndpoint": "https://api.anthropic.com/v1",
+          "defaultName": "Anthropic API Key"
+        }
+      },
+      {
+        "id": "deepSeek",
+        "name": "DeepSeek",
+        "platformType": "deepSeek",
+        "categories": [
+          "claudeCode",
+          "popular"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://platform.deepseek.com",
+        "isOfficial": false,
+        "isPartner": false,
+        "claudeCode": {
+          "baseUrl": "https://api.deepseek.com/anthropic",
+          "modelConfig": {
+            "mainModel": "DeepSeek-V3.2-Exp",
+            "haikuModel": "DeepSeek-V3.2-Exp",
+            "sonnetModel": "DeepSeek-V3.2-Exp",
+            "opusModel": "DeepSeek-V3.2-Exp"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://platform.deepseek.com",
+          "apiEndpoint": "https://api.deepseek.com/v1",
+          "defaultName": "DeepSeek API Key"
+        }
+      },
+      {
+        "id": "zhipu",
+        "name": "Zhipu GLM",
+        "platformType": "zhipu",
+        "categories": [
+          "claudeCode",
+          "popular"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://open.bigmodel.cn",
+        "isOfficial": false,
+        "isPartner": true,
+        "apiKeyUrl": "https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII",
+        "claudeCode": {
+          "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+          "modelConfig": {
+            "mainModel": "glm-4.6",
+            "haikuModel": "glm-4.5-air",
+            "sonnetModel": "glm-4.6",
+            "opusModel": "glm-4.6"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://open.bigmodel.cn",
+          "apiEndpoint": "https://open.bigmodel.cn/api/paas/v4",
+          "defaultName": "智谱AI API Key"
+        }
+      },
+      {
+        "id": "zai",
+        "name": "Z.ai GLM",
+        "platformType": "zai",
+        "categories": [
+          "claudeCode"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://z.ai",
+        "isOfficial": false,
+        "isPartner": true,
+        "apiKeyUrl": "https://z.ai/subscribe?ic=8JVLJQFSKB",
+        "claudeCode": {
+          "baseUrl": "https://api.z.ai/api/anthropic",
+          "modelConfig": {
+            "mainModel": "glm-4.6",
+            "haikuModel": "glm-4.5-air",
+            "sonnetModel": "glm-4.6",
+            "opusModel": "glm-4.6"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://z.ai",
+          "apiEndpoint": "https://api.z.ai/api/anthropic",
+          "defaultName": "Z.ai GLM API Key"
+        }
+      },
+      {
+        "id": "qwen",
+        "name": "Qwen Coder",
+        "platformType": "qwen",
+        "categories": [
+          "claudeCode",
+          "popular"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://bailian.console.aliyun.com",
+        "isOfficial": false,
+        "isPartner": false,
+        "claudeCode": {
+          "baseUrl": "https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy",
+          "modelConfig": {
+            "mainModel": "qwen3-max",
+            "haikuModel": "qwen3-max",
+            "sonnetModel": "qwen3-max",
+            "opusModel": "qwen3-max"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://dashscope.console.aliyun.com",
+          "apiEndpoint": "https://dashscope.aliyuncs.com/api/v1",
+          "defaultName": "通义千问 API Key"
+        }
+      },
+      {
+        "id": "kimi",
+        "name": "Kimi k2",
+        "platformType": "kimi",
+        "categories": [
+          "claudeCode",
+          "popular"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://platform.moonshot.cn/console",
+        "isOfficial": false,
+        "isPartner": false,
+        "claudeCode": {
+          "baseUrl": "https://api.moonshot.cn/anthropic",
+          "modelConfig": {
+            "mainModel": "kimi-for-coding",
+            "haikuModel": "kimi-for-coding",
+            "sonnetModel": "kimi-for-coding",
+            "opusModel": "kimi-for-coding"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://platform.moonshot.cn/console/api-keys",
+          "apiEndpoint": "https://api.moonshot.cn/v1",
+          "defaultName": "Kimi API Key"
+        }
+      },
+      {
+        "id": "katCoder",
+        "name": "KAT-Coder",
+        "platformType": "katCoder",
+        "categories": [
+          "claudeCode"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://console.streamlake.ai",
+        "isOfficial": false,
+        "isPartner": false,
+        "apiKeyUrl": "https://console.streamlake.ai/console/api-key",
+        "claudeCode": {
+          "baseUrl": "https://vanchin.streamlake.ai/api/gateway/v1/endpoints/{ENDPOINT_ID}/claude-code-proxy",
+          "modelConfig": {
+            "mainModel": "KAT-Coder-Pro V1",
+            "haikuModel": "KAT-Coder-Air V1",
+            "sonnetModel": "KAT-Coder-Pro V1",
+            "opusModel": "KAT-Coder-Pro V1"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://console.streamlake.ai",
+          "apiEndpoint": "https://vanchin.streamlake.ai/api/gateway/v1/endpoints/{ENDPOINT_ID}/claude-code-proxy",
+          "defaultName": "KAT-Coder API Key"
+        }
+      },
+      {
+        "id": "longcat",
+        "name": "Longcat",
+        "platformType": "longcat",
+        "categories": [
+          "claudeCode"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://longcat.chat/platform",
+        "isOfficial": false,
+        "isPartner": false,
+        "apiKeyUrl": "https://longcat.chat/platform/api_keys",
+        "claudeCode": {
+          "baseUrl": "https://api.longcat.chat/anthropic",
+          "modelConfig": {
+            "mainModel": "LongCat-Flash-Chat",
+            "haikuModel": "LongCat-Flash-Chat",
+            "sonnetModel": "LongCat-Flash-Chat",
+            "opusModel": "LongCat-Flash-Chat"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://longcat.chat/platform",
+          "apiEndpoint": "https://api.longcat.chat/anthropic",
+          "defaultName": "Longcat API Key"
+        }
+      },
+      {
+        "id": "minimax",
+        "name": "MiniMax",
+        "platformType": "minimax",
+        "categories": [
+          "claudeCode"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://platform.minimaxi.com",
+        "isOfficial": false,
+        "isPartner": false,
+        "apiKeyUrl": "https://platform.minimaxi.com/user-center/basic-information",
+        "claudeCode": {
+          "baseUrl": "https://api.minimaxi.com/anthropic",
+          "modelConfig": {
+            "mainModel": "MiniMax-M2",
+            "haikuModel": "MiniMax-M2",
+            "sonnetModel": "MiniMax-M2",
+            "opusModel": "MiniMax-M2"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://platform.minimaxi.com/",
+          "apiEndpoint": "https://api.minimax.chat/v1",
+          "defaultName": "MiniMax API Key"
+        }
+      },
+      {
+        "id": "bailing",
+        "name": "BaiLing",
+        "platformType": "bailing",
+        "categories": [
+          "claudeCode"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://alipaytbox.yuque.com/sxs0ba/ling/get_started",
+        "isOfficial": false,
+        "isPartner": false,
+        "claudeCode": {
+          "baseUrl": "https://api.tbox.cn/api/anthropic",
+          "modelConfig": {
+            "mainModel": "Ling-1T",
+            "haikuModel": "Ling-1T",
+            "sonnetModel": "Ling-1T",
+            "opusModel": "Ling-1T"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://alipaytbox.yuque.com/sxs0ba/ling/get_started",
+          "apiEndpoint": "https://api.tbox.cn/api/anthropic",
+          "defaultName": "BaiLing API Key"
+        }
+      },
+      {
+        "id": "modelScope",
+        "name": "ModelScope",
+        "platformType": "modelScope",
+        "categories": [
+          "claudeCode"
+        ],
+        "providerCategory": "aggregator",
+        "websiteUrl": "https://modelscope.cn",
+        "isOfficial": false,
+        "isPartner": false,
+        "claudeCode": {
+          "baseUrl": "https://api-inference.modelscope.cn",
+          "modelConfig": {
+            "mainModel": "ZhipuAI/GLM-4.6",
+            "haikuModel": "ZhipuAI/GLM-4.6",
+            "sonnetModel": "ZhipuAI/GLM-4.6",
+            "opusModel": "ZhipuAI/GLM-4.6"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://modelscope.cn",
+          "apiEndpoint": "https://api-inference.modelscope.cn",
+          "defaultName": "ModelScope API Key"
+        }
+      },
+      {
+        "id": "openRouter",
+        "name": "OpenRouter",
+        "platformType": "openRouter",
+        "categories": [
+          "claudeCode",
+          "codex",
+          "popular"
+        ],
+        "providerCategory": "aggregator",
+        "websiteUrl": "https://openrouter.ai",
+        "isOfficial": false,
+        "isPartner": false,
+        "apiKeyUrl": "https://openrouter.ai/keys",
+        "claudeCode": {
+          "baseUrl": "https://openrouter.ai/api/v1",
+          "modelConfig": {
+            "mainModel": ""
+          }
+        },
+        "codex": {
+          "baseUrl": "https://openrouter.ai/api/v1",
+          "model": "gpt-5-codex"
+        },
+        "platform": {
+          "managementUrl": "https://openrouter.ai/keys",
+          "apiEndpoint": "https://openrouter.ai/api/v1",
+          "defaultName": "OpenRouter API Key"
+        }
+      },
+      {
+        "id": "huggingFace",
+        "name": "Hugging Face",
+        "platformType": "huggingFace",
+        "categories": [
+          "claudeCode",
+          "codex"
+        ],
+        "providerCategory": "aggregator",
+        "websiteUrl": "https://huggingface.co",
+        "isOfficial": false,
+        "isPartner": false,
+        "apiKeyUrl": "https://huggingface.co/settings/tokens",
+        "claudeCode": {
+          "baseUrl": "https://api-inference.huggingface.co",
+          "modelConfig": {
+            "mainModel": ""
+          }
+        },
+        "codex": {
+          "baseUrl": "https://api-inference.huggingface.co/v1",
+          "model": "gpt-5-codex"
+        },
+        "platform": {
+          "managementUrl": "https://huggingface.co/settings/tokens",
+          "apiEndpoint": "https://api-inference.huggingface.co",
+          "defaultName": "Hugging Face API Token"
+        }
+      },
+      {
+        "id": "aihubmix",
+        "name": "AiHubMix",
+        "platformType": "aihubmix",
+        "categories": [
+          "claudeCode",
+          "codex"
+        ],
+        "providerCategory": "aggregator",
+        "websiteUrl": "https://aihubmix.com",
+        "isOfficial": false,
+        "isPartner": false,
+        "apiKeyUrl": "https://aihubmix.com",
+        "claudeCode": {
+          "baseUrl": "https://aihubmix.com",
+          "modelConfig": {
+            "mainModel": ""
+          },
+          "endpointCandidates": [
+            "https://aihubmix.com",
+            "https://api.aihubmix.com"
+          ]
+        },
+        "codex": {
+          "baseUrl": "https://aihubmix.com/v1",
+          "model": "gpt-5-codex",
+          "endpointCandidates": [
+            "https://aihubmix.com/v1",
+            "https://api.aihubmix.com/v1"
+          ]
+        },
+        "platform": {
+          "managementUrl": "https://aihubmix.com",
+          "apiEndpoint": "https://aihubmix.com",
+          "defaultName": "AiHubMix API Key"
+        }
+      },
+      {
+        "id": "dmxapi",
+        "name": "DMXAPI",
+        "platformType": "dmxapi",
+        "categories": [
+          "claudeCode",
+          "codex"
+        ],
+        "providerCategory": "aggregator",
+        "websiteUrl": "https://www.dmxapi.cn",
+        "isOfficial": false,
+        "isPartner": false,
+        "apiKeyUrl": "https://www.dmxapi.cn",
+        "claudeCode": {
+          "baseUrl": "https://www.dmxapi.cn",
+          "modelConfig": {
+            "mainModel": ""
+          },
+          "endpointCandidates": [
+            "https://www.dmxapi.cn"
+          ]
+        },
+        "codex": {
+          "baseUrl": "https://www.dmxapi.cn/v1",
+          "model": "gpt-5-codex",
+          "endpointCandidates": [
+            "https://www.dmxapi.cn/v1"
+          ]
+        },
+        "platform": {
+          "managementUrl": "https://www.dmxapi.cn",
+          "apiEndpoint": "https://www.dmxapi.cn",
+          "defaultName": "DMXAPI API Key"
+        }
+      },
+      {
+        "id": "packycode",
+        "name": "PackyCode",
+        "platformType": "packycode",
+        "categories": [
+          "claudeCode",
+          "codex"
+        ],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://www.packyapi.com",
+        "isOfficial": false,
+        "isPartner": true,
+        "apiKeyUrl": "https://www.packyapi.com/register?aff=cc-switch",
+        "claudeCode": {
+          "baseUrl": "https://www.packyapi.com",
+          "modelConfig": {
+            "mainModel": ""
+          },
+          "endpointCandidates": [
+            "https://www.packyapi.com",
+            "https://api-slb.packyapi.com"
+          ]
+        },
+        "codex": {
+          "baseUrl": "https://www.packyapi.com/v1",
+          "model": "gpt-5-codex",
+          "endpointCandidates": [
+            "https://www.packyapi.com/v1",
+            "https://api-slb.packyapi.com/v1"
+          ]
+        },
+        "platform": {
+          "managementUrl": "https://www.packyapi.com",
+          "apiEndpoint": "https://www.packyapi.com",
+          "defaultName": "PackyCode API Key"
+        }
+      },
+      {
+        "id": "anyrouter",
+        "name": "AnyRouter",
+        "platformType": "anyrouter",
+        "categories": [
+          "claudeCode",
+          "codex"
+        ],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://anyrouter.top",
+        "isOfficial": false,
+        "isPartner": false,
+        "apiKeyUrl": "https://anyrouter.top/register?aff=PCel",
+        "claudeCode": {
+          "baseUrl": "https://anyrouter.top",
+          "modelConfig": {
+            "mainModel": ""
+          },
+          "endpointCandidates": [
+            "https://q.quuvv.cn",
+            "https://pmpjfbhq.cn-nb1.rainapp.top",
+            "https://anyrouter.top"
+          ]
+        },
+        "codex": {
+          "baseUrl": "https://anyrouter.top/v1",
+          "model": "gpt-5-codex",
+          "endpointCandidates": [
+            "https://anyrouter.top/v1",
+            "https://q.quuvv.cn/v1",
+            "https://pmpjfbhq.cn-nb1.rainapp.top/v1"
+          ]
+        },
+        "platform": {
+          "managementUrl": "https://anyrouter.top",
+          "apiEndpoint": "https://anyrouter.top",
+          "defaultName": "AnyRouter API Key"
+        }
+      },
+      {
+        "id": "openAI",
+        "name": "OpenAI Official",
+        "platformType": "openAI",
+        "categories": [
+          "codex",
+          "popular"
+        ],
+        "providerCategory": "official",
+        "websiteUrl": "https://chatgpt.com/codex",
+        "isOfficial": true,
+        "isPartner": false,
+        "codex": {
+          "baseUrl": "https://api.openai.com/v1",
+          "model": "gpt-5-codex"
+        },
+        "platform": {
+          "managementUrl": "https://platform.openai.com/api-keys",
+          "apiEndpoint": "https://api.openai.com/v1",
+          "defaultName": "OpenAI API Key"
+        }
+      },
+      {
+        "id": "azureOpenAI",
+        "name": "Azure OpenAI",
+        "platformType": "azureOpenAI",
+        "categories": [
+          "codex"
+        ],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://learn.microsoft.com/azure/ai-services/openai/how-to/overview",
+        "isOfficial": true,
+        "isPartner": false,
+        "codex": {
+          "baseUrl": "https://YOUR_RESOURCE_NAME.openai.azure.com/openai",
+          "model": "gpt-5-codex",
+          "endpointCandidates": [
+            "https://YOUR_RESOURCE_NAME.openai.azure.com/openai"
+          ]
+        },
+        "platform": {
+          "managementUrl": "https://portal.azure.com",
+          "apiEndpoint": "https://{resource-name}.openai.azure.com",
+          "defaultName": "Azure OpenAI Key"
+        }
+      },
+      {
+        "id": "google",
+        "name": "Google AI API Key",
+        "platformType": "google",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://makersuite.google.com/app/apikey",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://makersuite.google.com/app/apikey",
+          "apiEndpoint": "https://generativelanguage.googleapis.com/v1",
+          "defaultName": "Google AI API Key"
+        }
+      },
+      {
+        "id": "aws",
+        "name": "AWS API Key",
+        "platformType": "aws",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://console.aws.amazon.com",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://console.aws.amazon.com",
+          "apiEndpoint": "https://bedrock-runtime.{region}.amazonaws.com",
+          "defaultName": "AWS API Key"
+        }
+      },
+      {
+        "id": "siliconFlow",
+        "name": "SiliconFlow API Key",
+        "platformType": "siliconFlow",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://siliconflow.cn",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://siliconflow.cn",
+          "apiEndpoint": "https://api.siliconflow.cn/v1",
+          "defaultName": "SiliconFlow API Key"
+        }
+      },
+      {
+        "id": "bailian",
+        "name": "百炼云 API Key",
+        "platformType": "bailian",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://dashscope.console.aliyun.com",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://dashscope.console.aliyun.com",
+          "apiEndpoint": "https://dashscope.aliyuncs.com/api/v1",
+          "defaultName": "百炼云 API Key"
+        }
+      },
+      {
+        "id": "baidu",
+        "name": "百度千帆 API Key",
+        "platformType": "baidu",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://console.bce.baidu.com/qianfan",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://console.bce.baidu.com/qianfan",
+          "apiEndpoint": "https://aip.baidubce.com",
+          "defaultName": "百度千帆 API Key"
+        }
+      },
+      {
+        "id": "n8n",
+        "name": "n8n API Key",
+        "platformType": "n8n",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://app.n8n.cloud/settings/api",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://app.n8n.cloud/settings/api",
+          "apiEndpoint": "https://{name}.app.n8n.cloud/api/v1",
+          "defaultName": "n8n API Key"
+        }
+      },
+      {
+        "id": "dify",
+        "name": "Dify API Key",
+        "platformType": "dify",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://dify.ai/settings/api-keys",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://dify.ai/settings/api-keys",
+          "apiEndpoint": "https://api.dify.ai/v1",
+          "defaultName": "Dify API Key"
+        }
+      },
+      {
+        "id": "qdrant",
+        "name": "Qdrant API Key",
+        "platformType": "qdrant",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://cloud.qdrant.io/",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://cloud.qdrant.io/",
+          "apiEndpoint": "https://{cluster}.qdrant.io",
+          "defaultName": "Qdrant API Key"
+        }
+      },
+      {
+        "id": "volcengine",
+        "name": "火山引擎 API Key",
+        "platformType": "volcengine",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://console.volcengine.com/ark/keymanage",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://console.volcengine.com/ark/keymanage",
+          "apiEndpoint": "https://ark.cn-beijing.volces.com/api/v3",
+          "defaultName": "火山引擎 API Key"
+        }
+      },
+      {
+        "id": "mistral",
+        "name": "Mistral AI API Key",
+        "platformType": "mistral",
+        "categories": [
+          "popular"
+        ],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://console.mistral.ai/api-keys",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://console.mistral.ai/api-keys",
+          "apiEndpoint": "https://api.mistral.ai",
+          "defaultName": "Mistral AI API Key"
+        }
+      },
+      {
+        "id": "cohere",
+        "name": "Cohere API Key",
+        "platformType": "cohere",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://dashboard.cohere.com/api-keys",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://dashboard.cohere.com/api-keys",
+          "apiEndpoint": "https://api.cohere.ai/v1",
+          "defaultName": "Cohere API Key"
+        }
+      },
+      {
+        "id": "perplexity",
+        "name": "Perplexity API Key",
+        "platformType": "perplexity",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://www.perplexity.ai/settings/api",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://www.perplexity.ai/settings/api",
+          "apiEndpoint": "https://api.perplexity.ai",
+          "defaultName": "Perplexity API Key"
+        }
+      },
+      {
+        "id": "gemini",
+        "name": "Gemini API Key",
+        "platformType": "gemini",
+        "categories": [
+          "popular"
+        ],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://makersuite.google.com/app/apikey",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://makersuite.google.com/app/apikey",
+          "apiEndpoint": "https://generativelanguage.googleapis.com/v1",
+          "defaultName": "Gemini API Key"
+        }
+      },
+      {
+        "id": "xai",
+        "name": "xAI API Key",
+        "platformType": "xai",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://console.x.ai/",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://console.x.ai/",
+          "apiEndpoint": "https://api.x.ai/v1",
+          "defaultName": "xAI API Key"
+        }
+      },
+      {
+        "id": "ollama",
+        "name": "Ollama API Key",
+        "platformType": "ollama",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://ollama.ai/",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://ollama.ai/",
+          "apiEndpoint": "http://localhost:11434/api",
+          "defaultName": "Ollama API Key"
+        }
+      },
+      {
+        "id": "moonshot",
+        "name": "月之暗面 API Key",
+        "platformType": "moonshot",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://platform.moonshot.cn/console/api-keys",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://platform.moonshot.cn/console/api-keys",
+          "apiEndpoint": "https://api.moonshot.cn/v1",
+          "defaultName": "月之暗面 API Key"
+        }
+      },
+      {
+        "id": "zeroOne",
+        "name": "零一万物 API Key",
+        "platformType": "zeroOne",
+        "categories": [
+          "popular"
+        ],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://platform.01.ai/console/api-keys",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://platform.01.ai/console/api-keys",
+          "apiEndpoint": "https://api.01.ai/v1",
+          "defaultName": "零一万物 API Key"
+        }
+      },
+      {
+        "id": "baichuan",
+        "name": "百川智能 API Key",
+        "platformType": "baichuan",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://platform.baichuan-ai.com/console/api-keys",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://platform.baichuan-ai.com/console/api-keys",
+          "apiEndpoint": "https://api.baichuan-ai.com/v1",
+          "defaultName": "百川智能 API Key"
+        }
+      },
+      {
+        "id": "wenxin",
+        "name": "文心一言 API Key",
+        "platformType": "wenxin",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application",
+          "apiEndpoint": "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop",
+          "defaultName": "文心一言 API Key"
+        }
+      },
+      {
+        "id": "nova",
+        "name": "Nova API Key",
+        "platformType": "nova",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://platform.doubao.com/console/api-keys",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://platform.doubao.com/console/api-keys",
+          "apiEndpoint": "https://ark.cn-beijing.volces.com/api/v3",
+          "defaultName": "Nova API Key"
+        }
+      },
+      {
+        "id": "tencent",
+        "name": "腾讯云 API Key",
+        "platformType": "tencent",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://console.cloud.tencent.com/cam/capi",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://console.cloud.tencent.com/cam/capi",
+          "apiEndpoint": "https://hunyuan.tencentcloudapi.com",
+          "defaultName": "腾讯云 API Key"
+        }
+      },
+      {
+        "id": "alibaba",
+        "name": "阿里云 API Key",
+        "platformType": "alibaba",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://ram.console.aliyun.com/manage/ak",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://ram.console.aliyun.com/manage/ak",
+          "apiEndpoint": "https://dashscope.aliyuncs.com/api/v1",
+          "defaultName": "阿里云 API Key"
+        }
+      },
+      {
+        "id": "pinecone",
+        "name": "Pinecone API Key",
+        "platformType": "pinecone",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://app.pinecone.io/",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://app.pinecone.io/",
+          "apiEndpoint": "https://{index}.svc.{environment}.pinecone.io",
+          "defaultName": "Pinecone API Key"
+        }
+      },
+      {
+        "id": "weaviate",
+        "name": "Weaviate API Key",
+        "platformType": "weaviate",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://console.weaviate.io/",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://console.weaviate.io/",
+          "apiEndpoint": "https://{cluster}.weaviate.network/v1",
+          "defaultName": "Weaviate API Key"
+        }
+      },
+      {
+        "id": "supabase",
+        "name": "Supabase API Key",
+        "platformType": "supabase",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://app.supabase.com/project/_/settings/api",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://app.supabase.com/project/_/settings/api",
+          "apiEndpoint": "https://{project-ref}.supabase.co/rest/v1",
+          "defaultName": "Supabase API Key"
+        }
+      },
+      {
+        "id": "notion",
+        "name": "Notion API Key",
+        "platformType": "notion",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://www.notion.so/my-integrations",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://www.notion.so/my-integrations",
+          "apiEndpoint": "https://api.notion.com/v1",
+          "defaultName": "Notion API Key"
+        }
+      },
+      {
+        "id": "bytedance",
+        "name": "字节跳动 API Key",
+        "platformType": "bytedance",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://console.volcengine.com/",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://console.volcengine.com/",
+          "apiEndpoint": "https://ark.cn-beijing.volces.com/api/v3",
+          "defaultName": "字节跳动 API Key"
+        }
+      },
+      {
+        "id": "github",
+        "name": "GitHub Token",
+        "platformType": "github",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://github.com/settings/tokens",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://github.com/settings/tokens",
+          "apiEndpoint": "https://api.github.com",
+          "defaultName": "GitHub Token"
+        }
+      },
+      {
+        "id": "githubCopilot",
+        "name": "GitHub Copilot Token",
+        "platformType": "githubCopilot",
+        "categories": [
+          "popular"
+        ],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://github.com/settings/copilot",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://github.com/settings/copilot",
+          "apiEndpoint": "https://api.githubcopilot.com",
+          "defaultName": "GitHub Copilot Token"
+        }
+      },
+      {
+        "id": "gitee",
+        "name": "Gitee Token",
+        "platformType": "gitee",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://gitee.com/profile/personal_access_tokens",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://gitee.com/profile/personal_access_tokens",
+          "apiEndpoint": "https://gitee.com/api/v5",
+          "defaultName": "Gitee Token"
+        }
+      },
+      {
+        "id": "v0",
+        "name": "v0 API Key",
+        "platformType": "v0",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://v0.dev",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://v0.dev",
+          "apiEndpoint": "https://api.v0.dev",
+          "defaultName": "v0 API Key"
+        }
+      },
+      {
+        "id": "figma",
+        "name": "Figma API Key",
+        "platformType": "figma",
+        "categories": [],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://www.figma.com/developers/api#access-tokens",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://www.figma.com/developers/api#access-tokens",
+          "apiEndpoint": "https://api.figma.com/v1",
+          "defaultName": "Figma API Key"
+        }
+      }
+    ],
+    "mcpServerTemplates": [
+      {
+        "serverId": "context7",
+        "name": "Context7",
+        "description": "Context7 MCP服务器，提供库文档查询功能",
+        "category": "popular",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@upstash/context7-mcp@latest"
+        ],
+        "icon": "mcp.svg",
+        "tags": [
+          "documentation",
+          "library"
+        ],
+        "homepage": "https://context7.com",
+        "docs": "https://context7.com/docs"
+      },
+      {
+        "serverId": "supabase",
+        "name": "Supabase",
+        "description": "Supabase MCP服务器，提供数据库和API访问",
+        "category": "popular",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@supabase/mcp-server@latest"
+        ],
+        "env": {
+          "SUPABASE_URL": "",
+          "SUPABASE_ANON_KEY": ""
+        },
+        "icon": "supabase-icon.svg",
+        "tags": [
+          "database",
+          "api"
+        ],
+        "homepage": "https://supabase.com",
+        "docs": "https://supabase.com/docs"
+      },
+      {
+        "serverId": "n8n",
+        "name": "n8n",
+        "description": "n8n MCP服务器，提供工作流自动化功能",
+        "category": "popular",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@n8n/mcp-server@latest"
+        ],
+        "icon": "n8n-color.svg",
+        "tags": [
+          "automation",
+          "workflow"
+        ],
+        "homepage": "https://n8n.io",
+        "docs": "https://docs.n8n.io"
+      },
+      {
+        "serverId": "github",
+        "name": "GitHub",
+        "description": "GitHub API MCP服务器",
+        "category": "development",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-github@latest"
+        ],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+        },
+        "icon": "github.svg",
+        "tags": [
+          "git",
+          "version-control"
+        ],
+        "homepage": "https://github.com",
+        "docs": "https://docs.github.com"
+      },
+      {
+        "serverId": "openai",
+        "name": "OpenAI",
+        "description": "OpenAI API MCP服务器",
+        "category": "ai",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-openai@latest"
+        ],
+        "env": {
+          "OPENAI_API_KEY": ""
+        },
+        "icon": "openai.svg",
+        "tags": [
+          "ai",
+          "llm"
+        ],
+        "homepage": "https://openai.com",
+        "docs": "https://platform.openai.com/docs"
+      },
+      {
+        "serverId": "anthropic",
+        "name": "Anthropic",
+        "description": "Anthropic Claude API MCP服务器",
+        "category": "ai",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-anthropic@latest"
+        ],
+        "env": {
+          "ANTHROPIC_API_KEY": ""
+        },
+        "icon": "anthropic.svg",
+        "tags": [
+          "ai",
+          "llm"
+        ],
+        "homepage": "https://anthropic.com",
+        "docs": "https://docs.anthropic.com"
+      },
+      {
+        "serverId": "alipay",
+        "name": "支付宝",
+        "description": "支付宝官方MCP服务器，提供支付、查询、退款等支付功能",
+        "category": "popular",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@alipay/mcp-server-alipay@latest"
+        ],
+        "env": {
+          "ALIPAY_APP_ID": "",
+          "ALIPAY_PRIVATE_KEY": "",
+          "ALIPAY_PUBLIC_KEY": ""
+        },
+        "icon": "alipay.svg",
+        "tags": [
+          "payment",
+          "finance",
+          "alipay"
+        ],
+        "homepage": "https://open.alipay.com",
+        "docs": "https://opendocs.alipay.com"
+      },
+      {
+        "serverId": "unionpay",
+        "name": "银联",
+        "description": "银联官方MCP服务器，提供银联支付相关功能",
+        "category": "popular",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@UnionPay/unionpay-mcp-server@latest"
+        ],
+        "env": {
+          "UNIONPAY_MERCHANT_ID": "",
+          "UNIONPAY_SECRET_KEY": ""
+        },
+        "icon": "unionpay.svg",
+        "tags": [
+          "payment",
+          "finance",
+          "unionpay"
+        ],
+        "homepage": "https://open.unionpay.com",
+        "docs": "https://open.unionpay.com/ajweb/help"
+      },
+      {
+        "serverId": "postgres",
+        "name": "PostgreSQL",
+        "description": "PostgreSQL数据库MCP服务器",
+        "category": "database",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-postgres@latest"
+        ],
+        "env": {
+          "POSTGRES_CONNECTION_STRING": ""
+        },
+        "icon": "postgres.svg",
+        "tags": [
+          "database",
+          "sql"
+        ],
+        "homepage": "https://www.postgresql.org",
+        "docs": "https://www.postgresql.org/docs"
+      },
+      {
+        "serverId": "sqlite",
+        "name": "SQLite",
+        "description": "SQLite数据库MCP服务器",
+        "category": "database",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-sqlite@latest"
+        ],
+        "env": {
+          "SQLITE_DB_PATH": ""
+        },
+        "icon": "sql-lite.svg",
+        "tags": [
+          "database",
+          "sql"
+        ],
+        "homepage": "https://www.sqlite.org",
+        "docs": "https://www.sqlite.org/docs.html"
+      },
+      {
+        "serverId": "mysql",
+        "name": "MySQL",
+        "description": "MySQL数据库MCP服务器",
+        "category": "database",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-mysql@latest"
+        ],
+        "env": {
+          "MYSQL_CONNECTION_STRING": ""
+        },
+        "icon": "mysql.svg",
+        "tags": [
+          "database",
+          "sql"
+        ],
+        "homepage": "https://www.mysql.com",
+        "docs": "https://dev.mysql.com/doc"
+      },
+      {
+        "serverId": "brave-search",
+        "name": "Brave Search",
+        "description": "Brave搜索引擎MCP服务器",
+        "category": "search",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-brave-search@latest"
+        ],
+        "env": {
+          "BRAVE_API_KEY": ""
+        },
+        "icon": "brave.svg",
+        "tags": [
+          "search",
+          "web"
+        ],
+        "homepage": "https://brave.com/search",
+        "docs": "https://api.search.brave.com"
+      },
+      {
+        "serverId": "google-search",
+        "name": "Google Search",
+        "description": "Google搜索MCP服务器",
+        "category": "search",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-google-search@latest"
+        ],
+        "env": {
+          "GOOGLE_API_KEY": "",
+          "GOOGLE_CSE_ID": ""
+        },
+        "icon": "google-color.svg",
+        "tags": [
+          "search",
+          "web"
+        ],
+        "homepage": "https://www.google.com",
+        "docs": "https://developers.google.com/custom-search"
+      },
+      {
+        "serverId": "zhipu-web-search",
+        "name": "智谱联网搜索",
+        "description": "智谱AI提供的联网搜索MCP服务器，支持实时互联网搜索",
+        "category": "search",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@zhipuai/zhipu-web-search-mcp@latest"
+        ],
+        "env": {
+          "ZHIPU_API_KEY": ""
+        },
+        "icon": "zhipu-color.svg",
+        "tags": [
+          "search",
+          "web",
+          "ai"
+        ],
+        "homepage": "https://www.zhipuai.cn",
+        "docs": "https://open.bigmodel.cn"
+      },
+      {
+        "serverId": "bing-cn",
+        "name": "必应搜索（中文）",
+        "description": "必应中文搜索MCP服务器，提供中文互联网搜索功能",
+        "category": "search",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@yan5236/bing-cn-mcp-server@latest"
+        ],
+        "icon": "bing-color.svg",
+        "tags": [
+          "search",
+          "web",
+          "chinese"
+        ],
+        "homepage": "https://www.bing.com",
+        "docs": "https://modelscope.cn/mcp/servers/@yan5236/bing-cn-mcp-server"
+      },
+      {
+        "serverId": "baidu-maps",
+        "name": "百度地图",
+        "description": "百度地图MCP服务器，提供地图服务、地理编码、路径规划等功能",
+        "category": "search",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@baidu-maps/mcp@latest"
+        ],
+        "env": {
+          "BAIDU_MAP_AK": ""
+        },
+        "icon": "baidumap.svg",
+        "tags": [
+          "map",
+          "location",
+          "geocoding"
+        ],
+        "homepage": "https://lbsyun.baidu.com",
+        "docs": "https://lbsyun.baidu.com/index.php?title=webapi"
+      },
+      {
+        "serverId": "filesystem",
+        "name": "Filesystem",
+        "description": "文件系统操作MCP服务器",
+        "category": "development",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem@latest"
+        ],
+        "env": {
+          "ALLOWED_DIRECTORIES": ""
+        },
+        "icon": "filesystem.svg",
+        "tags": [
+          "filesystem",
+          "file-operations"
+        ],
+        "homepage": "https://modelcontextprotocol.io",
+        "docs": "https://modelcontextprotocol.io/docs"
+      },
+      {
+        "serverId": "git",
+        "name": "Git",
+        "description": "Git操作MCP服务器",
+        "category": "development",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-git@latest"
+        ],
+        "icon": "git.svg",
+        "tags": [
+          "git",
+          "version-control"
+        ],
+        "homepage": "https://git-scm.com",
+        "docs": "https://git-scm.com/doc"
+      },
+      {
+        "serverId": "aws",
+        "name": "AWS",
+        "description": "AWS服务MCP服务器",
+        "category": "cloud",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-aws@latest"
+        ],
+        "env": {
+          "AWS_ACCESS_KEY_ID": "",
+          "AWS_SECRET_ACCESS_KEY": "",
+          "AWS_REGION": ""
+        },
+        "icon": "aws-color.svg",
+        "tags": [
+          "cloud",
+          "aws"
+        ],
+        "homepage": "https://aws.amazon.com",
+        "docs": "https://docs.aws.amazon.com"
+      },
+      {
+        "serverId": "gcp",
+        "name": "Google Cloud",
+        "description": "Google Cloud Platform MCP服务器",
+        "category": "cloud",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-gcp@latest"
+        ],
+        "env": {
+          "GOOGLE_APPLICATION_CREDENTIALS": ""
+        },
+        "icon": "google-color.svg",
+        "tags": [
+          "cloud",
+          "gcp"
+        ],
+        "homepage": "https://cloud.google.com",
+        "docs": "https://cloud.google.com/docs"
+      },
+      {
+        "serverId": "sequential-thinking",
+        "name": "Sequential Thinking",
+        "description": "顺序思维MCP服务器，提供链式推理和思维过程管理",
+        "category": "ai",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/sequentialthinking@latest"
+        ],
+        "icon": "mcp.svg",
+        "tags": [
+          "ai",
+          "reasoning",
+          "thinking"
+        ],
+        "homepage": "https://modelcontextprotocol.io",
+        "docs": "https://modelscope.cn/mcp/servers/@modelcontextprotocol/sequentialthinking"
+      },
+      {
+        "serverId": "time",
+        "name": "Time",
+        "description": "时间服务MCP服务器，提供当前时间获取和时区转换功能",
+        "category": "development",
+        "serverType": "stdio",
+        "command": "python",
+        "args": [
+          "-m",
+          "mcp_server_time"
+        ],
+        "icon": "mcp.svg",
+        "tags": [
+          "time",
+          "timezone",
+          "utility"
+        ],
+        "homepage": "https://modelcontextprotocol.io",
+        "docs": "https://modelscope.cn/mcp/servers/@modelcontextprotocol/time"
+      },
+      {
+        "serverId": "slack",
+        "name": "Slack",
+        "description": "Slack集成MCP服务器",
+        "category": "automation",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-slack@latest"
+        ],
+        "env": {
+          "SLACK_BOT_TOKEN": ""
+        },
+        "icon": "slack.svg",
+        "tags": [
+          "automation",
+          "communication"
+        ],
+        "homepage": "https://slack.com",
+        "docs": "https://api.slack.com"
+      },
+      {
+        "serverId": "notion",
+        "name": "Notion",
+        "description": "Notion API MCP服务器",
+        "category": "automation",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-notion@latest"
+        ],
+        "env": {
+          "NOTION_API_KEY": ""
+        },
+        "icon": "notion.svg",
+        "tags": [
+          "automation",
+          "productivity"
+        ],
+        "homepage": "https://notion.so",
+        "docs": "https://developers.notion.com"
+      },
+      {
+        "serverId": "puppeteer",
+        "name": "Puppeteer",
+        "description": "Puppeteer浏览器自动化MCP服务器",
+        "category": "development",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-puppeteer@latest"
+        ],
+        "icon": "mcp.svg",
+        "tags": [
+          "browser",
+          "automation",
+          "web-scraping"
+        ],
+        "homepage": "https://pptr.dev",
+        "docs": "https://pptr.dev"
+      },
+      {
+        "serverId": "fetch",
+        "name": "Fetch",
+        "description": "HTTP请求MCP服务器，提供网络请求功能",
+        "category": "development",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-fetch@latest"
+        ],
+        "icon": "mcp.svg",
+        "tags": [
+          "http",
+          "network",
+          "api"
+        ],
+        "homepage": "https://modelcontextprotocol.io",
+        "docs": "https://modelcontextprotocol.io/docs"
+      },
+      {
+        "serverId": "memory",
+        "name": "Memory",
+        "description": "内存存储MCP服务器，提供对话记忆功能",
+        "category": "popular",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-memory@latest"
+        ],
+        "icon": "mcp.svg",
+        "tags": [
+          "memory",
+          "storage",
+          "context"
+        ],
+        "homepage": "https://modelcontextprotocol.io",
+        "docs": "https://modelcontextprotocol.io/docs"
+      },
+      {
+        "serverId": "dingtalk",
+        "name": "钉钉",
+        "description": "钉钉官方MCP服务器，提供钉钉平台集成功能",
+        "category": "automation",
+        "serverType": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@open-dingtalk/dingtalk-mcp@latest"
+        ],
+        "env": {
+          "DINGTALK_APP_KEY": "",
+          "DINGTALK_APP_SECRET": ""
+        },
+        "icon": "dingding.svg",
+        "tags": [
+          "automation",
+          "communication",
+          "collaboration"
+        ],
+        "homepage": "https://open.dingtalk.com",
+        "docs": "https://open.dingtalk.com/document"
+      }
+    ],
+    "codexAuthConfig": {
+      "rules": [
+        {
+          "platformType": "openAI",
+          "baseUrlPatterns": [
+            "api.openai.com"
+          ],
+          "supportsAuthJson": true,
+          "requiresOpenaiAuth": true,
+          "authJsonKey": "OPENAI_API_KEY",
+          "wireApi": "chat"
+        },
+        {
+          "platformType": "anyrouter",
+          "baseUrlPatterns": [
+            "anyrouter.top",
+            "anyrouter"
+          ],
+          "supportsAuthJson": true,
+          "requiresOpenaiAuth": true,
+          "authJsonKey": "OPENAI_API_KEY",
+          "wireApi": "responses"
+        },
+        {
+          "platformType": "aihubmix",
+          "baseUrlPatterns": [
+            "aihubmix.com"
+          ],
+          "supportsAuthJson": true,
+          "requiresOpenaiAuth": true,
+          "authJsonKey": "OPENAI_API_KEY",
+          "wireApi": "responses"
+        },
+        {
+          "platformType": "dmxapi",
+          "baseUrlPatterns": [
+            "dmxapi.cn"
+          ],
+          "supportsAuthJson": true,
+          "requiresOpenaiAuth": true,
+          "authJsonKey": "OPENAI_API_KEY",
+          "wireApi": "responses"
+        },
+        {
+          "platformType": "packycode",
+          "baseUrlPatterns": [
+            "packyapi.com",
+            "packycode"
+          ],
+          "supportsAuthJson": false,
+          "envKeyName": "PACKYCODE_API_KEY",
+          "requiresOpenaiAuth": true,
+          "wireApi": "responses"
+        },
+        {
+          "platformType": "azureOpenAI",
+          "baseUrlPatterns": [
+            "azure.com",
+            "openai.azure.com"
+          ],
+          "supportsAuthJson": false,
+          "envKeyName": "AZURE_OPENAI_API_KEY",
+          "requiresOpenaiAuth": false,
+          "wireApi": "responses"
+        },
+        {
+          "platformType": "openRouter",
+          "baseUrlPatterns": [
+            "openrouter.ai"
+          ],
+          "supportsAuthJson": false,
+          "envKeyName": "OPENROUTER_API_KEY",
+          "requiresOpenaiAuth": false,
+          "wireApi": "chat"
+        },
+        {
+          "platformType": "huggingFace",
+          "baseUrlPatterns": [
+            "huggingface.co"
+          ],
+          "supportsAuthJson": false,
+          "envKeyName": "HUGGINGFACE_API_KEY",
+          "requiresOpenaiAuth": false,
+          "wireApi": "chat"
+        },
+        {
+          "platformType": "zhipu",
+          "baseUrlPatterns": [
+            "bigmodel.cn",
+            "open.bigmodel.cn"
+          ],
+          "supportsAuthJson": false,
+          "envKeyName": "GLM_API_KEY",
+          "requiresOpenaiAuth": false,
+          "wireApi": "chat"
+        },
+        {
+          "platformType": "kimi",
+          "baseUrlPatterns": [
+            "moonshot.cn",
+            "api.moonshot.cn"
+          ],
+          "supportsAuthJson": false,
+          "envKeyName": "KIMI_API_KEY",
+          "requiresOpenaiAuth": false,
+          "wireApi": "chat"
+        }
+      ],
+      "defaultRule": {
+        "supportsAuthJson": false,
+        "envKeyName": "CODX_API_KEY",
+        "requiresOpenaiAuth": false,
+        "wireApi": "chat"
+      }
+    }
+  }
+}

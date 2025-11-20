@@ -1,0 +1,11 @@
+/* 
+  InfoPlist.strings
+  中文（简体）应用名称本地化
+*/
+
+/* 应用显示名称（在 Dock、菜单栏等位置显示） */
+"CFBundleDisplayName" = "密枢";
+
+/* 应用名称（内部使用，通常与显示名称相同） */
+"CFBundleName" = "密枢";
+

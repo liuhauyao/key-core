@@ -1,0 +1,61 @@
+name: key_core
+description: A secure macOS application for managing AI API keys (Key Core / 密枢)
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # State Management
+  provider: ^6.1.1
+
+  # Security & Encryption
+  flutter_secure_storage: ^9.0.0
+  crypto: ^3.0.3
+  encrypt: ^5.0.3
+
+  # Database
+  sqflite_common_ffi: ^2.3.0
+  path: ^1.8.3
+
+  # Utilities
+  intl: ^0.20.2
+  url_launcher: ^6.2.2
+  clipboard_watcher: ^0.1.0
+  permission_handler: ^11.0.1
+  archive: ^3.4.0
+  equatable: ^2.0.5
+  logger: ^2.0.2
+  shared_preferences: ^2.2.2
+  file_picker: ^8.1.4
+  http: ^1.1.0
+
+  # UI Components
+  cached_network_image: ^3.3.0
+  flutter_svg: ^2.0.9
+  shadcn_ui: ^0.39.6
+  reorderables: ^0.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.7
+  mockito: ^5.4.3
+  json_serializable: ^6.7.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/icons/platforms/
+    - assets/config/
