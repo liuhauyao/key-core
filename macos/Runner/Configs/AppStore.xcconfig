@@ -1,0 +1,4 @@
+#include "../../Flutter/Flutter-AppStore.xcconfig"
+#include "Warnings.xcconfig"
+FLUTTER_BUILD_MODE = Release
+

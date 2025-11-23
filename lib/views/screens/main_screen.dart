@@ -16,6 +16,7 @@ import 'gemini_config_screen.dart';
 import 'mcp_config_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/master_password_dialog.dart';
+import '../widgets/first_launch_dialog.dart';
 import '../../models/ai_key.dart';
 import '../../models/platform_type.dart';
 import '../../models/mcp_server.dart';
@@ -23,9 +24,11 @@ import '../../services/database_service.dart';
 import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/first_launch_service.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/platform_icon_helper.dart';
+import 'dart:io';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -62,7 +65,73 @@ class _MainScreenState extends State<MainScreen> {
       if (_lastRefreshedPageIndex == null) {
         _triggerPageLoad(0);
       }
+      // 首次启动检测：检查配置目录访问权限（仅在 macOS）
+      if (Platform.isMacOS) {
+        _checkFirstLaunchPermissions();
+      }
     });
+  }
+
+  /// 检查首次启动时的配置目录访问权限
+  Future<void> _checkFirstLaunchPermissions() async {
+    try {
+      final firstLaunchService = FirstLaunchService();
+      await firstLaunchService.init();
+      
+      // 如果已经检查过权限，不再重复检查
+      if (firstLaunchService.hasCheckedPermissions()) {
+        return;
+      }
+      
+      // 延迟一下，确保 UI 已经渲染完成
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
+      if (!mounted) return;
+      
+      // 检查所有配置目录
+      final results = await firstLaunchService.checkAllConfigDirs();
+      
+      if (results.isEmpty) {
+        // 所有目录都可以访问，标记为已检查
+        await firstLaunchService.markPermissionsChecked();
+        return;
+      }
+      
+      // 依次提示用户选择目录
+      for (final result in results) {
+        if (!mounted) break;
+        
+        // 等待前一个对话框关闭
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        if (!mounted) break;
+        
+        // 显示目录选择对话框
+        final selected = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => FirstLaunchDialog(
+            configResult: result,
+            onComplete: () {
+              // 对话框关闭后的回调
+            },
+          ),
+        );
+        
+        // 如果用户选择了目录，继续下一个
+        // 如果用户跳过了，也继续下一个（避免阻塞）
+        if (selected == null || selected == false) {
+          // 用户跳过了，继续下一个
+          continue;
+        }
+      }
+      
+      // 所有检查完成，标记为已检查
+      await firstLaunchService.markPermissionsChecked();
+    } catch (e) {
+      // 静默处理错误，不影响应用启动
+      print('MainScreen: 首次启动权限检查失败: $e');
+    }
   }
 
   @override

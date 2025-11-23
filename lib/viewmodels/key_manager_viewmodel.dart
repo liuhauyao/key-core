@@ -553,31 +553,23 @@ class KeyManagerViewModel extends BaseViewModel {
   /// 返回 null 表示当前是官方配置
   /// 注意：总是从配置文件重新读取，不使用缓存，以确保外部修改配置后能正确反映
   Future<AIKey?> getCurrentClaudeCodeKey() async {
-    print('KeyManagerViewModel: getCurrentClaudeCodeKey() 被调用');
-    
     // 先检查是否是官方配置
     final isOfficial = await _claudeConfigService.isOfficialConfig();
-    print('KeyManagerViewModel: isOfficialConfig() = $isOfficial');
     if (isOfficial) {
-      print('KeyManagerViewModel: 当前是官方配置，返回 null');
       _currentClaudeCodeKeyId = null; // 官方配置没有对应的密钥ID
       return null;
     }
 
     // 总是从配置文件重新读取当前使用的 API Key，然后匹配密钥
     // 这样可以确保外部修改配置文件后能正确反映
-    print('KeyManagerViewModel: 开始获取当前 API Key');
     final currentApiKey = await _claudeConfigService.getCurrentApiKey();
     if (currentApiKey != null && currentApiKey.isNotEmpty) {
       final keys = await getClaudeCodeKeys();
-      print('KeyManagerViewModel: 开始匹配 API Key，当前配置中的 Key 长度: ${currentApiKey.length}');
-      print('KeyManagerViewModel: 待匹配的密钥数量: ${keys.length}');
       
       for (final key in keys) {
         final decryptedValue = await decryptKeyValue(key.keyValue);
         // 如果解密失败，跳过这个密钥
         if (decryptedValue == null || decryptedValue.isEmpty) {
-          print('KeyManagerViewModel: 密钥解密失败或为空 - ID: ${key.id}, 名称: ${key.name}');
           continue;
         }
         
@@ -587,20 +579,10 @@ class KeyManagerViewModel extends BaseViewModel {
         
         // 精确匹配
         if (cleanedDecryptedValue == cleanedCurrentApiKey) {
-          print('KeyManagerViewModel: 找到匹配的密钥 - ID: ${key.id}, 名称: ${key.name}, 平台: ${key.platform}');
           _currentClaudeCodeKeyId = key.id;
           return key;
-        } else {
-          // 调试：显示不匹配的原因
-          print('KeyManagerViewModel: 密钥不匹配 - ID: ${key.id}, 名称: ${key.name}');
-          print('  - 配置中的 Key 长度: ${cleanedCurrentApiKey.length}, 前10个字符: ${cleanedCurrentApiKey.length > 10 ? cleanedCurrentApiKey.substring(0, 10) : cleanedCurrentApiKey}');
-          print('  - 数据库中的 Key 长度: ${cleanedDecryptedValue.length}, 前10个字符: ${cleanedDecryptedValue.length > 10 ? cleanedDecryptedValue.substring(0, 10) : cleanedDecryptedValue}');
         }
       }
-      
-      print('KeyManagerViewModel: 未找到匹配的密钥');
-    } else {
-      print('KeyManagerViewModel: 配置文件中没有 API Key');
     }
     
     // 如果没有找到匹配的密钥，清除缓存
@@ -648,33 +630,25 @@ class KeyManagerViewModel extends BaseViewModel {
   /// 返回 null 表示当前是官方配置
   /// 注意：总是从配置文件重新读取，不使用缓存，以确保外部修改配置后能正确反映
   Future<AIKey?> getCurrentCodexKey() async {
-    print('KeyManagerViewModel: getCurrentCodexKey() 被调用');
-    
     // 先检查是否是官方配置
     final isOfficial = await _codexConfigService.isOfficialConfig();
-    print('KeyManagerViewModel: Codex isOfficialConfig() = $isOfficial');
     if (isOfficial) {
-      print('KeyManagerViewModel: 当前是官方配置，返回 null');
       _currentCodexKeyId = null; // 官方配置没有对应的密钥ID
       return null;
     }
 
     // 总是从配置文件重新读取当前使用的 API Key，然后匹配密钥
     // 这样可以确保外部修改配置文件后能正确反映
-    print('KeyManagerViewModel: 开始获取当前 Codex API Key');
     final currentApiKey = await _codexConfigService.getCurrentApiKey();
     
     if (currentApiKey != null && currentApiKey.isNotEmpty) {
       // 情况1：使用 auth.json 的供应商（如 OpenAI、代理转发平台）
       final keys = await getCodexKeys();
-      print('KeyManagerViewModel: 开始匹配 Codex API Key，当前配置中的 Key 长度: ${currentApiKey.length}');
-      print('KeyManagerViewModel: 待匹配的密钥数量: ${keys.length}');
       
       for (final key in keys) {
         final decryptedValue = await decryptKeyValue(key.keyValue);
         // 如果解密失败，跳过这个密钥
         if (decryptedValue == null || decryptedValue.isEmpty) {
-          print('KeyManagerViewModel: Codex 密钥解密失败或为空 - ID: ${key.id}, 名称: ${key.name}');
           continue;
         }
         
@@ -684,31 +658,18 @@ class KeyManagerViewModel extends BaseViewModel {
         
         // 精确匹配
         if (cleanedDecryptedValue == cleanedCurrentApiKey) {
-          print('KeyManagerViewModel: 找到匹配的 Codex 密钥 - ID: ${key.id}, 名称: ${key.name}, 平台: ${key.platform}');
           _currentCodexKeyId = key.id;
           return key;
-        } else {
-          // 调试：显示不匹配的原因
-          print('KeyManagerViewModel: Codex 密钥不匹配 - ID: ${key.id}, 名称: ${key.name}');
-          print('  - 配置中的 Key 长度: ${cleanedCurrentApiKey.length}, 前10个字符: ${cleanedCurrentApiKey.length > 10 ? cleanedCurrentApiKey.substring(0, 10) : cleanedCurrentApiKey}');
-          print('  - 数据库中的 Key 长度: ${cleanedDecryptedValue.length}, 前10个字符: ${cleanedDecryptedValue.length > 10 ? cleanedDecryptedValue.substring(0, 10) : cleanedDecryptedValue}');
         }
       }
-      
-      print('KeyManagerViewModel: 未找到匹配的 Codex 密钥');
     } else {
       // 情况2：使用环境变量的供应商（如 OpenRouter）
       // 通过解析 config.toml 获取 base_url 来匹配密钥
-      print('KeyManagerViewModel: Codex 配置文件中没有 API Key（可能使用环境变量）');
-      print('KeyManagerViewModel: 尝试通过解析 config.toml 匹配密钥');
-      
       final configInfo = await _codexConfigService.getCurrentConfigInfo();
       if (configInfo != null && configInfo.containsKey('base_url')) {
         final baseUrl = configInfo['base_url']!;
-        print('KeyManagerViewModel: 从 config.toml 解析到 base_url: $baseUrl');
         
         final keys = await getCodexKeys();
-        print('KeyManagerViewModel: 待匹配的密钥数量: ${keys.length}');
         
         for (final key in keys) {
           // 通过 base_url 匹配（忽略大小写和尾部斜杠）
@@ -716,16 +677,10 @@ class KeyManagerViewModel extends BaseViewModel {
           final configBaseUrl = baseUrl.trim().toLowerCase().replaceAll(RegExp(r'/+$'), '');
           
           if (keyBaseUrl != null && keyBaseUrl == configBaseUrl && key.enableCodex) {
-            print('KeyManagerViewModel: 通过 base_url 找到匹配的 Codex 密钥 - ID: ${key.id}, 名称: ${key.name}, 平台: ${key.platform}');
-            print('KeyManagerViewModel: 匹配的 base_url: $keyBaseUrl');
             _currentCodexKeyId = key.id;
             return key;
           }
         }
-        
-        print('KeyManagerViewModel: 未找到 base_url 匹配的 Codex 密钥');
-      } else {
-        print('KeyManagerViewModel: 无法从 config.toml 解析配置信息');
       }
     }
     
@@ -852,19 +807,14 @@ class KeyManagerViewModel extends BaseViewModel {
   /// 获取当前 Gemini 使用的密钥
   /// 返回 null 表示当前是官方配置
   Future<AIKey?> getCurrentGeminiKey() async {
-    print('KeyManagerViewModel: getCurrentGeminiKey() 被调用');
-    
     // 先检查是否是官方配置
     final isOfficial = await _geminiConfigService.isOfficialConfig();
-    print('KeyManagerViewModel: Gemini isOfficialConfig() = $isOfficial');
     if (isOfficial) {
-      print('KeyManagerViewModel: 当前是官方配置，返回 null');
       _currentGeminiKeyId = null;
       return null;
     }
 
     // 从配置文件重新读取当前使用的 API Key
-    print('KeyManagerViewModel: 开始获取当前 Gemini API Key');
     final currentApiKey = await _geminiConfigService.getCurrentApiKey();
     
     if (currentApiKey != null && currentApiKey.isNotEmpty) {
@@ -873,20 +823,16 @@ class KeyManagerViewModel extends BaseViewModel {
       await settingsService.init();
       final officialApiKey = settingsService.getOfficialGeminiApiKey();
       if (officialApiKey != null && officialApiKey.isNotEmpty && currentApiKey.trim() == officialApiKey.trim()) {
-        print('KeyManagerViewModel: 当前 API Key 匹配官方存储，视为官方配置');
         _currentGeminiKeyId = null;
         return null; // 官方配置返回 null
       }
       
       // 如果不匹配官方存储，尝试匹配密钥列表
       final keys = await getGeminiKeys();
-      print('KeyManagerViewModel: 开始匹配 Gemini API Key，当前配置中的 Key 长度: ${currentApiKey.length}');
-      print('KeyManagerViewModel: 待匹配的密钥数量: ${keys.length}');
       
       for (final key in keys) {
         final decryptedValue = await decryptKeyValue(key.keyValue);
         if (decryptedValue == null || decryptedValue.isEmpty) {
-          print('KeyManagerViewModel: Gemini 密钥解密失败或为空 - ID: ${key.id}, 名称: ${key.name}');
           continue;
         }
         
@@ -894,23 +840,18 @@ class KeyManagerViewModel extends BaseViewModel {
         final cleanedCurrentApiKey = currentApiKey.trim();
         
         if (cleanedDecryptedValue == cleanedCurrentApiKey) {
-          print('KeyManagerViewModel: 找到匹配的 Gemini 密钥 - ID: ${key.id}, 名称: ${key.name}');
           _currentGeminiKeyId = key.id;
           return key;
         }
       }
       
-      print('KeyManagerViewModel: 未找到匹配的 Gemini 密钥');
       // 如果未找到匹配的密钥，但 API Key 存在，可能是官方配置（但官方 API Key 未设置）
       // 这种情况下，应该重新检查是否是官方配置
       final isOfficialRetry = await _geminiConfigService.isOfficialConfig();
       if (isOfficialRetry) {
-        print('KeyManagerViewModel: 重新检查后确认为官方配置');
         _currentGeminiKeyId = null;
         return null;
       }
-    } else {
-      print('KeyManagerViewModel: 配置文件中没有 Gemini API Key');
     }
     
     _currentGeminiKeyId = null;

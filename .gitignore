@@ -101,6 +101,9 @@ app.*.map.json
 # Coverage
 coverage/
 
+# 发布文档（不上传到 GitHub）
+PUBLISH.md
+
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock

@@ -64,24 +64,35 @@ class AiToolConfigService {
     }
   }
 
+  // 缓存配置目录，避免重复获取和打印日志
+  final Map<AiToolType, String> _cachedConfigDirs = {};
+
   /// 获取工具的配置目录路径（从设置中读取，如果没有则返回默认值）
   Future<String> getConfigDir(AiToolType tool) async {
+    // 如果已缓存，直接返回
+    if (_cachedConfigDirs.containsKey(tool)) {
+      return _cachedConfigDirs[tool]!;
+    }
+
     final settingsService = SettingsService();
     await settingsService.init();
     final key = '$_configKeyPrefix${tool.value}';
     final customDir = settingsService.getSetting(key);
     
+    String configDir;
+    
     // 如果有自定义目录，使用自定义目录
     if (customDir != null && customDir.isNotEmpty) {
-      print('使用自定义配置目录: $customDir');
-      return customDir;
+      configDir = customDir;
+    } else {
+      // 否则使用默认目录（使用 SettingsService.getUserHomeDir() 获取更准确的用户主目录）
+      final homeDir = await SettingsService.getUserHomeDir();
+      configDir = getDefaultConfigDir(tool, homeDir: homeDir);
     }
     
-    // 否则使用默认目录（使用 SettingsService.getUserHomeDir() 获取更准确的用户主目录）
-    final homeDir = await SettingsService.getUserHomeDir();
-    final defaultDir = getDefaultConfigDir(tool, homeDir: homeDir);
-    print('使用默认配置目录: $defaultDir (homeDir: $homeDir)');
-    return defaultDir;
+    // 缓存结果
+    _cachedConfigDirs[tool] = configDir;
+    return configDir;
   }
 
   /// 设置工具的配置目录路径

@@ -12,7 +12,9 @@ import 'services/settings_service.dart';
 import 'services/cloud_config_service.dart';
 import 'services/language_pack_service.dart';
 import 'services/macos_preferences_bridge.dart';
-import 'services/status_bar_menu_bridge.dart';
+import 'services/tray_menu_bridge.dart';
+import 'dart:io';
+import 'package:window_manager/window_manager.dart';
 import 'config/provider_config.dart';
 import 'utils/platform_presets.dart';
 import 'utils/mcp_server_presets.dart';
@@ -23,6 +25,25 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Windows/Linux: 初始化 window_manager（用于窗口管理）
+  if (Platform.isWindows || Platform.isLinux) {
+    await windowManager.ensureInitialized();
+    
+    // 配置窗口选项
+    const windowOptions = WindowOptions(
+      size: Size(1200, 800),
+      center: true,
+      backgroundColor: Colors.transparent,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.normal,
+    );
+    
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
   
   // 初始化设置服务
   final settingsService = SettingsService();
@@ -122,14 +143,12 @@ class KeyCoreApp extends StatelessWidget {
       child: Consumer2<SettingsViewModel, KeyManagerViewModel>(
         builder: (context, settingsViewModel, keyManagerViewModel, _) {
           
-          // 初始化状态栏菜单桥接（延迟调用，确保 MethodChannel 已注册）
+          // 初始化托盘菜单桥接（跨平台支持）
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (Platform.isMacOS) {
-              // 延迟调用，确保原生端 MethodChannel 已注册
-              Future.delayed(const Duration(milliseconds: 500), () async {
-                await StatusBarMenuBridge.init(keyManagerViewModel);
-              });
-            }
+            // 延迟调用，确保原生端 MethodChannel 已注册（macOS）或 tray_manager 已初始化（Windows/Linux）
+            Future.delayed(const Duration(milliseconds: 500), () async {
+              await TrayMenuBridge.init(keyManagerViewModel);
+            });
           });
           
           // 监听主题变化并同步到窗口标题栏（延迟调用，确保 MethodChannel 已注册）
@@ -187,7 +206,6 @@ class KeyCoreApp extends StatelessWidget {
                 GlobalCupertinoLocalizations.delegate,
               ],
             supportedLocales: settingsViewModel.supportedLanguages.map((lang) {
-              print('MaterialApp: 支持的语言 - ${lang.code}');
               // 解析语言代码，支持 language_COUNTRY 格式（如 zh_TW）
               final parts = lang.code.split('_');
               if (parts.length == 2) {
@@ -201,15 +219,12 @@ class KeyCoreApp extends StatelessWidget {
               final currentLocale = parts.length == 2
                   ? Locale(parts[0], parts[1])
                   : Locale(settingsViewModel.currentLanguage);
-              print('MaterialApp: 当前 locale = ${currentLocale.languageCode}_${currentLocale.countryCode}');
               return currentLocale;
             }(),
             // Locale 解析回调：处理 Flutter 不原生支持的 locale
             // 例如 zh_TW 会被映射到 zh，但我们的自定义 AppLocalizations 仍然使用 zh_TW
             localeResolutionCallback: (locale, supportedLocales) {
               if (locale == null) return supportedLocales.first;
-              
-              print('MaterialApp: localeResolutionCallback - 请求的 locale: ${locale.languageCode}_${locale.countryCode}');
               
               // 对于我们的自定义 locale（如 zh_TW），返回基础语言代码
               // 这样 Material 和 Cupertino 组件会使用 zh 的本地化
@@ -220,7 +235,6 @@ class KeyCoreApp extends StatelessWidget {
               for (final supportedLocale in supportedLocales) {
                 if (supportedLocale.languageCode == locale.languageCode &&
                     supportedLocale.countryCode == locale.countryCode) {
-                  print('MaterialApp: 找到完全匹配的 locale: ${supportedLocale.languageCode}_${supportedLocale.countryCode}');
                   return supportedLocale;
                 }
               }
@@ -228,13 +242,11 @@ class KeyCoreApp extends StatelessWidget {
               // 如果没有完全匹配，查找语言代码匹配的
               for (final supportedLocale in supportedLocales) {
                 if (supportedLocale.languageCode == languageCode) {
-                  print('MaterialApp: 使用语言代码匹配的 locale: ${supportedLocale.languageCode}');
                   return supportedLocale;
                 }
               }
               
               // 如果都没有匹配，返回第一个支持的 locale
-              print('MaterialApp: 没有匹配的 locale，使用默认: ${supportedLocales.first.languageCode}');
               return supportedLocales.first;
             },
               // 主题设置 - 使用 Shadcn UI 提供的主题，同时保留自定义配置

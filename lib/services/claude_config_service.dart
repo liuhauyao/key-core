@@ -6,6 +6,7 @@ import '../models/ai_key.dart';
 import '../services/auth_service.dart';
 import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
+import '../services/platform_config_path_service.dart';
 
 /// Claude 配置服务
 /// 管理 ~/.claude/config.json 的读写
@@ -17,26 +18,30 @@ class ClaudeConfigService {
   final CryptService _cryptService = CryptService();
   final SettingsService _settingsService = SettingsService();
 
+  // 缓存配置目录，避免重复获取和打印日志
+  String? _cachedConfigDir;
+
   /// 获取 Claude 配置目录路径
-  /// 优先使用自定义路径，否则使用默认路径 ~/.claude
+  /// 优先使用自定义路径，否则使用平台默认路径
+  /// macOS/Linux: ~/.claude
+  /// Windows: %APPDATA%\.claude
   Future<String> _getConfigDir() async {
+    // 如果已缓存，直接返回
+    if (_cachedConfigDir != null) {
+      return _cachedConfigDir!;
+    }
+
     // 检查是否有自定义路径
     final customDir = _settingsService.getClaudeConfigDir();
-    if (customDir != null && customDir.trim().isNotEmpty) {
-      final dir = Directory(customDir.trim());
-      if (await dir.exists()) {
-        print('ClaudeConfigService: 使用自定义配置目录: ${customDir.trim()}');
-        return customDir.trim();
-      } else {
-        print('ClaudeConfigService: 自定义配置目录不存在，使用默认路径: ${customDir.trim()}');
-      }
-    }
     
-    // 使用默认路径 ~/.claude
-    final homeDir = await SettingsService.getUserHomeDir();
-    final defaultDir = path.join(homeDir, '.claude');
-    print('ClaudeConfigService: 使用默认配置目录: $defaultDir');
-    return defaultDir;
+    // 使用统一的配置路径服务
+    final configDir = await PlatformConfigPathService.getClaudeConfigDir(
+      customDir: customDir,
+    );
+    
+    // 缓存结果
+    _cachedConfigDir = configDir;
+    return configDir;
   }
 
   /// 获取配置文件路径
@@ -54,6 +59,7 @@ class ClaudeConfigService {
   /// 检测配置文件是否存在
   /// 返回配置文件路径和是否存在
   /// 如果目录存在但配置文件不存在，会自动创建默认配置文件
+  /// 注意：在 App Store 沙盒环境中，如果无法访问目录，dirExists 会返回 false
   Future<Map<String, dynamic>> checkConfigExists() async {
     final configDir = await _getConfigDir();
     final configPath = await _getConfigFilePath();
@@ -63,9 +69,22 @@ class ClaudeConfigService {
     final configFile = File(configPath);
     final settingsFile = File(settingsPath);
     
-    final dirExists = await configDirObj.exists();
-    final configExists = await configFile.exists();
-    final settingsExists = await settingsFile.exists();
+    // 尝试检查目录和文件是否存在
+    // 在沙盒环境中，如果没有权限访问，exists() 会返回 false（不会抛出异常）
+    bool dirExists = false;
+    bool configExists = false;
+    bool settingsExists = false;
+    
+    try {
+      dirExists = await configDirObj.exists();
+      if (dirExists) {
+        configExists = await configFile.exists();
+        settingsExists = await settingsFile.exists();
+      }
+    } catch (e) {
+      // 如果访问被拒绝（沙盒权限问题），dirExists 保持为 false
+      // 这不会抛出异常，exists() 方法会返回 false
+    }
     
     // 如果目录存在但配置文件不存在，自动创建默认配置文件
     if (dirExists && !configExists && !settingsExists) {
@@ -286,6 +305,9 @@ class ClaudeConfigService {
       );
       print('ClaudeConfigService: 写入 settings.json: $settingsPath');
       
+      // 清除官方配置缓存
+      _clearOfficialConfigCache();
+      
       return true;
     } catch (e) {
       print('ClaudeConfigService: 切换配置失败: $e');
@@ -368,19 +390,32 @@ class ClaudeConfigService {
 
   /// 判断当前是否是官方配置
   /// 官方配置的特征：没有 ANTHROPIC_BASE_URL 或 ANTHROPIC_BASE_URL 为空
+  // 缓存官方配置检查结果，避免重复读取文件
+  bool? _cachedIsOfficial;
+  DateTime? _cachedIsOfficialTime;
+  static const _cacheTimeout = Duration(seconds: 5); // 缓存5秒
+
   Future<bool> isOfficialConfig() async {
-    print('ClaudeConfigService: 检查是否是官方配置');
+    // 检查缓存是否有效
+    if (_cachedIsOfficial != null && 
+        _cachedIsOfficialTime != null &&
+        DateTime.now().difference(_cachedIsOfficialTime!) < _cacheTimeout) {
+      return _cachedIsOfficial!;
+    }
+
     try {
       final settings = await readSettings();
       if (settings == null) {
-        print('ClaudeConfigService: 没有找到 settings.json，视为官方配置');
-        return true; // 没有配置文件，视为官方配置
+        _cachedIsOfficial = true; // 没有配置文件，视为官方配置
+        _cachedIsOfficialTime = DateTime.now();
+        return _cachedIsOfficial!;
       }
       
       final env = settings['env'];
       if (env == null || env is! Map) {
-        print('ClaudeConfigService: settings.json 中没有 env 字段，视为官方配置');
-        return true;
+        _cachedIsOfficial = true;
+        _cachedIsOfficialTime = DateTime.now();
+        return _cachedIsOfficial!;
       }
       
       final envMap = env as Map<String, dynamic>;
@@ -389,13 +424,21 @@ class ClaudeConfigService {
       final baseUrl = envMap['ANTHROPIC_BASE_URL'] as String?;
       final isOfficial = baseUrl == null || baseUrl.isEmpty;
       
-      print('ClaudeConfigService: 当前配置 - BASE_URL: ${baseUrl ?? "未设置"}, 是否为官方: $isOfficial');
+      // 缓存结果
+      _cachedIsOfficial = isOfficial;
+      _cachedIsOfficialTime = DateTime.now();
       
       return isOfficial;
     } catch (e) {
-      print('ClaudeConfigService: 判断官方配置失败: $e');
+      // 出错时返回 false，不缓存错误结果
       return false;
     }
+  }
+
+  /// 清除官方配置缓存（在配置更新后调用）
+  void _clearOfficialConfigCache() {
+    _cachedIsOfficial = null;
+    _cachedIsOfficialTime = null;
   }
 
   /// 切换回官方配置
@@ -481,6 +524,9 @@ class ClaudeConfigService {
       await settingsFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(settings),
       );
+      
+      // 清除官方配置缓存
+      _clearOfficialConfigCache();
       
       print('ClaudeConfigService: 切换官方配置成功，已清除第三方配置并应用官方API Key');
       return true;
@@ -609,6 +655,9 @@ class ClaudeConfigService {
       await settingsFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(settings),
       );
+      
+      // 清除官方配置缓存
+      _clearOfficialConfigCache();
       
       return true;
     } catch (e) {

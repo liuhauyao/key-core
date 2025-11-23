@@ -245,9 +245,20 @@ class SettingsService {
     await _prefs?.clear();
   }
 
+  // 缓存用户主目录，避免重复获取
+  static String? _cachedHomeDir;
+
   /// 获取用户主目录路径（跨平台）
   /// 在沙盒环境中，优先使用命令获取真正的用户主目录
+  /// 使用缓存机制避免重复获取
   static Future<String> getUserHomeDir() async {
+    // 如果已缓存，直接返回
+    if (_cachedHomeDir != null) {
+      return _cachedHomeDir!;
+    }
+
+    String? homeDir;
+    
     if (Platform.isMacOS || Platform.isLinux) {
       // 优先通过命令获取真正的用户主目录（避免沙盒路径）
       try {
@@ -258,54 +269,58 @@ class SettingsService {
               !homePath.contains('/Containers/') && 
               !homePath.contains('/Library/Application Support/') &&
               Directory(homePath).existsSync()) {
-            print('SettingsService: 通过命令获取用户主目录: $homePath');
-            return homePath;
+            homeDir = homePath;
           }
         }
       } catch (e) {
-        print('SettingsService: 通过命令获取 HOME 失败: $e');
+        // 静默处理错误，继续尝试其他方法
       }
       
-      // 其次尝试通过用户名构建路径
-      try {
-        final userResult = await Process.run('whoami', []);
-        if (userResult.exitCode == 0) {
-          final username = userResult.stdout.toString().trim();
-          final homePath = '/Users/$username';
-          if (Directory(homePath).existsSync()) {
-            print('SettingsService: 通过用户名获取用户主目录: $homePath');
-            return homePath;
+      // 如果第一种方法失败，尝试通过用户名构建路径
+      if (homeDir == null) {
+        try {
+          final userResult = await Process.run('whoami', []);
+          if (userResult.exitCode == 0) {
+            final username = userResult.stdout.toString().trim();
+            final homePath = '/Users/$username';
+            if (Directory(homePath).existsSync()) {
+              homeDir = homePath;
+            }
           }
+        } catch (e) {
+          // 静默处理错误，继续尝试其他方法
         }
-      } catch (e) {
-        print('SettingsService: 通过 whoami 获取用户名失败: $e');
       }
       
-      // 最后尝试从环境变量获取（但排除沙盒路径）
-      final homeEnv = Platform.environment['HOME'];
-      if (homeEnv != null && homeEnv.isNotEmpty) {
-        // 检查是否是沙盒路径（包含 Containers）
-        if (!homeEnv.contains('/Containers/') && 
-            !homeEnv.contains('/Library/Application Support/')) {
-          print('SettingsService: 通过环境变量获取用户主目录: $homeEnv');
-          return homeEnv;
-        } else {
-          print('SettingsService: 环境变量 HOME 是沙盒路径，忽略: $homeEnv');
+      // 如果前两种方法都失败，尝试从环境变量获取（但排除沙盒路径）
+      if (homeDir == null) {
+        final homeEnv = Platform.environment['HOME'];
+        if (homeEnv != null && homeEnv.isNotEmpty) {
+          // 检查是否是沙盒路径（包含 Containers）
+          if (!homeEnv.contains('/Containers/') && 
+              !homeEnv.contains('/Library/Application Support/')) {
+            homeDir = homeEnv;
+          }
         }
       }
     } else if (Platform.isWindows) {
       final homeDrive = Platform.environment['HOMEDRIVE'];
       final homePath = Platform.environment['HOMEPATH'];
       if (homeDrive != null && homePath != null) {
-        return '$homeDrive$homePath';
+        homeDir = '$homeDrive$homePath';
       }
     }
     
     // 最后的回退：使用应用支持目录的父目录
     // 这不应该发生，但如果发生了，至少应用能运行
-    final appSupportDir = await getApplicationSupportDirectory();
-    print('SettingsService: 警告：使用应用支持目录作为回退: ${appSupportDir.path}');
-    return appSupportDir.path;
+    if (homeDir == null) {
+      final appSupportDir = await getApplicationSupportDirectory();
+      homeDir = appSupportDir.path;
+    }
+    
+    // 缓存结果
+    _cachedHomeDir = homeDir;
+    return homeDir;
   }
 
   /// 获取用户下载目录

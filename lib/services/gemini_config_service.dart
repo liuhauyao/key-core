@@ -6,6 +6,7 @@ import '../models/ai_key.dart';
 import '../services/auth_service.dart';
 import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
+import '../services/platform_config_path_service.dart';
 import 'ai_tool_config_service.dart';
 
 /// Gemini 配置服务
@@ -18,26 +19,30 @@ class GeminiConfigService {
   final CryptService _cryptService = CryptService();
   final SettingsService _settingsService = SettingsService();
 
+  // 缓存配置目录，避免重复获取和打印日志
+  String? _cachedConfigDir;
+
   /// 获取 Gemini 配置目录路径
-  /// 优先使用自定义路径，否则使用默认路径 ~/.gemini
+  /// 优先使用自定义路径，否则使用平台默认路径
+  /// macOS/Linux: ~/.gemini
+  /// Windows: %APPDATA%\.gemini
   Future<String> _getConfigDir() async {
+    // 如果已缓存，直接返回
+    if (_cachedConfigDir != null) {
+      return _cachedConfigDir!;
+    }
+
     // 检查是否有自定义路径
     final customDir = _settingsService.getGeminiConfigDir();
-    if (customDir != null && customDir.trim().isNotEmpty) {
-      final dir = Directory(customDir.trim());
-      if (await dir.exists()) {
-        print('GeminiConfigService: 使用自定义配置目录: ${customDir.trim()}');
-        return customDir.trim();
-      } else {
-        print('GeminiConfigService: 自定义配置目录不存在，使用默认路径: ${customDir.trim()}');
-      }
-    }
     
-    // 使用默认路径 ~/.gemini
-    final homeDir = await SettingsService.getUserHomeDir();
-    final defaultDir = path.join(homeDir, '.gemini');
-    print('GeminiConfigService: 使用默认配置目录: $defaultDir');
-    return defaultDir;
+    // 使用统一的配置路径服务
+    final configDir = await PlatformConfigPathService.getGeminiConfigDir(
+      customDir: customDir,
+    );
+    
+    // 缓存结果
+    _cachedConfigDir = configDir;
+    return configDir;
   }
 
   /// 获取 settings.json 路径
@@ -257,6 +262,9 @@ class GeminiConfigService {
         }
       }
       
+      // 清除官方配置缓存
+      _clearOfficialConfigCache();
+      
       return true;
     } catch (e) {
       print('GeminiConfigService: 写入 .env 文件失败: $e');
@@ -391,8 +399,19 @@ class GeminiConfigService {
   /// 1. 如果 .env 文件中没有 GEMINI_API_KEY，且 settings.json 中也没有 apiKey，则认为是官方配置
   /// 2. 如果 .env 文件中的 GEMINI_API_KEY 与本地存储的官方 API Key 匹配，则认为是官方配置
   /// 3. 如果 .env 文件中的 GEMINI_API_KEY 与任何密钥都不匹配，但匹配官方存储的 API Key，则认为是官方配置
+  // 缓存官方配置检查结果，避免重复读取文件
+  bool? _cachedIsOfficial;
+  DateTime? _cachedIsOfficialTime;
+  static const _cacheTimeout = Duration(seconds: 5); // 缓存5秒
+
   Future<bool> isOfficialConfig() async {
-    print('GeminiConfigService: 检查是否是官方配置');
+    // 检查缓存是否有效
+    if (_cachedIsOfficial != null && 
+        _cachedIsOfficialTime != null &&
+        DateTime.now().difference(_cachedIsOfficialTime!) < _cacheTimeout) {
+      return _cachedIsOfficial!;
+    }
+
     try {
       final env = await readEnv();
       final apiKey = env['GEMINI_API_KEY'];
@@ -402,18 +421,21 @@ class GeminiConfigService {
         final settings = await readSettings();
         final settingsApiKey = settings?['apiKey'] as String?;
         if (settingsApiKey == null || settingsApiKey.isEmpty || settingsApiKey == '') {
-          print('GeminiConfigService: .env 和 settings.json 中都没有 API Key，视为官方配置');
-          return true;
+          _cachedIsOfficial = true;
+          _cachedIsOfficialTime = DateTime.now();
+          return _cachedIsOfficial!;
         }
         // settings.json 中有 API Key，需要检查是否是官方存储的
         await _settingsService.init();
         final officialApiKey = _settingsService.getOfficialGeminiApiKey();
         if (officialApiKey != null && officialApiKey.isNotEmpty && settingsApiKey.trim() == officialApiKey.trim()) {
-          print('GeminiConfigService: settings.json 中的 API Key 匹配官方存储，视为官方配置');
-          return true;
+          _cachedIsOfficial = true;
+          _cachedIsOfficialTime = DateTime.now();
+          return _cachedIsOfficial!;
         }
-        print('GeminiConfigService: settings.json 中有 API Key 但不匹配官方存储，视为第三方配置');
-        return false;
+        _cachedIsOfficial = false;
+        _cachedIsOfficialTime = DateTime.now();
+        return _cachedIsOfficial!;
       }
       
       // .env 中有 API Key，检查是否匹配官方存储的 API Key
@@ -421,17 +443,25 @@ class GeminiConfigService {
       final officialApiKey = _settingsService.getOfficialGeminiApiKey();
       if (officialApiKey != null && officialApiKey.isNotEmpty) {
         final isOfficial = apiKey.trim() == officialApiKey.trim();
-        print('GeminiConfigService: 当前配置 - API_KEY: 已设置, 是否匹配官方存储: $isOfficial');
-        return isOfficial;
+        _cachedIsOfficial = isOfficial;
+        _cachedIsOfficialTime = DateTime.now();
+        return _cachedIsOfficial!;
       }
       
       // 没有官方存储的 API Key，但有 .env 中的 API Key，视为第三方配置
-      print('GeminiConfigService: .env 中有 API Key 但没有官方存储，视为第三方配置');
-      return false;
+      _cachedIsOfficial = false;
+      _cachedIsOfficialTime = DateTime.now();
+      return _cachedIsOfficial!;
     } catch (e) {
-      print('GeminiConfigService: 判断官方配置失败: $e');
+      // 出错时返回 false，不缓存错误结果
       return false;
     }
+  }
+
+  /// 清除官方配置缓存（在配置更新后调用）
+  void _clearOfficialConfigCache() {
+    _cachedIsOfficial = null;
+    _cachedIsOfficialTime = null;
   }
 
   /// 切换回官方配置
@@ -493,6 +523,9 @@ class GeminiConfigService {
       
       // 写入 .env 文件
       await writeEnv(env);
+      
+      // 清除官方配置缓存
+      _clearOfficialConfigCache();
       
       print('GeminiConfigService: 切换官方配置成功，已清除第三方配置并应用官方API Key');
       return true;

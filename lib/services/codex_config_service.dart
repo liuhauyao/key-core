@@ -10,6 +10,7 @@ import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
 import '../services/cloud_config_service.dart';
 import '../models/cloud_config.dart' as cloud;
+import '../services/platform_config_path_service.dart';
 
 /// Codex 供应商配置
 class CodexProviderConfig {
@@ -340,21 +341,30 @@ class CodexConfigService {
     );
   }
 
+  // 缓存配置目录，避免重复获取和打印日志
+  String? _cachedConfigDir;
+
   /// 获取 Codex 配置目录路径
-  /// 优先使用自定义路径，否则使用默认路径 ~/.codex
+  /// 优先使用自定义路径，否则使用平台默认路径
+  /// macOS/Linux: ~/.codex
+  /// Windows: %APPDATA%\.codex
   Future<String> _getConfigDir() async {
+    // 如果已缓存，直接返回
+    if (_cachedConfigDir != null) {
+      return _cachedConfigDir!;
+    }
+
     // 检查是否有自定义路径
     final customDir = _settingsService.getCodexConfigDir();
-    if (customDir != null && customDir.trim().isNotEmpty) {
-      final dir = Directory(customDir.trim());
-      if (await dir.exists()) {
-        return customDir.trim();
-      }
-    }
     
-    // 使用默认路径 ~/.codex
-    final homeDir = await SettingsService.getUserHomeDir();
-    return path.join(homeDir, '.codex');
+    // 使用统一的配置路径服务
+    final configDir = await PlatformConfigPathService.getCodexConfigDir(
+      customDir: customDir,
+    );
+    
+    // 缓存结果
+    _cachedConfigDir = configDir;
+    return configDir;
   }
 
   /// 获取 config.toml 路径
@@ -635,6 +645,9 @@ class CodexConfigService {
       // 写入 config.toml（合并后的配置）
       await configFile.writeAsString(mergedConfig);
       
+      // 清除官方配置缓存
+      _clearOfficialConfigCache();
+      
       return true;
     } catch (e) {
       print('CodexConfigService: 切换配置失败: $e');
@@ -870,15 +883,27 @@ class CodexConfigService {
 
   /// 判断当前是否是官方配置
   /// 官方配置的特征：没有我们添加的配置项（model_provider 或 model_providers.xxx section）
+  // 缓存官方配置检查结果，避免重复读取文件
+  bool? _cachedIsOfficial;
+  DateTime? _cachedIsOfficialTime;
+  static const _cacheTimeout = Duration(seconds: 5); // 缓存5秒
+
   Future<bool> isOfficialConfig() async {
-    print('CodexConfigService: 检查是否是官方配置');
+    // 检查缓存是否有效
+    if (_cachedIsOfficial != null && 
+        _cachedIsOfficialTime != null &&
+        DateTime.now().difference(_cachedIsOfficialTime!) < _cacheTimeout) {
+      return _cachedIsOfficial!;
+    }
+
     try {
       final configText = await readConfigToml();
       
       // 如果 config.toml 不存在或为空，视为官方配置
       if (configText == null || configText.trim().isEmpty) {
-        print('CodexConfigService: config.toml 不存在或为空，视为官方配置');
-        return true;
+        _cachedIsOfficial = true;
+        _cachedIsOfficialTime = DateTime.now();
+        return _cachedIsOfficial!;
       }
       
       // 检查是否包含我们添加的配置项
@@ -890,25 +915,34 @@ class CodexConfigService {
       // 检查是否有 model_provider 配置（我们添加的顶层配置）
       if (trimmedConfig.contains('model_provider =') || 
           trimmedConfig.contains('model_provider=')) {
-        print('CodexConfigService: 检测到 model_provider 配置，不是官方配置');
-        return false;
+        _cachedIsOfficial = false;
+        _cachedIsOfficialTime = DateTime.now();
+        return _cachedIsOfficial!;
       }
       
       // 检查是否有 model_providers.xxx section（我们添加的 provider section）
       // 使用正则表达式匹配 [model_providers.xxx] 格式
       final providerSectionPattern = RegExp(r'\[model_providers\.[^\]]+\]');
       if (providerSectionPattern.hasMatch(trimmedConfig)) {
-        print('CodexConfigService: 检测到 model_providers section，不是官方配置');
-        return false;
+        _cachedIsOfficial = false;
+        _cachedIsOfficialTime = DateTime.now();
+        return _cachedIsOfficial!;
       }
       
       // 如果没有我们添加的配置项，视为官方配置
-      print('CodexConfigService: 未检测到我们添加的配置项，视为官方配置');
-      return true;
+      _cachedIsOfficial = true;
+      _cachedIsOfficialTime = DateTime.now();
+      return _cachedIsOfficial!;
     } catch (e) {
-      print('CodexConfigService: 判断官方配置失败: $e');
+      // 出错时返回 false，不缓存错误结果
       return false;
     }
+  }
+
+  /// 清除官方配置缓存（在配置更新后调用）
+  void _clearOfficialConfigCache() {
+    _cachedIsOfficial = null;
+    _cachedIsOfficialTime = null;
   }
 
   /// 移除我们添加的配置项
@@ -1224,6 +1258,9 @@ class CodexConfigService {
         );
         print('CodexConfigService: 已更新 auth.json');
       }
+      
+      // 清除官方配置缓存
+      _clearOfficialConfigCache();
       
       print('CodexConfigService: 切换到官方配置成功');
       return true;

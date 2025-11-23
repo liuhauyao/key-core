@@ -1,6 +1,6 @@
 # Key Core (密枢)
 
-一款专为 macOS 平台设计的 AI 密钥管理应用，帮助您安全、便捷地管理各类 AI 服务的 API 密钥。
+一款跨平台的 AI 密钥管理应用，支持 macOS、Windows 和 Linux，帮助您安全、便捷地管理各类 AI 服务的 API 密钥。
 
 ## ✨ 特性
 
@@ -15,6 +15,23 @@
 - 🌐 **国际化**: 支持中文和英文
 - 📊 **统计信息**: 密钥统计和状态监控
 - 🎯 **剪贴板保护**: 自动清空剪贴板（30秒后）
+
+## ⚠️ 平台支持状态
+
+- ✅ **macOS**: 完全支持，已测试
+- ⚠️ **Windows**: 代码已实现，但**未在实际环境中测试**
+- ⚠️ **Linux**: 代码已实现，但**未在实际环境中测试**
+
+> **注意**: Windows 和 Linux 版本已实现跨平台支持代码，包括：
+> - 跨平台托盘菜单管理
+> - 配置文件路径自动适配
+> - 窗口管理功能
+> 
+> 但由于缺少对应测试环境，尚未进行实际测试。欢迎有条件的用户进行测试并提供反馈。
+> 
+> 相关文档：
+> - Windows/Linux: `docs/cross_platform.md`
+> - Linux: 参考 Windows 文档（构建命令使用 `flutter build linux`）
 
 ## 📋 支持的平台
 
@@ -84,7 +101,9 @@ lib/
 
 - Flutter 3.19+
 - Dart 3.0+
-- macOS 13.0+
+- **macOS**: macOS 13.0+
+- **Windows**: Windows 10+ (需要 Visual Studio 2022)
+- **Linux**: 支持系统托盘的桌面环境 (GNOME/KDE/XFCE)
 
 ### 安装依赖
 
@@ -94,26 +113,47 @@ flutter pub get
 
 ### 运行应用
 
+**macOS**:
 ```bash
-# 开发模式
 flutter run -d macos
+```
 
-# 调试模式
-flutter run -d macos --debug
+**Windows**:
+```powershell
+flutter run -d windows
+```
 
-# 发布模式
-flutter run -d macos --release
+**Linux**:
+```bash
+flutter run -d linux
 ```
 
 ### 构建应用
 
+**macOS**:
 ```bash
-# 构建 macOS 应用
-flutter build macos
-
-# 构建发布版本
 flutter build macos --release
 ```
+构建产物位置：`build/macos/Build/Products/Release/key_core.app`
+
+**Windows** (⚠️ 未测试):
+```powershell
+# 方法 1: 使用 PowerShell 脚本
+.\scripts\build_windows.ps1
+
+# 方法 2: 手动构建
+flutter config --enable-windows-desktop
+flutter build windows --release
+```
+构建产物位置：`build/windows/runner/Release/key_core.exe`
+
+**Linux** (⚠️ 未测试):
+```bash
+flutter build linux --release
+```
+构建产物位置：`build/linux/x64/release/bundle/`
+
+> **注意**: Windows 和 Linux 版本已实现跨平台支持代码，但尚未在实际环境中测试。如需使用，请参考 `docs/cross_platform.md` 进行构建和测试。
 
 ## 📦 依赖项
 
@@ -375,3 +415,4 @@ flutter test --coverage
 2. 建议定期导出备份您的密钥数据
 3. 主密码是可选的，但强烈建议设置以提高安全性
 4. 剪贴板会在 30 秒后自动清空，请及时使用复制的密钥
+

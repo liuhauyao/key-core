@@ -1,6 +1,6 @@
 name: key_core
-description: A secure macOS application for managing AI API keys (Key Core / 密枢)
-version: 1.0.0+1
+description: A secure cross-platform application for managing AI API keys (Key Core / 密枢)
+version: 1.0.2+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -36,6 +36,11 @@ dependencies:
   shared_preferences: ^2.2.2
   file_picker: ^8.1.4
   http: ^1.1.0
+  path_provider: ^2.1.1
+  
+  # Platform-specific
+  tray_manager: ^0.5.2
+  window_manager: ^0.3.7
 
   # UI Components
   cached_network_image: ^3.3.0

@@ -255,6 +255,12 @@ class AppLocalizations {
       'select_gemini_config_dir': '选择 Gemini 配置目录',
       'config_dir_set': '已设置配置目录: {path}',
       'browse_directory_failed': '选择目录失败: {error}',
+      'first_launch_title': '首次启动设置',
+      'first_launch_message': '为了访问 {toolName} 的配置文件，请选择配置目录。',
+      'first_launch_hint': '默认路径：{path}',
+      'select_directory': '选择目录',
+      'skip': '跳过',
+      'select_config_dir': '选择 {toolName} 配置目录',
       'settings_general': '常规',
       'settings_tools': '工具配置',
       'settings_data': '数据选项',
@@ -670,6 +676,12 @@ class AppLocalizations {
       'select_gemini_config_dir': 'Select Gemini Config Directory',
       'config_dir_set': 'Config directory set: {path}',
       'browse_directory_failed': 'Failed to browse directory: {error}',
+      'first_launch_title': 'First Launch Setup',
+      'first_launch_message': 'To access {toolName} configuration files, please select the config directory.',
+      'first_launch_hint': 'Default path: {path}',
+      'select_directory': 'Select Directory',
+      'skip': 'Skip',
+      'select_config_dir': 'Select {toolName} Config Directory',
       'settings_general': 'General',
       'settings_tools': 'Tools',
       'settings_data': 'Data',
@@ -1118,6 +1130,12 @@ class AppLocalizations {
   String get selectGeminiConfigDir => translate('select_gemini_config_dir');
   String configDirSet(String path) => translate('config_dir_set').replaceAll('{path}', path);
   String browseDirectoryFailed(String error) => translate('browse_directory_failed').replaceAll('{error}', error);
+  String get firstLaunchTitle => translate('first_launch_title');
+  String firstLaunchMessage(String toolName) => translate('first_launch_message').replaceAll('{toolName}', toolName);
+  String firstLaunchHint(String path) => translate('first_launch_hint').replaceAll('{path}', path);
+  String get selectDirectory => translate('select_directory');
+  String get skip => translate('skip');
+  String selectConfigDir(String toolName) => translate('select_config_dir').replaceAll('{toolName}', toolName);
   String get settingsGeneral => translate('settings_general');
   String get settingsTools => translate('settings_tools');
   String get settingsData => translate('settings_data');
@@ -1316,30 +1334,23 @@ class _AppLocalizationsDelegate
         ? '${locale.languageCode}_${locale.countryCode}'
         : locale.languageCode;
     
-    print('AppLocalizations.load: ===== 开始加载 locale: $fullLocaleCode =====');
-    print('AppLocalizations.load: 语言代码: ${locale.languageCode}, 国家代码: ${locale.countryCode}');
-    
     // 初始化语言包服务
     await AppLocalizations._languagePackService.init();
     
     // 尝试加载语言包（优先使用完整的 locale 代码）
-    print('AppLocalizations.load: 准备加载语言包: $fullLocaleCode');
     var jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(fullLocaleCode, forceRefresh: true);
     
     // 如果完整的 locale 代码加载失败，尝试只使用语言代码
     if (jsonTranslations == null && fullLocaleCode != locale.languageCode) {
-      print('AppLocalizations.load: 完整 locale 加载失败，尝试基础语言代码: ${locale.languageCode}');
       jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(locale.languageCode, forceRefresh: true);
     }
     
+    // 只在加载失败时打印错误日志
     if (jsonTranslations == null) {
       print('AppLocalizations.load: ❌ 加载语言包失败: $fullLocaleCode');
-    } else {
-      print('AppLocalizations.load: ✅ 成功加载 ${jsonTranslations.length} 条翻译: $fullLocaleCode');
     }
     
     // 创建 AppLocalizations 实例，传入 JSON 翻译
-    print('AppLocalizations.load: ===== 完成加载 locale: $fullLocaleCode =====');
     return AppLocalizations(locale, jsonTranslations);
   }
 
@@ -1348,7 +1359,6 @@ class _AppLocalizationsDelegate
     // 总是返回 true，确保语言包能够重新加载
     // 这样可以保证在语言切换时，新的语言包能够被正确加载
     // 性能影响很小，因为 LanguagePackService 内部有缓存机制
-    print('AppLocalizations.shouldReload: 返回 true，允许重新加载');
     return true;
   }
 }
