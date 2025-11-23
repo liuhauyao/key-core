@@ -405,7 +405,7 @@
   "mcp_project_uses_global_config": "Ce projet n'a pas de configuration séparée, utilisera la configuration globale",
   "config_template_update": "Mise à jour du modèle de configuration",
   "cloud_config": "Configuration cloud",
-  "config_current_date": "Date actuelle",
+  "config_current_date": "Horodatage du fichier de configuration",
   "check_update": "Vérifier les mises à jour",
   "config_update_success": "Modèle de configuration mis à jour",
   "config_already_latest": "Le modèle de configuration est déjà à la dernière version",

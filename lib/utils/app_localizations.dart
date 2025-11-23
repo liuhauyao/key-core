@@ -436,7 +436,7 @@ class AppLocalizations {
       // 配置模板更新相关
       'config_template_update': '配置模板更新',
       'cloud_config': '云端配置',
-      'config_current_date': '当前日期',
+      'config_current_date': '配置文件时间戳',
       'check_update': '检查更新',
       'config_update_success': '配置模板已更新',
       'config_already_latest': '配置模板已是最新版本',
@@ -851,7 +851,7 @@ class AppLocalizations {
       // Config template update related
       'config_template_update': 'Config Template Update',
       'cloud_config': 'Cloud Config',
-      'config_current_date': 'Current Date',
+      'config_current_date': 'Config File Timestamp',
       'check_update': 'Check Update',
       'config_update_success': 'Config template updated',
       'config_already_latest': 'Config template is already the latest version',

@@ -405,7 +405,7 @@
   "mcp_project_uses_global_config": "इस प्रोजेक्ट में अलग कॉन्फ़िगरेशन नहीं है, वैश्विक कॉन्फ़िगरेशन का उपयोग करेगा",
   "config_template_update": "कॉन्फ़िगरेशन टेम्पलेट अपडेट",
   "cloud_config": "क्लाउड कॉन्फ़िगरेशन",
-  "config_current_date": "वर्तमान तिथि",
+  "config_current_date": "कॉन्फ़िगरेशन फ़ाइल टाइमस्टैम्प",
   "check_update": "अपडेट जांचें",
   "config_update_success": "कॉन्फ़िगरेशन टेम्पलेट अपडेट किया गया",
   "config_already_latest": "कॉन्फ़िगरेशन टेम्पलेट पहले से ही नवीनतम संस्करण है",

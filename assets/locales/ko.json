@@ -405,7 +405,7 @@
   "mcp_project_uses_global_config": "이 프로젝트에는 별도의 구성이 없으며 전역 구성을 사용합니다",
   "config_template_update": "구성 템플릿 업데이트",
   "cloud_config": "클라우드 구성",
-  "config_current_date": "현재 날짜",
+  "config_current_date": "구성 파일 타임스탬프",
   "check_update": "업데이트 확인",
   "config_update_success": "구성 템플릿이 업데이트되었습니다",
   "config_already_latest": "구성 템플릿이 이미 최신 버전입니다",

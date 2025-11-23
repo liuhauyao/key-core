@@ -405,7 +405,7 @@
   "mcp_project_uses_global_config": "Dieses Projekt hat keine separate Konfiguration, verwendet globale Konfiguration",
   "config_template_update": "Konfigurationsvorlage aktualisieren",
   "cloud_config": "Cloud-Konfiguration",
-  "config_current_date": "Aktuelles Datum",
+  "config_current_date": "Konfigurationsdatei Zeitstempel",
   "check_update": "Auf Updates prüfen",
   "config_update_success": "Konfigurationsvorlage aktualisiert",
   "config_already_latest": "Konfigurationsvorlage ist bereits die neueste Version",

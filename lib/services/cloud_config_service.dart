@@ -14,15 +14,15 @@ class CloudConfigService {
   static const String _keyLastUpdateCheck = 'cloud_config_last_update_check';
   static const String _defaultVersion = '1.0.0';
   
-  // 默认配置URL（GitHub Raw）- key-core-config 公开仓库
-  // 格式: https://raw.githubusercontent.com/{owner}/{repo}/{branch}/app_config.json
+  // 默认配置URL（GitHub Raw）- key-core 主仓库
+  // 格式: https://raw.githubusercontent.com/{owner}/{repo}/{branch}/assets/config/app_config.json
   static const String _defaultConfigUrl = 
-      'https://raw.githubusercontent.com/liuhauyao/key-core-config/main/app_config.json';
+      'https://raw.githubusercontent.com/liuhauyao/key-core/main/assets/config/app_config.json';
   
-  // Gitee备选URL（国内用户）- key-core-config 公开仓库
-  // 格式: https://gitee.com/{owner}/{repo}/raw/{branch}/app_config.json
+  // Gitee备选URL（国内用户）- key-core 镜像仓库
+  // 格式: https://gitee.com/{owner}/{repo}/raw/{branch}/assets/config/app_config.json
   static const String _giteeConfigUrl = 
-      'https://gitee.com/liuhauyao/key-core-config/raw/main/app_config.json';
+      'https://gitee.com/liuhauyao/key-core/raw/main/assets/config/app_config.json';
   
   // 更新检查间隔（24小时）
   static const Duration _updateCheckInterval = Duration(hours: 24);

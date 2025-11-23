@@ -405,7 +405,7 @@
   "mcp_project_uses_global_config": "該專案沒有單獨配置，將使用全域配置",
   "config_template_update": "配置範本更新",
   "cloud_config": "雲端配置",
-  "config_current_date": "目前日期",
+  "config_current_date": "配置文件時間戳",
   "check_update": "檢查更新",
   "config_update_success": "配置範本已更新",
   "config_already_latest": "配置範本已是最新版本",

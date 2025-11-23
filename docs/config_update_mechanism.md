@@ -6,22 +6,24 @@
 
 ## 架构设计
 
-### 仓库分离策略
+### 仓库策略
 
-- **key-core**: 私有仓库，存储核心代码和应用逻辑
-- **key-core-config**: 公开仓库，存储配置文件和简单说明
+- **key-core**: 开源主仓库，存储核心代码、应用逻辑和配置文件
+- **GitHub**: 主仓库地址，https://github.com/liuhauyao/key-core
+- **Gitee**: GitHub 镜像库，自动同步主仓库内容（国内用户访问）
 
 **优势**：
-1. **安全性**: 核心代码保持私有，配置信息可以公开
+1. **统一管理**: 配置文件和代码在同一仓库，便于版本同步
 2. **灵活性**: 配置更新无需重新编译和发布应用
-3. **可维护性**: 配置和代码分离，便于独立维护
+3. **可维护性**: 单一仓库管理，减少同步步骤
+4. **镜像同步**: Gitee 自动镜像 GitHub，国内用户访问更快
 
 ### 配置更新流程
 
-1. **开发阶段**: 在 key-core 私有仓库中修改 `assets/config/app_config.json`
+1. **开发阶段**: 在 key-core 项目中修改 `assets/config/app_config.json`
 2. **更新版本**: 更新配置文件的 `version` 和 `lastUpdated` 字段
-3. **复制配置**: 手动将更新后的配置文件复制到 key-core-config 仓库
-4. **提交更新**: 提交并推送到 key-core-config 公开仓库（GitHub 和 Gitee）
+3. **提交更新**: 在主仓库中提交并推送到 GitHub
+4. **自动镜像**: Gitee 自动从 GitHub 同步更新（无需手动操作）
 5. **用户更新**: 用户端应用自动检测并下载最新配置
 
 ## 配置加载优先级
@@ -30,7 +32,7 @@
 
 1. **内存缓存** - 应用运行时的内存缓存（最快）
 2. **本地缓存** - 应用文档目录下的 `cloud_config.json`（快速）
-3. **云端配置** - 从 key-core-config 仓库获取（需要网络）
+3. **云端配置** - 从 key-core 主仓库获取（需要网络）
 4. **默认配置** - 应用内置的 `assets/config/app_config.json`（离线可用）
 
 ### 加载流程
@@ -100,12 +102,12 @@
 
 默认配置 URL（GitHub）:
 ```dart
-https://raw.githubusercontent.com/liuhauyao/key-core-config/main/app_config.json
+https://raw.githubusercontent.com/liuhauyao/key-core/main/assets/config/app_config.json
 ```
 
 备选配置 URL（Gitee，国内用户）:
 ```dart
-https://gitee.com/liuhauyao/key-core-config/raw/main/app_config.json
+https://gitee.com/liuhauyao/key-core/raw/main/assets/config/app_config.json
 ```
 
 应用会优先尝试 GitHub，失败时自动切换到 Gitee。
@@ -150,100 +152,62 @@ https://gitee.com/liuhauyao/key-core-config/raw/main/app_config.json
    - 更新 `lastUpdated` 字段为当前时间（ISO 8601 格式）
    - 如有架构变更，更新 `schemaVersion`
 
-3. **复制配置文件**
+3. **提交并推送**
    ```bash
-   cp /Users/liuhuayao/dev/key-core/assets/config/app_config.json \
-      /Users/liuhuayao/dev/key-core-config/app_config.json
+   cd /Users/liuhuayao/dev/key-core
+   
+   # 添加配置文件
+   git add assets/config/app_config.json
+   
+   # 获取版本号（可选，用于提交信息）
+   VERSION=$(jq -r '.version' assets/config/app_config.json)
+   
+   # 提交
+   git commit -m "Update config: version $VERSION"
+   
+   # 推送到 GitHub 主仓库
+   git push origin main
    ```
 
-4. **提交并推送**
-   ```bash
-   cd /Users/liuhuayao/dev/key-core-config
-   
-   # 添加文件
-   git add app_config.json
-   
-   # 提交（版本号会自动从配置文件中提取）
-   git commit -m "Update config: version X.Y.Z"
-   
-   # 推送到两个仓库
-   git push origin main
-   git push gitee main
-   ```
+4. **自动镜像同步**
+   - Gitee 会自动从 GitHub 同步更新（通常几分钟内完成）
+   - 无需手动推送到 Gitee
 
 5. **验证更新**
    - 等待几分钟让 CDN 更新
    - 在应用中手动触发配置更新检查
    - 验证新配置是否正确加载
 
-### 快速同步脚本
-
-可以创建脚本简化同步操作：
-
-```bash
-#!/bin/bash
-
-# 同步配置文件脚本
-
-KEY_CORE_DIR="/Users/liuhuayao/dev/key-core"
-CONFIG_DIR="/Users/liuhuayao/dev/key-core-config"
-
-# 复制配置文件
-cp "$KEY_CORE_DIR/assets/config/app_config.json" "$CONFIG_DIR/app_config.json"
-
-# 进入配置仓库目录
-cd "$CONFIG_DIR"
-
-# 检查是否有更改
-if git diff --quiet app_config.json; then
-    echo "配置文件无更改，无需同步"
-    exit 0
-fi
-
-# 获取版本号
-VERSION=$(jq -r '.version' app_config.json)
-
-# 添加并提交
-git add app_config.json
-git commit -m "Update config: version $VERSION"
-
-# 推送到两个仓库
-echo "推送到 GitHub..."
-git push origin main
-
-echo "推送到 Gitee..."
-git push gitee main
-
-echo "配置同步完成！"
-```
-
 ## 仓库配置
 
-### 配置仓库地址
+### 主仓库地址
 
-- **GitHub**: https://github.com/liuhauyao/key-core-config
-- **Gitee**: https://gitee.com/liuhauyao/key-core-config
+- **GitHub（主仓库）**: https://github.com/liuhauyao/key-core
+- **Gitee（镜像库）**: https://gitee.com/liuhauyao/key-core
+
+### 镜像同步说明
+
+Gitee 仓库已配置为 GitHub 的镜像库，会自动同步主仓库的所有更新：
+
+- **同步方式**: Gitee 自动从 GitHub 拉取更新（通常几分钟内完成）
+- **同步内容**: 包括代码、配置文件和所有提交历史
+- **无需手动操作**: 推送到 GitHub 后，Gitee 会自动同步
 
 ### 本地仓库配置
 
-**位置**: `/Users/liuhuayao/dev/key-core-config`
+**位置**: `/Users/liuhuayao/dev/key-core`
 
 **远程仓库配置**:
 ```bash
-origin   https://github.com/liuhauyao/key-core-config.git
-gitee    https://gitee.com/liuhauyao/key-core-config.git
+origin   https://github.com/liuhauyao/key-core.git
 ```
 
 **推送命令**:
 ```bash
-# 推送到 GitHub
+# 推送到 GitHub 主仓库
 git push origin main
 
-# 推送到 Gitee
-git push gitee main
-
-# 同时推送到两个仓库
-git push origin main && git push gitee main
+# Gitee 会自动同步，无需手动推送
 ```
 
 ## 错误处理
@@ -254,6 +218,7 @@ git push origin main && git push gitee main
 - 不会阻塞应用启动
 - 错误信息记录到日志
 - 支持 GitHub 和 Gitee 两个源，GitHub 失败时自动尝试 Gitee
+- Gitee 作为镜像库，为国内用户提供更快的访问速度
 
 ### 配置格式错误
 
@@ -310,12 +275,7 @@ git push origin main && git push gitee main
 - `lib/utils/mcp_server_presets.dart`: MCP 模板管理
 - `lib/utils/platform_presets.dart`: 平台预设管理
 - `lib/main.dart`: 应用入口，初始化配置服务
-- `assets/config/app_config.json`: 默认配置文件
-
-### key-core-config 项目
-
-- `README.md`: 仓库说明文档
-- `app_config.json`: 主配置文件
+- `assets/config/app_config.json`: 默认配置文件（同时也是云端配置文件）
 
 ## 相关文档
 

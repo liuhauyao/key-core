@@ -208,13 +208,16 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     final today = DateTime(now.year, now.month, now.day);
     final dateOnly = DateTime(date.year, date.month, date.day);
     
+    // 格式化时间部分：HH:mm:ss
+    final timeStr = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:${date.second.toString().padLeft(2, '0')}';
+    
     if (dateOnly == today) {
-      return localizations.configDateToday;
+      return '${localizations.configDateToday} $timeStr';
     } else if (dateOnly == today.subtract(const Duration(days: 1))) {
-      return localizations.configDateYesterday;
+      return '${localizations.configDateYesterday} $timeStr';
     } else {
-      // 格式化日期：YYYY-MM-DD
-      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      // 格式化日期时间：YYYY-MM-DD HH:mm:ss
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} $timeStr';
     }
   }
 
@@ -547,7 +550,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                     const SizedBox(height: 4),
                     Text(
                       _configDate != null
-                          ? '${localizations.configCurrentDate}: $_configDate'
+                          ? _configDate!
                           : localizations.loading,
                       style: shadTheme.textTheme.small.copyWith(
                         color: shadTheme.colorScheme.mutedForeground,

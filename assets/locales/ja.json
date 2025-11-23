@@ -405,7 +405,7 @@
   "mcp_project_uses_global_config": "このプロジェクトには個別の設定がなく、グローバル設定が使用されます",
   "config_template_update": "設定テンプレートの更新",
   "cloud_config": "クラウド設定",
-  "config_current_date": "現在の日付",
+  "config_current_date": "設定ファイルのタイムスタンプ",
   "check_update": "更新を確認",
   "config_update_success": "設定テンプレートが更新されました",
   "config_already_latest": "設定テンプレートは最新バージョンです",

@@ -12,13 +12,13 @@ import 'cloud_config_service.dart';
 class LanguagePackService {
   static const String _keyLastUpdateCheckPrefix = 'lang_pack_last_check_';
   
-  // 默认语言包URL（GitHub Raw）
+  // 默认语言包URL（GitHub Raw）- key-core 主仓库
   static const String _defaultBaseUrl = 
-      'https://raw.githubusercontent.com/liuhauyao/key-core-config/main/locales';
+      'https://raw.githubusercontent.com/liuhauyao/key-core/main/assets/locales';
   
-  // Gitee备选URL（国内用户）
+  // Gitee备选URL（国内用户）- key-core 镜像仓库
   static const String _giteeBaseUrl = 
-      'https://gitee.com/liuhauyao/key-core-config/raw/main/locales';
+      'https://gitee.com/liuhauyao/key-core/raw/main/assets/locales';
   
   // 更新检查间隔（24小时）
   static const Duration _updateCheckInterval = Duration(hours: 24);

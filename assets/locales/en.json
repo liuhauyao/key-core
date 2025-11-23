@@ -382,7 +382,7 @@
   "mcp_project_uses_global_config": "This project has no separate config, will use global config",
   "config_template_update": "Config Template Update",
   "cloud_config": "Cloud Config",
-  "config_current_date": "Current Date",
+  "config_current_date": "Config File Timestamp",
   "check_update": "Check Update",
   "config_update_success": "Config template updated",
   "config_already_latest": "Config template is already the latest version",
