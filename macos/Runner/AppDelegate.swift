@@ -76,7 +76,7 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
     }
     
     let channel = FlutterMethodChannel(
-      name: "com.example.keyCore/window",
+      name: "cn.dlrow.keycore/window",
       binaryMessenger: flutterController.engine.binaryMessenger
     )
     
@@ -86,7 +86,7 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
     
     // 创建状态栏菜单专用的 MethodChannel
     statusBarChannel = FlutterMethodChannel(
-      name: "com.example.keyCore/statusBar",
+      name: "cn.dlrow.keycore/statusBar",
       binaryMessenger: flutterController.engine.binaryMessenger
     )
     

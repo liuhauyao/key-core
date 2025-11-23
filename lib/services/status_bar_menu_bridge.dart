@@ -8,8 +8,8 @@ import '../viewmodels/key_manager_viewmodel.dart';
 /// 状态栏菜单桥接服务
 /// 用于在 Flutter 和 macOS 原生代码之间同步状态栏菜单数据
 class StatusBarMenuBridge {
-  static const MethodChannel _channel = MethodChannel('com.example.keyCore/window');
-  static const MethodChannel _statusBarChannel = MethodChannel('com.example.keyCore/statusBar');
+  static const MethodChannel _channel = MethodChannel('cn.dlrow.keycore/window');
+  static const MethodChannel _statusBarChannel = MethodChannel('cn.dlrow.keycore/statusBar');
   static SettingsService? _settingsService;
 
   /// 初始化状态栏菜单桥接

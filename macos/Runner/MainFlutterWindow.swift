@@ -44,7 +44,7 @@ class MainFlutterWindow: NSWindow {
   
   func setupMethodChannel(flutterViewController: FlutterViewController) {
     let channel = FlutterMethodChannel(
-      name: "com.example.keyCore/window",
+      name: "cn.dlrow.keycore/window",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     

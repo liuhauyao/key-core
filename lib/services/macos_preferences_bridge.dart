@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 /// macOS 偏好设置桥接服务
 /// 用于在 Flutter 和 macOS 原生代码之间同步设置
 class MacOSPreferencesBridge {
-  static const String _bundleId = 'com.example.keyCore';
-  static const MethodChannel _channel = MethodChannel('com.example.keyCore/window');
+  static const String _bundleId = 'cn.dlrow.keycore';
+  static const MethodChannel _channel = MethodChannel('cn.dlrow.keycore/window');
 
   /// 同步最小化到托盘设置到 macOS UserDefaults
   /// 注意：在沙箱环境中，通过 MethodChannel 直接同步到原生代码更可靠

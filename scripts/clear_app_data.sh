@@ -7,7 +7,7 @@ echo "正在清除 Key Core 应用数据..."
 
 # 获取应用数据目录
 APP_DATA_DIR="$HOME/Library/Application Support/key_core"
-APP_DOCS_DIR="$HOME/Library/Containers/com.example.keyCore/Data/Documents"
+APP_DOCS_DIR="$HOME/Library/Containers/cn.dlrow.keycore/Data/Documents"
 
 # 清除数据库文件
 if [ -d "$APP_DATA_DIR" ]; then
@@ -21,7 +21,7 @@ if [ -d "$APP_DOCS_DIR" ]; then
 fi
 
 # 清除 SharedPreferences (macOS 使用 UserDefaults)
-PREFERENCES_FILE="$HOME/Library/Preferences/com.example.keyCore.plist"
+PREFERENCES_FILE="$HOME/Library/Preferences/cn.dlrow.keycore.plist"
 if [ -f "$PREFERENCES_FILE" ]; then
     echo "清除偏好设置文件: $PREFERENCES_FILE"
     rm -f "$PREFERENCES_FILE"

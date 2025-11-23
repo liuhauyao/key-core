@@ -137,7 +137,7 @@ Key Core is a secure macOS application designed for managing AI API keys. With A
 **Title: Key Core - Professional AI Key Management Tool**
 
 **推广文本（Promotional Text，不超过170字符）：**
-Key Core: Manage AI API keys on macOS. One-click provider switching for Claude Code and Codex. Support 30+ platforms with smart reminders and local storage.
+"PROJECT" 下的 "Runner"
 
 **完整描述：**
 Key Core is a macOS application designed for managing AI API keys, helping developers, AI researchers, and content creators efficiently manage API keys for various AI services.
