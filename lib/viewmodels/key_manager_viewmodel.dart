@@ -279,15 +279,48 @@ class KeyManagerViewModel extends BaseViewModel {
       // 如果没有设置主密码，则明文存储
 
       // 创建更新后的密钥对象，保持原有的 updatedAt（已在表单页面处理）
-      final updatedKey = key.copyWith(
+      // ⚠️ 重要：不要使用 copyWith，因为它会覆盖用户修改的字段！
+      // 直接使用从表单返回的 key 对象，只更新加密后的 keyValue
+      final updatedKey = AIKey(
+        id: key.id,
+        name: key.name,
+        platform: key.platform,
+        platformType: key.platformType,
+        managementUrl: key.managementUrl,
+        apiEndpoint: key.apiEndpoint,
         keyValue: finalKeyValue,
-        // updatedAt 已在表单页面处理，这里不更新
+        keyNonce: key.keyNonce,
+        expiryDate: key.expiryDate,
+        tags: key.tags,
+        notes: key.notes,
+        isActive: key.isActive,
+        createdAt: key.createdAt,
+        updatedAt: DateTime.now(), // ⚠️ 重要：更新时修改时间戳，确保排序正确
+        lastUsedAt: key.lastUsedAt,
+        isFavorite: key.isFavorite,
+        icon: key.icon,
+        enableClaudeCode: key.enableClaudeCode,
+        claudeCodeApiEndpoint: key.claudeCodeApiEndpoint,
+        claudeCodeModel: key.claudeCodeModel,
+        claudeCodeHaikuModel: key.claudeCodeHaikuModel,
+        claudeCodeSonnetModel: key.claudeCodeSonnetModel,
+        claudeCodeOpusModel: key.claudeCodeOpusModel,
+        claudeCodeBaseUrl: key.claudeCodeBaseUrl,
+        enableCodex: key.enableCodex,
+        codexApiEndpoint: key.codexApiEndpoint,
+        codexModel: key.codexModel,
+        codexBaseUrl: key.codexBaseUrl,
+        codexConfig: key.codexConfig,
+        enableGemini: key.enableGemini,
+        geminiApiEndpoint: key.geminiApiEndpoint,
+        geminiModel: key.geminiModel,
+        geminiBaseUrl: key.geminiBaseUrl,
       );
 
       // 先更新内存中的列表，立即反映到 UI，实现无感更新
       final allIndex = _allKeys.indexWhere((k) => k.id == key.id);
       final filteredIndex = _filteredKeys.indexWhere((k) => k.id == key.id);
-      
+
       if (allIndex != -1) {
         _allKeys[allIndex] = updatedKey;
       }
@@ -298,7 +331,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
       // 然后在后台更新数据库，不阻塞 UI
       await _databaseService.updateKey(updatedKey);
-      
+
       // 检查该密钥是否是当前激活的密钥，如果是则立即触发配置更新
       await _refreshActiveConfigIfNeeded(updatedKey);
       
@@ -444,7 +477,48 @@ class KeyManagerViewModel extends BaseViewModel {
       final decryptedValue = await decryptKeyValue(key.keyValue);
       if (decryptedValue == null) return key;
 
-      return key.copyWith(keyValue: decryptedValue);
+      // ⚠️ 重要：不要使用 copyWith，因为它会覆盖其他字段！
+      // 如果 keyValue 没有变化，直接返回 key；如果有变化，创建新的 AIKey
+      if (decryptedValue == key.keyValue) {
+        return key;
+      }
+
+      // 创建新的 AIKey，只更新 keyValue
+      return AIKey(
+        id: key.id,
+        name: key.name,
+        platform: key.platform,
+        platformType: key.platformType,
+        managementUrl: key.managementUrl,
+        apiEndpoint: key.apiEndpoint,
+        keyValue: decryptedValue,
+        keyNonce: key.keyNonce,
+        expiryDate: key.expiryDate,
+        tags: key.tags,
+        notes: key.notes,
+        isActive: key.isActive,
+        createdAt: key.createdAt,
+        updatedAt: key.updatedAt,
+        lastUsedAt: key.lastUsedAt,
+        isFavorite: key.isFavorite,
+        icon: key.icon,
+        enableClaudeCode: key.enableClaudeCode,
+        claudeCodeApiEndpoint: key.claudeCodeApiEndpoint,
+        claudeCodeModel: key.claudeCodeModel,
+        claudeCodeHaikuModel: key.claudeCodeHaikuModel,
+        claudeCodeSonnetModel: key.claudeCodeSonnetModel,
+        claudeCodeOpusModel: key.claudeCodeOpusModel,
+        claudeCodeBaseUrl: key.claudeCodeBaseUrl,
+        enableCodex: key.enableCodex,
+        codexApiEndpoint: key.codexApiEndpoint,
+        codexModel: key.codexModel,
+        codexBaseUrl: key.codexBaseUrl,
+        codexConfig: key.codexConfig,
+        enableGemini: key.enableGemini,
+        geminiApiEndpoint: key.geminiApiEndpoint,
+        geminiModel: key.geminiModel,
+        geminiBaseUrl: key.geminiBaseUrl,
+      );
     } catch (e) {
       return null;
     }

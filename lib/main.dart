@@ -98,27 +98,57 @@ void main() async {
   print('Main: McpServerPresets 模板数量: ${McpServerPresets.allTemplates.length}');
   
   // 异步检查配置更新（不阻塞应用启动）
-  // 测试时使用 force: true 强制检查更新
-  cloudConfigService.checkForUpdates(force: true).then((hasUpdate) async {
-    if (hasUpdate) {
-      print('Main: 配置已更新，重新加载所有配置模块');
-      // 如果有更新，重新加载动态平台
-      await PlatformRegistry.reloadDynamicPlatforms(cloudConfigService);
-      print('Main: 更新后 - PlatformRegistry 总平台数量: ${PlatformRegistry.count} (内置: ${PlatformRegistry.builtinCount}, 动态: ${PlatformRegistry.dynamicCount})');
-      // 强制刷新并重新加载配置模块
-      await ProviderConfig.init(forceRefresh: true);
-      await PlatformPresets.init(forceRefresh: true);
-      await McpServerPresets.init(forceRefresh: true);
-      // 打印更新后的状态
-      print('Main: 更新后 - ProviderConfig ClaudeCode 供应商数量: ${ProviderConfig.claudeCodeProviders.length}');
-      print('Main: 更新后 - ProviderConfig Codex 供应商数量: ${ProviderConfig.codexProviders.length}');
-      print('Main: 更新后 - PlatformPresets 预设数量: ${PlatformPresets.presetPlatforms.length}');
-      print('Main: 更新后 - McpServerPresets 模板数量: ${McpServerPresets.allTemplates.length}');
+  // 注意：配置更新只是更新 JSON 数据（供应商列表、MCP 服务器模板等），不涉及可执行代码
+  // 这是被 App Store 允许的数据更新方式
+  // App Store 版本：禁用自动检查，但保留手动检查功能（用户可在设置中手动触发）
+  // 非 App Store 版本：允许自动检查更新
+  // 检测是否为 App Store 版本：检查应用 receipt 文件（App Store 应用会有 receipt）
+  bool isAppStoreVersion = false;
+  if (Platform.isMacOS) {
+    try {
+      final appPath = Platform.resolvedExecutable;
+      // App Store 应用会有 _MASReceipt 目录
+      // 路径格式：/Applications/AppName.app/Contents/MacOS/AppName
+      // receipt 路径：/Applications/AppName.app/Contents/_MASReceipt/receipt
+      final appBundlePath = appPath.split('/Contents/MacOS/').first;
+      final receiptPath = '$appBundlePath/Contents/_MASReceipt/receipt';
+      final receiptFile = File(receiptPath);
+      isAppStoreVersion = await receiptFile.exists();
+      if (isAppStoreVersion) {
+        print('Main: 检测到 App Store 版本，禁用自动配置更新检查（用户可在设置中手动检查）');
+      }
+    } catch (e) {
+      // 如果检测失败，默认允许更新检查（非 App Store 版本）
+      print('Main: 检测 App Store 版本失败: $e，允许自动更新检查');
     }
-  }).catchError((e) {
-    // 静默忽略错误，不影响应用启动
-    print('自动检查配置更新失败: $e');
-  });
+  }
+  
+  // 仅在非 App Store 版本时自动检查更新
+  // App Store 版本的用户可以通过设置页面的"检查更新"按钮手动触发更新
+  if (!isAppStoreVersion) {
+    cloudConfigService.checkForUpdates(force: false).then((hasUpdate) async {
+      if (hasUpdate) {
+        print('Main: 配置已更新，重新加载所有配置模块');
+        // 如果有更新，重新加载动态平台
+        await PlatformRegistry.reloadDynamicPlatforms(cloudConfigService);
+        print('Main: 更新后 - PlatformRegistry 总平台数量: ${PlatformRegistry.count} (内置: ${PlatformRegistry.builtinCount}, 动态: ${PlatformRegistry.dynamicCount})');
+        // 强制刷新并重新加载配置模块
+        await ProviderConfig.init(forceRefresh: true);
+        await PlatformPresets.init(forceRefresh: true);
+        await McpServerPresets.init(forceRefresh: true);
+        // 打印更新后的状态
+        print('Main: 更新后 - ProviderConfig ClaudeCode 供应商数量: ${ProviderConfig.claudeCodeProviders.length}');
+        print('Main: 更新后 - ProviderConfig Codex 供应商数量: ${ProviderConfig.codexProviders.length}');
+        print('Main: 更新后 - PlatformPresets 预设数量: ${PlatformPresets.presetPlatforms.length}');
+        print('Main: 更新后 - McpServerPresets 模板数量: ${McpServerPresets.allTemplates.length}');
+      }
+    }).catchError((e) {
+      // 静默忽略错误，不影响应用启动
+      print('自动检查配置更新失败: $e');
+    });
+  } else {
+    print('Main: App Store 版本，已跳过自动配置更新检查（用户可在设置中手动检查）');
+  }
   
   runApp(const KeyCoreApp());
 }

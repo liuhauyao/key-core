@@ -35,8 +35,15 @@ rm -rf ~/.pub-cache/hosted/pub.flutter-io.cn/sqlite3-*/.dart_tool 2>/dev/null ||
 rm -rf ~/.pub-cache/hosted/pub.dev/sqlite3-*/.dart_tool 2>/dev/null || true
 rm -rf .dart_tool/hooks_runner/sqlite3 2>/dev/null || true
 
-# 4. 确保 ephemeral 目录存在
-echo "4. 确保 Flutter ephemeral 文件存在..."
+# 4. 先运行 Flutter 构建来生成必要的文件（这会生成 Flutter-Generated.xcconfig 等）
+echo "4. 预构建 Flutter 文件（生成必要的资源文件）..."
+flutter build macos --release > /tmp/flutter_build.log 2>&1 || {
+    echo "警告: Flutter 构建失败，但继续..."
+    cat /tmp/flutter_build.log | tail -20
+}
+
+# 5. 确保 ephemeral 目录存在
+echo "5. 确保 Flutter ephemeral 文件存在..."
 mkdir -p macos/Flutter/ephemeral
 if [ ! -f "macos/Flutter/ephemeral/FlutterInputs.xcfilelist" ]; then
     touch macos/Flutter/ephemeral/FlutterInputs.xcfilelist
@@ -44,17 +51,6 @@ fi
 if [ ! -f "macos/Flutter/ephemeral/FlutterOutputs.xcfilelist" ]; then
     touch macos/Flutter/ephemeral/FlutterOutputs.xcfilelist
 fi
-
-# 5. 预构建 Flutter Assemble（这会生成 xcfilelist 文件）
-echo "5. 预构建 Flutter Assemble..."
-xcodebuild -project macos/Runner.xcodeproj \
-    -target "Flutter Assemble" \
-    -configuration AppStore \
-    clean build \
-    > /tmp/flutter_assemble.log 2>&1 || {
-    echo "警告: Flutter Assemble 构建失败，但继续..."
-    cat /tmp/flutter_assemble.log | tail -20
-}
 
 # 6. 验证文件
 echo "6. 验证文件..."
@@ -80,4 +76,6 @@ echo "如果 Archive 时遇到 sqlite3 网络超时，请在 Xcode Scheme 中设
 echo "  Product → Scheme → Edit Scheme → Archive → Arguments → Environment Variables"
 echo "  添加: GITHUB_PROXY = https://ghproxy.com"
 echo "=========================================="
+
+
 

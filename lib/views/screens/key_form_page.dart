@@ -65,6 +65,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
   DateTime? _expiryDate;
   bool _isEditMode = false;
   bool _isCustomPlatform = false;
+  bool _initialized = false; // 标记是否已完成初始化
   bool _obscureKeyValue = true;
   PlatformCategory _selectedCategory = PlatformCategory.popular;
   
@@ -102,7 +103,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
     _tagsController = TextEditingController(
         text: widget.editingKey?.tags.join(', ') ?? '');
     _notesController = TextEditingController(text: widget.editingKey?.notes ?? '');
-    
+
     // ClaudeCode 配置控制器
     _claudeCodeApiEndpointController = TextEditingController(
       text: widget.editingKey?.claudeCodeApiEndpoint ?? '',
@@ -122,7 +123,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
     _claudeCodeBaseUrlController = TextEditingController(
       text: widget.editingKey?.claudeCodeBaseUrl ?? '',
     );
-    
+
     // Codex 配置控制器
     _codexApiEndpointController = TextEditingController(
       text: widget.editingKey?.codexApiEndpoint ?? '',
@@ -133,7 +134,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
     _codexBaseUrlController = TextEditingController(
       text: widget.editingKey?.codexBaseUrl ?? '',
     );
-    
+
     if (widget.editingKey != null) {
       _selectedPlatform = widget.editingKey!.platformType;
       _isCustomPlatform = widget.editingKey!.platformType == PlatformType.custom;
@@ -151,14 +152,14 @@ class _KeyFormPageState extends State<KeyFormPage> {
       _enableGemini = false;
       _selectedIcon = null;
     }
-    
+
     _expiryDateController = TextEditingController(
       text: _expiryDate != null ? DateFormat('yyyy-MM-dd').format(_expiryDate!) : '',
     );
-    
+
     // 监听日期输入框变化，解析用户输入的日期
     _expiryDateController.addListener(_parseDateInput);
-    
+
     // 监听管理地址输入框变化，更新按钮显示状态
     _managementUrlController.addListener(() {
       final hasUrl = _managementUrlController.text.trim().isNotEmpty;
@@ -168,6 +169,19 @@ class _KeyFormPageState extends State<KeyFormPage> {
         });
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // ⚠️ 编辑模式下，确保平台设置正确但不覆盖用户配置
+    if (_isEditMode && _selectedPlatform != null && !_initialized) {
+      // 再次设置平台（不会覆盖ClaudeCode/Codex配置，因为有 _isEditMode 保护）
+      // 这确保了编辑模式下平台相关的其他字段（如 _isCustomPlatform）正确设置
+      _selectPlatform(_selectedPlatform!);
+      _initialized = true; // 标记初始化完成，防止重复初始化
+    }
   }
   
   bool _isUpdatingDateFromPicker = false;
@@ -319,64 +333,74 @@ class _KeyFormPageState extends State<KeyFormPage> {
             _selectedIcon = null;
           }
           
-          // 尝试获取平台的 ClaudeCode/Codex 配置（如果有），用于自动填充
+          // 尝试获取平台的 ClaudeCode/Codex 配置（仅在新建模式下自动填充）
           final claudeCodeProvider = ProviderConfig.getClaudeCodeProviderByPlatform(platform);
           final codexProvider = ProviderConfig.getCodexProviderByPlatform(platform);
-          
-          // ClaudeCode 配置：如果有预设配置，强制填充；如果没有，清空并禁用
-          if (claudeCodeProvider != null) {
-            // 有预设配置：启用并填充所有字段
-            _enableClaudeCode = true;
-            _claudeCodeBaseUrlController.text = claudeCodeProvider.baseUrl;
-            
-            // 先清空所有模型字段，避免残留
-            _claudeCodeModelController.clear();
-            _claudeCodeHaikuModelController.clear();
-            _claudeCodeSonnetModelController.clear();
-            _claudeCodeOpusModelController.clear();
-            
-            // 按照模板填充模型字段
-            if (claudeCodeProvider.modelConfig.mainModel.isNotEmpty) {
-              _claudeCodeModelController.text = claudeCodeProvider.modelConfig.mainModel;
+
+          // ⚠️ 重要：模板配置只在新建模式下应用，编辑模式下保留用户自定义配置
+          if (!_isEditMode) {
+            // 新建模式：自动填充模板配置
+            // ClaudeCode 配置：如果有预设配置，强制填充；如果没有，清空并禁用
+            if (claudeCodeProvider != null) {
+              // 有预设配置：启用并填充所有字段
+              _enableClaudeCode = true;
+              _claudeCodeBaseUrlController.text = claudeCodeProvider.baseUrl;
+
+              // 先清空所有模型字段，避免残留
+              _claudeCodeModelController.clear();
+              _claudeCodeHaikuModelController.clear();
+              _claudeCodeSonnetModelController.clear();
+              _claudeCodeOpusModelController.clear();
+
+              // 按照模板填充模型字段
+              if (claudeCodeProvider.modelConfig.mainModel.isNotEmpty) {
+                _claudeCodeModelController.text = claudeCodeProvider.modelConfig.mainModel;
+              }
+              if (claudeCodeProvider.modelConfig.haikuModel != null &&
+                  claudeCodeProvider.modelConfig.haikuModel!.isNotEmpty) {
+                _claudeCodeHaikuModelController.text = claudeCodeProvider.modelConfig.haikuModel!;
+              }
+              if (claudeCodeProvider.modelConfig.sonnetModel != null &&
+                  claudeCodeProvider.modelConfig.sonnetModel!.isNotEmpty) {
+                _claudeCodeSonnetModelController.text = claudeCodeProvider.modelConfig.sonnetModel!;
+              }
+              if (claudeCodeProvider.modelConfig.opusModel != null &&
+                  claudeCodeProvider.modelConfig.opusModel!.isNotEmpty) {
+                _claudeCodeOpusModelController.text = claudeCodeProvider.modelConfig.opusModel!;
+              }
+            } else {
+              // 没有预设配置：清空所有字段并禁用
+              _enableClaudeCode = false;
+              _claudeCodeBaseUrlController.clear();
+              _claudeCodeModelController.clear();
+              _claudeCodeHaikuModelController.clear();
+              _claudeCodeSonnetModelController.clear();
+              _claudeCodeOpusModelController.clear();
             }
-            if (claudeCodeProvider.modelConfig.haikuModel != null && 
-                claudeCodeProvider.modelConfig.haikuModel!.isNotEmpty) {
-              _claudeCodeHaikuModelController.text = claudeCodeProvider.modelConfig.haikuModel!;
-            }
-            if (claudeCodeProvider.modelConfig.sonnetModel != null && 
-                claudeCodeProvider.modelConfig.sonnetModel!.isNotEmpty) {
-              _claudeCodeSonnetModelController.text = claudeCodeProvider.modelConfig.sonnetModel!;
-            }
-            if (claudeCodeProvider.modelConfig.opusModel != null && 
-                claudeCodeProvider.modelConfig.opusModel!.isNotEmpty) {
-              _claudeCodeOpusModelController.text = claudeCodeProvider.modelConfig.opusModel!;
-            }
-          } else {
-            // 没有预设配置：清空所有字段并禁用
-            _enableClaudeCode = false;
-            _claudeCodeBaseUrlController.clear();
-            _claudeCodeModelController.clear();
-            _claudeCodeHaikuModelController.clear();
-            _claudeCodeSonnetModelController.clear();
-            _claudeCodeOpusModelController.clear();
           }
+          // 编辑模式：不应用模板配置，保留用户已有的自定义配置
           
           // Codex 配置：如果有预设配置，强制填充；如果没有，清空并禁用
-          if (codexProvider != null) {
-            // 有预设配置：启用并填充所有字段
-            _enableCodex = true;
-            _codexBaseUrlController.text = codexProvider.baseUrl;
-            _codexModelController.text = codexProvider.model;
-          } else {
-            // 没有预设配置：清空所有字段并禁用
-            _enableCodex = false;
-            _codexBaseUrlController.clear();
-            _codexModelController.clear();
+          // 同样只在新建模式下应用，编辑模式下保留用户自定义配置
+          if (!_isEditMode) {
+            if (codexProvider != null) {
+              // 有预设配置：启用并填充所有字段
+              _enableCodex = true;
+              _codexBaseUrlController.text = codexProvider.baseUrl;
+              _codexModelController.text = codexProvider.model;
+            } else {
+              // 没有预设配置：清空所有字段并禁用
+              _enableCodex = false;
+              _codexBaseUrlController.clear();
+              _codexModelController.clear();
+            }
           }
+          // 编辑模式：不应用模板配置，保留用户已有的自定义配置
           
           // 编辑模式下切换模板时，清空模板中没有的字段（tags、notes、expiryDate）
           // 但保留密钥值（key_value）不变
-          if (_isEditMode) {
+          // 注意：这个逻辑只在用户手动切换平台时触发，不在 didChangeDependencies 中触发
+          if (_isEditMode && !_initialized) {
             _tagsController.clear();
             _notesController.clear();
             _expiryDate = null;
@@ -386,14 +410,18 @@ class _KeyFormPageState extends State<KeyFormPage> {
       } else {
         // 选择自定义平台时，清空基本表单字段
         // 但不清空 ClaudeCode/Codex 相关字段，让用户可以手动配置
-        _nameController.clear();
-        _managementUrlController.clear();
-        _hasManagementUrl = false;
-        _apiEndpointController.clear();
-        _keyValueController.clear();
-        _tagsController.clear();
-        _notesController.clear();
-        _expiryDate = null;
+        if (!_isEditMode) {
+          // 仅新建模式下清空字段
+          _nameController.clear();
+          _managementUrlController.clear();
+          _hasManagementUrl = false;
+          _apiEndpointController.clear();
+          _keyValueController.clear();
+          _tagsController.clear();
+          _notesController.clear();
+          _expiryDate = null;
+        }
+        // 编辑模式下：什么也不做，保留所有字段（包括自定义平台的配置）
         // 不清空 ClaudeCode/Codex 字段，保持用户已输入的内容
         // 如果用户需要清空，可以手动禁用开关
       }
@@ -1041,27 +1069,27 @@ class _KeyFormPageState extends State<KeyFormPage> {
         icon: _selectedIcon,
         enableClaudeCode: _enableClaudeCode,
         claudeCodeApiEndpoint: null, // 不再使用，使用基本信息中的 API 地址
-        claudeCodeModel: _enableClaudeCode && _claudeCodeModelController.text.trim().isNotEmpty
+        claudeCodeModel: _claudeCodeModelController.text.trim().isNotEmpty
             ? _claudeCodeModelController.text.trim()
             : null,
-        claudeCodeHaikuModel: _enableClaudeCode && _claudeCodeHaikuModelController.text.trim().isNotEmpty
+        claudeCodeHaikuModel: _claudeCodeHaikuModelController.text.trim().isNotEmpty
             ? _claudeCodeHaikuModelController.text.trim()
             : null,
-        claudeCodeSonnetModel: _enableClaudeCode && _claudeCodeSonnetModelController.text.trim().isNotEmpty
+        claudeCodeSonnetModel: _claudeCodeSonnetModelController.text.trim().isNotEmpty
             ? _claudeCodeSonnetModelController.text.trim()
             : null,
-        claudeCodeOpusModel: _enableClaudeCode && _claudeCodeOpusModelController.text.trim().isNotEmpty
+        claudeCodeOpusModel: _claudeCodeOpusModelController.text.trim().isNotEmpty
             ? _claudeCodeOpusModelController.text.trim()
             : null,
-        claudeCodeBaseUrl: _enableClaudeCode && _claudeCodeBaseUrlController.text.trim().isNotEmpty
+        claudeCodeBaseUrl: _claudeCodeBaseUrlController.text.trim().isNotEmpty
             ? _claudeCodeBaseUrlController.text.trim()
             : null,
         enableCodex: _enableCodex,
         codexApiEndpoint: null, // 不再使用，使用基本信息中的 API 地址
-        codexModel: _enableCodex && _codexModelController.text.trim().isNotEmpty
+        codexModel: _codexModelController.text.trim().isNotEmpty
             ? _codexModelController.text.trim()
             : null,
-        codexBaseUrl: _enableCodex && _codexBaseUrlController.text.trim().isNotEmpty
+        codexBaseUrl: _codexBaseUrlController.text.trim().isNotEmpty
             ? _codexBaseUrlController.text.trim()
             : null,
         enableGemini: _enableGemini,
@@ -1135,32 +1163,34 @@ class _KeyFormPageState extends State<KeyFormPage> {
                   onChanged: (value) {
                     setState(() {
                       _enableClaudeCode = value;
-                      // 如果启用，自动填充供应商配置（编辑模式和新建模式都支持）
-                      if (value && provider != null) {
+                      // ⚠️ 重要：只在新建模式下自动填充模板配置
+                      // 编辑模式下只处理启用/禁用状态，不覆盖用户自定义配置
+                      if (value && provider != null && !_isEditMode) {
+                        // 新建模式：自动填充供应商配置
                         // 先填充 Base URL（如果为空）
                         if (_claudeCodeBaseUrlController.text.isEmpty) {
                           _claudeCodeBaseUrlController.text = provider.baseUrl;
                         }
-                        
+
                         // 先清空所有模型字段，避免残留其他供应商的配置
                         _claudeCodeModelController.clear();
                         _claudeCodeHaikuModelController.clear();
                         _claudeCodeSonnetModelController.clear();
                         _claudeCodeOpusModelController.clear();
-                        
+
                         // 只有当模型配置不为空时才自动填充
                         if (provider.modelConfig.mainModel.isNotEmpty) {
                           _claudeCodeModelController.text = provider.modelConfig.mainModel;
                         }
-                        if (provider.modelConfig.haikuModel != null && 
+                        if (provider.modelConfig.haikuModel != null &&
                             provider.modelConfig.haikuModel!.isNotEmpty) {
                           _claudeCodeHaikuModelController.text = provider.modelConfig.haikuModel!;
                         }
-                        if (provider.modelConfig.sonnetModel != null && 
+                        if (provider.modelConfig.sonnetModel != null &&
                             provider.modelConfig.sonnetModel!.isNotEmpty) {
                           _claudeCodeSonnetModelController.text = provider.modelConfig.sonnetModel!;
                         }
-                        if (provider.modelConfig.opusModel != null && 
+                        if (provider.modelConfig.opusModel != null &&
                             provider.modelConfig.opusModel!.isNotEmpty) {
                           _claudeCodeOpusModelController.text = provider.modelConfig.opusModel!;
                         }
@@ -1172,6 +1202,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                         _claudeCodeSonnetModelController.clear();
                         _claudeCodeOpusModelController.clear();
                       }
+                      // 编辑模式且启用：什么也不做，保留用户已有配置
                     });
                   },
                   activeColor: shadTheme.colorScheme.primary,
@@ -1306,9 +1337,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
                   onChanged: (value) {
                     setState(() {
                       _enableCodex = value;
-                      // 如果启用，自动填充供应商配置（编辑模式和新建模式都支持）
-                      if (value && provider != null) {
-                        // 只有在字段为空时才自动填充，避免覆盖用户已输入的内容
+                      // ⚠️ 重要：模板配置只在新建模式下自动填充
+                      // 编辑模式下保留用户自定义配置
+                      if (value && provider != null && !_isEditMode) {
+                        // 新建模式：只在字段为空时才自动填充
                         if (_codexBaseUrlController.text.isEmpty) {
                           _codexBaseUrlController.text = provider.baseUrl;
                         }
@@ -1316,6 +1348,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                           _codexModelController.text = provider.model;
                         }
                       }
+                      // 编辑模式：什么也不做，保留用户已有配置
                     });
                   },
                   activeColor: shadTheme.colorScheme.primary,

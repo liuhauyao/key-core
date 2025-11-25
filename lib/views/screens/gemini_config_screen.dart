@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/key_card.dart';
+import '../widgets/key_details_dialog.dart';
 import '../../models/ai_key.dart';
 import '../../utils/app_localizations.dart';
 import '../../services/url_launcher_service.dart';
@@ -1361,7 +1362,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => _KeyDetailsDialog(
+      builder: (context) => KeyDetailsDialog(
         aiKey: decryptedKey,
         viewModel: viewModel,
         onEdit: () {
@@ -1380,13 +1381,8 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
             UrlLauncherService().openUrl(decryptedKey.managementUrl!);
           }
         },
-        onCopyApiEndpoint: () {
-          if (decryptedKey.apiEndpoint != null) {
-            ClipboardService().copyToClipboard(decryptedKey.apiEndpoint!);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('API Endpoint 已复制')),
-            );
-          }
+        onCopyText: (text) {
+          ClipboardService().copyToClipboard(text);
         },
       ),
     );
@@ -1396,10 +1392,22 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
   Future<void> _showEditKeyPage(BuildContext context, AIKey key) async {
     final viewModel = context.read<KeyManagerViewModel>();
     final localizations = AppLocalizations.of(context);
-    
+
+    // ⚠️ 重要：使用解密后的密钥进行编辑（与 main_screen 保持一致）
+    final decryptedKey = await viewModel.getDecryptedKey(key.id!);
+    if (decryptedKey == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(localizations?.cannotDecryptKey ?? '无法解密密钥'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final result = await Navigator.of(context).push<AIKey>(
       MaterialPageRoute(
-        builder: (context) => KeyFormPage(editingKey: key),
+        builder: (context) => KeyFormPage(editingKey: decryptedKey),
       ),
     );
 
@@ -1425,361 +1433,3 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
     }
   }
 }
-
-/// 密钥详情弹窗（用于配置页面）
-class _KeyDetailsDialog extends StatefulWidget {
-  final AIKey aiKey;
-  final KeyManagerViewModel viewModel;
-  final VoidCallback onEdit;
-  final VoidCallback onCopyKey;
-  final VoidCallback onOpenManagementUrl;
-  final VoidCallback onCopyApiEndpoint;
-
-  const _KeyDetailsDialog({
-    super.key,
-    required this.aiKey,
-    required this.viewModel,
-    required this.onEdit,
-    required this.onCopyKey,
-    required this.onOpenManagementUrl,
-    required this.onCopyApiEndpoint,
-  });
-
-  @override
-  State<_KeyDetailsDialog> createState() => _KeyDetailsDialogState();
-}
-
-class _KeyDetailsDialogState extends State<_KeyDetailsDialog> {
-  bool _showKeyValue = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 800,
-        constraints: const BoxConstraints(maxHeight: 700),
-        decoration: BoxDecoration(
-          color: shadTheme.colorScheme.background,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: shadTheme.colorScheme.border,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 标题栏
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: shadTheme.colorScheme.border,
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  PlatformIconHelper.buildIcon(
-                    platform: widget.aiKey.platformType,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      widget.aiKey.name,
-                      style: shadTheme.textTheme.h4.copyWith(
-                        color: shadTheme.colorScheme.foreground,
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: localizations?.edit ?? '编辑',
-                    child: ShadButton.ghost(
-                      width: 30,
-                      height: 30,
-                      padding: EdgeInsets.zero,
-                      child: Icon(
-                        Icons.edit_outlined,
-                        size: 20,
-                        color: shadTheme.colorScheme.mutedForeground,
-                      ),
-                      onPressed: widget.onEdit,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ShadButton.ghost(
-                    width: 30,
-                    height: 30,
-                    padding: EdgeInsets.zero,
-                    child: Icon(
-                      Icons.close,
-                      size: 20,
-                      color: shadTheme.colorScheme.mutedForeground,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            // 内容区域
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildDetailRow(localizations?.platformLabel ?? '平台', widget.aiKey.platform),
-                    const SizedBox(height: 12),
-                    // 管理地址
-                    if (widget.aiKey.managementUrl != null) ...[
-                      _buildActionRow(
-                        context,
-                        localizations?.managementUrl ?? '管理地址',
-                        widget.aiKey.managementUrl!,
-                        Icons.language,
-                        localizations?.open ?? '打开',
-                        widget.onOpenManagementUrl,
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                    // API地址
-                    if (widget.aiKey.apiEndpoint != null) ...[
-                      _buildActionRow(
-                        context,
-                        'API Endpoint',
-                        widget.aiKey.apiEndpoint!,
-                        Icons.code,
-                        localizations?.copy ?? '复制',
-                        widget.onCopyApiEndpoint,
-                        isMonospace: true,
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                    // 密钥值
-                    _buildKeyValueRow(context),
-                    const SizedBox(height: 10),
-                    if (widget.aiKey.expiryDate != null) ...[
-                      _buildDetailRow(localizations?.expiryDate ?? '过期日期', widget.aiKey.formattedExpiryDate),
-                      const SizedBox(height: 10),
-                    ],
-                    if (widget.aiKey.tags.isNotEmpty) ...[
-                      _buildDetailRow(localizations?.tags ?? '标签', widget.aiKey.tags.join(', ')),
-                      const SizedBox(height: 10),
-                    ],
-                    if (widget.aiKey.notes != null && widget.aiKey.notes!.isNotEmpty) ...[
-                      _buildDetailRow(localizations?.notes ?? '备注', widget.aiKey.notes!),
-                      const SizedBox(height: 10),
-                    ],
-                    // 创建时间和更新时间在同一行
-                    _buildTimeRow(
-                      context,
-                      localizations?.createdTime ?? '创建时间',
-                      _formatDateTime(widget.aiKey.createdAt),
-                      localizations?.updatedTime ?? '更新时间',
-                      _formatDateTime(widget.aiKey.updatedAt),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: shadTheme.textTheme.small.copyWith(
-            color: shadTheme.colorScheme.foreground,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionRow(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-    String tooltip,
-    VoidCallback onPressed, {
-    bool isMonospace = false,
-  }) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                value,
-                style: shadTheme.textTheme.small.copyWith(
-                  color: shadTheme.colorScheme.primary,
-                  fontFamily: isMonospace ? 'monospace' : null,
-                  fontSize: isMonospace ? 13 : null,
-                ),
-              ),
-            ),
-            Tooltip(
-              message: tooltip,
-              child: ShadButton.ghost(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(6),
-                child: Icon(icon, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                onPressed: onPressed,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKeyValueRow(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${localizations?.keyValueLabel ?? '密钥值'}:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: shadTheme.colorScheme.muted,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  _showKeyValue
-                      ? widget.aiKey.keyValue
-                      : '•' * widget.aiKey.keyValue.length,
-                  style: shadTheme.textTheme.small.copyWith(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    color: shadTheme.colorScheme.foreground,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: _showKeyValue ? (localizations?.hide ?? '隐藏') : (localizations?.show ?? '显示'),
-              child: ShadButton.ghost(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(6),
-                child: Icon(
-                  _showKeyValue ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                  size: 18,
-                  color: shadTheme.colorScheme.mutedForeground,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _showKeyValue = !_showKeyValue;
-                  });
-                },
-              ),
-            ),
-            Tooltip(
-              message: localizations?.copy ?? '复制',
-              child: ShadButton.ghost(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(6),
-                child: Icon(
-                  Icons.copy_outlined,
-                  size: 18,
-                  color: shadTheme.colorScheme.mutedForeground,
-                ),
-                onPressed: widget.onCopyKey,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTimeRow(
-    BuildContext context,
-    String createdLabel,
-    String createdValue,
-    String updatedLabel,
-    String updatedValue,
-  ) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$createdLabel / $updatedLabel:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '$createdValue / $updatedValue',
-          style: shadTheme.textTheme.small.copyWith(
-            color: shadTheme.colorScheme.foreground,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
-        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-  }
-}
-

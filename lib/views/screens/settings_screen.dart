@@ -61,7 +61,23 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     _loadSupportedLanguages();
     
     // ⭐ 自动在后台检查配置更新（静默刷新）
+    // App Store 版本：禁用自动检查（符合审核要求），用户可通过"检查更新"按钮手动触发
+    // 非 App Store 版本：允许自动检查
     _autoCheckForUpdates();
+  }
+  
+  /// 检测是否为 App Store 版本
+  Future<bool> _isAppStoreVersion() async {
+    if (!Platform.isMacOS) return false;
+    try {
+      final appPath = Platform.resolvedExecutable;
+      final appBundlePath = appPath.split('/Contents/MacOS/').first;
+      final receiptPath = '$appBundlePath/Contents/_MASReceipt/receipt';
+      final receiptFile = File(receiptPath);
+      return await receiptFile.exists();
+    } catch (e) {
+      return false;
+    }
   }
   
   /// 自动后台检查配置更新（静默刷新，不显示加载状态）
@@ -70,6 +86,13 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     await Future.delayed(const Duration(milliseconds: 500));
     
     if (!mounted) return;
+    
+    // App Store 版本：跳过自动检查（用户可通过设置中的"检查更新"按钮手动触发）
+    final isAppStore = await _isAppStoreVersion();
+    if (isAppStore) {
+      print('SettingsScreen: App Store 版本，跳过自动配置更新检查');
+      return;
+    }
     
     try {
       await _cloudConfigService.init();

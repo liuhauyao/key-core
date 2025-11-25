@@ -394,7 +394,7 @@ flutter test --coverage
 
 如有问题或建议，请通过以下方式联系：
 
-- GitHub Issues: https://github.com/yourusername/ai-key-manager/issues
+- GitHub Issues: https://github.com/liuhauyao/key-core/issues
 
 ## 🙏 致谢
 
