@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "schemaVersion": 2,
-  "lastUpdated": "2025-01-21T02:30:00.000000",
+  "lastUpdated": "2025-12-02T08:00:00.000000",
   "config": {
     "supportedLanguages": [
       {
@@ -654,15 +654,35 @@
       },
       {
         "id": "siliconFlow",
-        "name": "SiliconFlow API Key",
+        "name": "SiliconFlow",
         "platformType": "siliconFlow",
-        "categories": [],
-        "providerCategory": "thirdParty",
+        "categories": [
+          "claudeCode",
+          "codex"
+        ],
+        "providerCategory": "aggregator",
         "websiteUrl": "https://siliconflow.cn",
         "isOfficial": false,
         "isPartner": false,
+        "apiKeyUrl": "https://cloud.siliconflow.cn/account/ak",
+        "claudeCode": {
+          "baseUrl": "https://api.siliconflow.cn",
+          "modelConfig": {
+            "mainModel": ""
+          },
+          "endpointCandidates": [
+            "https://api.siliconflow.cn"
+          ]
+        },
+        "codex": {
+          "baseUrl": "https://api.siliconflow.cn/v1",
+          "model": "gpt-5-codex",
+          "endpointCandidates": [
+            "https://api.siliconflow.cn/v1"
+          ]
+        },
         "platform": {
-          "managementUrl": "https://siliconflow.cn",
+          "managementUrl": "https://cloud.siliconflow.cn/account/ak",
           "apiEndpoint": "https://api.siliconflow.cn/v1",
           "defaultName": "SiliconFlow API Key"
         }
@@ -1826,6 +1846,17 @@
           "supportsAuthJson": false,
           "envKeyName": "KIMI_API_KEY",
           "requiresOpenaiAuth": false,
+          "wireApi": "chat"
+        },
+        {
+          "platformType": "siliconFlow",
+          "baseUrlPatterns": [
+            "siliconflow.cn",
+            "api.siliconflow.cn"
+          ],
+          "supportsAuthJson": true,
+          "requiresOpenaiAuth": true,
+          "authJsonKey": "OPENAI_API_KEY",
           "wireApi": "chat"
         }
       ],
