@@ -658,7 +658,8 @@
         "platformType": "siliconFlow",
         "categories": [
           "claudeCode",
-          "codex"
+          "codex",
+          "popular"
         ],
         "providerCategory": "aggregator",
         "websiteUrl": "https://siliconflow.cn",

@@ -78,41 +78,50 @@ class PlatformRegistry {
   /// 从云端配置加载动态平台
   static Future<void> loadDynamicPlatforms(CloudConfigService cloudConfigService) async {
     print('PlatformRegistry: 开始加载动态平台...');
-    
+
     final configData = await cloudConfigService.getConfigData();
     if (configData == null || configData.providers.isEmpty) {
       print('PlatformRegistry: 云端配置为空或没有供应商配置');
       _dynamicInitialized = true;
       return;
     }
-    
+
     final providers = configData.providers;
     int addedCount = 0;
-    
+    int updatedCategoriesCount = 0;
+
     for (var provider in providers) {
-      // 只添加云端独有的平台（不在内置平台中）
-      if (!_platforms.containsKey(provider.platformType)) {
+      // 如果是内置平台，更新其 categories 信息
+      if (_platforms.containsKey(provider.platformType)) {
+        // 保存/更新内置平台的分类信息
+        if (provider.categories != null && provider.categories!.isNotEmpty) {
+          _platformCategories[provider.platformType] = provider.categories!;
+          updatedCategoriesCount++;
+          print('PlatformRegistry: 更新内置平台分类: ${provider.platformType}, 分类: ${provider.categories}');
+        }
+      } else {
+        // 添加云端独有的动态平台
         final platform = PlatformType.dynamic(
           id: provider.platformType,
           value: provider.name, // 使用 provider 的名称作为显示名称
           iconName: 'cloud', // 默认图标
           color: Colors.blueGrey, // 默认颜色
         );
-        
+
         _platforms[platform.id] = platform;
-        
+
         // 保存分类信息
         if (provider.categories != null && provider.categories!.isNotEmpty) {
           _platformCategories[platform.id] = provider.categories!;
         }
-        
+
         addedCount++;
         print('PlatformRegistry: 注册动态平台: ${platform.id} (${platform.value}), 分类: ${provider.categories}');
       }
     }
-    
+
     _dynamicInitialized = true;
-    print('PlatformRegistry: 已加载 $addedCount 个动态平台，总计 ${_platforms.length} 个平台');
+    print('PlatformRegistry: 已加载 $addedCount 个动态平台，更新了 $updatedCategoriesCount 个内置平台分类，总计 ${_platforms.length} 个平台');
   }
 
   /// 注册内置平台
@@ -188,11 +197,28 @@ class PlatformRegistry {
   /// 获取动态平台数量
   static int get dynamicCount => _platforms.values.where((p) => !p.isBuiltin).length;
 
+  /// 获取指定分类的所有平台（内置和动态）
+  /// 从配置文件的 categories 字段读取
+  static List<PlatformType> getPlatformsByCategory(String category) {
+    final platforms = <PlatformType>[];
+
+    for (var entry in _platformCategories.entries) {
+      if (entry.value.contains(category)) {
+        final platform = _platforms[entry.key];
+        if (platform != null) {
+          platforms.add(platform);
+        }
+      }
+    }
+
+    return platforms;
+  }
+
   /// 获取指定分类的动态平台
   /// 从缓存的分类信息中读取
   static List<PlatformType> getDynamicPlatformsByCategory(String category) {
     final dynamicPlatforms = <PlatformType>[];
-    
+
     for (var entry in _platformCategories.entries) {
       if (entry.value.contains(category)) {
         final platform = _platforms[entry.key];
@@ -201,7 +227,7 @@ class PlatformRegistry {
         }
       }
     }
-    
+
     return dynamicPlatforms;
   }
 }

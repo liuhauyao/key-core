@@ -51,7 +51,7 @@ class PlatformCategoryManager {
   static List<PlatformType> getPlatformsByCategory(PlatformCategory category) {
     switch (category) {
       case PlatformCategory.popular:
-        // 常用平台
+        // 常用平台：硬编码 + 配置文件中标记为 popular 的所有平台（内置和动态）
         final popularIds = [
           'openAI',
           'anthropic',
@@ -70,9 +70,15 @@ class PlatformCategoryManager {
             .where((p) => p != null)
             .cast<PlatformType>()
             .toList();
-        
-        // 添加动态的 popular 平台
-        platforms.addAll(PlatformRegistry.getDynamicPlatformsByCategory('popular'));
+
+        // 添加配置文件中标记为 popular 的所有平台（内置平台和动态平台）
+        final configPopularPlatforms = PlatformRegistry.getPlatformsByCategory('popular');
+        for (var platform in configPopularPlatforms) {
+          if (!platforms.contains(platform)) {
+            platforms.add(platform);
+          }
+        }
+
         return platforms;
       case PlatformCategory.llm:
         // 大语言模型提供商
