@@ -659,7 +659,8 @@
         "categories": [
           "claudeCode",
           "codex",
-          "popular"
+          "popular",
+          "llm"
         ],
         "providerCategory": "aggregator",
         "websiteUrl": "https://siliconflow.cn",
