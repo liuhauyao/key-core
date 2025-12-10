@@ -20,6 +20,8 @@ import '../../services/clipboard_service.dart';
 import '../../services/url_launcher_service.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../models/mcp_server.dart';
+import '../../utils/ime_friendly_formatter.dart';
+import '../widgets/ime_safe_text_field.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 /// 密钥编辑表单页面
@@ -36,7 +38,6 @@ class KeyFormPage extends StatefulWidget {
 }
 
 class _KeyFormPageState extends State<KeyFormPage> {
-  final _formKey = GlobalKey<ShadFormState>();
   late TextEditingController _nameController;
   late TextEditingController _managementUrlController;
   late TextEditingController _apiEndpointController;
@@ -151,6 +152,13 @@ class _KeyFormPageState extends State<KeyFormPage> {
       _enableCodex = false;
       _enableGemini = false;
       _selectedIcon = null;
+      // 新建模式下：默认选择常用分组中的自定义模板
+      _selectedCategory = PlatformCategory.popular;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _selectPlatform(PlatformType.custom);
+        }
+      });
     }
 
     _expiryDateController = TextEditingController(
@@ -300,7 +308,12 @@ class _KeyFormPageState extends State<KeyFormPage> {
       _selectedPlatform = platform;
       _isCustomPlatform = platform == PlatformType.custom;
 
-      // 如果不是自定义平台，自动填充预设信息
+      // 编辑模式下只更新平台选择状态，不覆盖已保存的字段
+      if (_isEditMode) {
+        return;
+      }
+
+      // 如果不是自定义平台，自动填充预设信息（仅新建）
       if (platform != PlatformType.custom) {
         final preset = PlatformPresets.getPreset(platform);
         if (preset != null) {
@@ -326,7 +339,6 @@ class _KeyFormPageState extends State<KeyFormPage> {
           // 自动设置平台图标
           final iconPath = PlatformIconHelper.getIconAssetPath(platform);
           if (iconPath != null) {
-            // 提取文件名（去掉路径前缀）
             final iconFileName = iconPath.replaceFirst('assets/icons/platforms/', '');
             _selectedIcon = iconFileName;
           } else {
@@ -337,93 +349,59 @@ class _KeyFormPageState extends State<KeyFormPage> {
           final claudeCodeProvider = ProviderConfig.getClaudeCodeProviderByPlatform(platform);
           final codexProvider = ProviderConfig.getCodexProviderByPlatform(platform);
 
-          // ⚠️ 重要：模板配置只在新建模式下应用，编辑模式下保留用户自定义配置
-          if (!_isEditMode) {
-            // 新建模式：自动填充模板配置
-            // ClaudeCode 配置：如果有预设配置，强制填充；如果没有，清空并禁用
-            if (claudeCodeProvider != null) {
-              // 有预设配置：启用并填充所有字段
-              _enableClaudeCode = true;
-              _claudeCodeBaseUrlController.text = claudeCodeProvider.baseUrl;
+          if (claudeCodeProvider != null) {
+            _enableClaudeCode = true;
+            _claudeCodeBaseUrlController.text = claudeCodeProvider.baseUrl;
 
-              // 先清空所有模型字段，避免残留
-              _claudeCodeModelController.clear();
-              _claudeCodeHaikuModelController.clear();
-              _claudeCodeSonnetModelController.clear();
-              _claudeCodeOpusModelController.clear();
+            _claudeCodeModelController.clear();
+            _claudeCodeHaikuModelController.clear();
+            _claudeCodeSonnetModelController.clear();
+            _claudeCodeOpusModelController.clear();
 
-              // 按照模板填充模型字段
-              if (claudeCodeProvider.modelConfig.mainModel.isNotEmpty) {
-                _claudeCodeModelController.text = claudeCodeProvider.modelConfig.mainModel;
-              }
-              if (claudeCodeProvider.modelConfig.haikuModel != null &&
-                  claudeCodeProvider.modelConfig.haikuModel!.isNotEmpty) {
-                _claudeCodeHaikuModelController.text = claudeCodeProvider.modelConfig.haikuModel!;
-              }
-              if (claudeCodeProvider.modelConfig.sonnetModel != null &&
-                  claudeCodeProvider.modelConfig.sonnetModel!.isNotEmpty) {
-                _claudeCodeSonnetModelController.text = claudeCodeProvider.modelConfig.sonnetModel!;
-              }
-              if (claudeCodeProvider.modelConfig.opusModel != null &&
-                  claudeCodeProvider.modelConfig.opusModel!.isNotEmpty) {
-                _claudeCodeOpusModelController.text = claudeCodeProvider.modelConfig.opusModel!;
-              }
-            } else {
-              // 没有预设配置：清空所有字段并禁用
-              _enableClaudeCode = false;
-              _claudeCodeBaseUrlController.clear();
-              _claudeCodeModelController.clear();
-              _claudeCodeHaikuModelController.clear();
-              _claudeCodeSonnetModelController.clear();
-              _claudeCodeOpusModelController.clear();
+            if (claudeCodeProvider.modelConfig.mainModel.isNotEmpty) {
+              _claudeCodeModelController.text = claudeCodeProvider.modelConfig.mainModel;
             }
-          }
-          // 编辑模式：不应用模板配置，保留用户已有的自定义配置
-          
-          // Codex 配置：如果有预设配置，强制填充；如果没有，清空并禁用
-          // 同样只在新建模式下应用，编辑模式下保留用户自定义配置
-          if (!_isEditMode) {
-            if (codexProvider != null) {
-              // 有预设配置：启用并填充所有字段
-              _enableCodex = true;
-              _codexBaseUrlController.text = codexProvider.baseUrl;
-              _codexModelController.text = codexProvider.model;
-            } else {
-              // 没有预设配置：清空所有字段并禁用
-              _enableCodex = false;
-              _codexBaseUrlController.clear();
-              _codexModelController.clear();
+            if (claudeCodeProvider.modelConfig.haikuModel != null &&
+                claudeCodeProvider.modelConfig.haikuModel!.isNotEmpty) {
+              _claudeCodeHaikuModelController.text = claudeCodeProvider.modelConfig.haikuModel!;
             }
+            if (claudeCodeProvider.modelConfig.sonnetModel != null &&
+                claudeCodeProvider.modelConfig.sonnetModel!.isNotEmpty) {
+              _claudeCodeSonnetModelController.text = claudeCodeProvider.modelConfig.sonnetModel!;
+            }
+            if (claudeCodeProvider.modelConfig.opusModel != null &&
+                claudeCodeProvider.modelConfig.opusModel!.isNotEmpty) {
+              _claudeCodeOpusModelController.text = claudeCodeProvider.modelConfig.opusModel!;
+            }
+          } else {
+            _enableClaudeCode = false;
+            _claudeCodeBaseUrlController.clear();
+            _claudeCodeModelController.clear();
+            _claudeCodeHaikuModelController.clear();
+            _claudeCodeSonnetModelController.clear();
+            _claudeCodeOpusModelController.clear();
           }
-          // 编辑模式：不应用模板配置，保留用户已有的自定义配置
-          
-          // 编辑模式下切换模板时，清空模板中没有的字段（tags、notes、expiryDate）
-          // 但保留密钥值（key_value）不变
-          // 注意：这个逻辑只在用户手动切换平台时触发，不在 didChangeDependencies 中触发
-          if (_isEditMode && !_initialized) {
-            _tagsController.clear();
-            _notesController.clear();
-            _expiryDate = null;
-            _expiryDateController.text = '';
+
+          if (codexProvider != null) {
+            _enableCodex = true;
+            _codexBaseUrlController.text = codexProvider.baseUrl;
+            _codexModelController.text = codexProvider.model;
+          } else {
+            _enableCodex = false;
+            _codexBaseUrlController.clear();
+            _codexModelController.clear();
           }
         }
       } else {
-        // 选择自定义平台时，清空基本表单字段
-        // 但不清空 ClaudeCode/Codex 相关字段，让用户可以手动配置
-        if (!_isEditMode) {
-          // 仅新建模式下清空字段
-          _nameController.clear();
-          _managementUrlController.clear();
-          _hasManagementUrl = false;
-          _apiEndpointController.clear();
-          _keyValueController.clear();
-          _tagsController.clear();
-          _notesController.clear();
-          _expiryDate = null;
-        }
-        // 编辑模式下：什么也不做，保留所有字段（包括自定义平台的配置）
-        // 不清空 ClaudeCode/Codex 字段，保持用户已输入的内容
-        // 如果用户需要清空，可以手动禁用开关
+        // 选择自定义平台时，清空基本表单字段（仅新建）
+        _nameController.clear();
+        _managementUrlController.clear();
+        _hasManagementUrl = false;
+        _apiEndpointController.clear();
+        _keyValueController.clear();
+        _tagsController.clear();
+        _notesController.clear();
+        _expiryDate = null;
       }
     });
   }
@@ -473,41 +451,32 @@ class _KeyFormPageState extends State<KeyFormPage> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                child: ShadForm(
-                  key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
 
               // 密钥名称和标签（同一行）
+              // ⚠️ 使用 ImeSafeTextField 替代 ShadInputFormField，避免中文输入法问题
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: ShadInputFormField(
-                      id: 'name',
+                    child: ImeSafeTextField(
                       controller: _nameController,
-                      label: Text(localizations?.keyNameLabel ?? '密钥名称 *'),
-                      placeholder: Text(localizations?.keyNameHint ?? '请输入密钥名称'),
-                      leading: _buildClickableIcon(context, shadTheme),
-                      maxLength: AppConstants.maxNameLength,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return localizations?.keyNameRequired ?? '请输入密钥名称';
-                        }
-                        return null;
-                      },
+                      labelText: localizations?.keyNameLabel ?? '密钥名称 *',
+                      hintText: localizations?.keyNameHint ?? '请输入密钥名称',
+                      prefixIcon: _buildClickableIcon(context, shadTheme),
+                      isDark: Theme.of(context).brightness == Brightness.dark,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: ShadInputFormField(
-                      id: 'tags',
+                    child: ImeSafeTextField(
                       controller: _tagsController,
-                      label: Text(localizations?.tagsLabel ?? '标签'),
-                      placeholder: Text(localizations?.tagsHint ?? '多个标签用逗号分隔'),
-                      leading: Icon(Icons.local_offer, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                      maxLength: 200,
+                      labelText: localizations?.tagsLabel ?? '标签',
+                      hintText: localizations?.tagsHint ?? '多个标签用逗号分隔',
+                      prefixIcon: Icon(Icons.local_offer, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                      isDark: Theme.of(context).brightness == Brightness.dark,
                     ),
                   ),
                 ],
@@ -519,22 +488,15 @@ class _KeyFormPageState extends State<KeyFormPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: ShadInputFormField(
-                      id: 'managementUrl',
+                    child: ImeSafeTextField(
                       controller: _managementUrlController,
-                      label: Text(localizations?.managementUrlLabel ?? '管理地址'),
-                      placeholder: Text(localizations?.managementUrlHint ?? 'https://example.com'),
-                      leading: Icon(Icons.language, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                      labelText: localizations?.managementUrlLabel ?? '管理地址',
+                      hintText: localizations?.managementUrlHint ?? 'https://example.com',
+                      prefixIcon: Icon(Icons.language, size: 18, color: shadTheme.colorScheme.mutedForeground),
                       keyboardType: TextInputType.url,
-                      trailing: _hasManagementUrl
-                          ? ShadButton(
-                              width: 24,
-                              height: 24,
-                              padding: EdgeInsets.zero,
-                              backgroundColor: Colors.transparent,
-                              foregroundColor: iconColor,
-                              hoverBackgroundColor: Colors.transparent,
-                              child: Icon(
+                      suffixIcon: _hasManagementUrl
+                          ? IconButton(
+                              icon: Icon(
                                 Icons.open_in_new,
                                 size: 18,
                                 color: iconColor,
@@ -545,19 +507,22 @@ class _KeyFormPageState extends State<KeyFormPage> {
                                   await _urlLauncherService.openManagementUrl(url);
                                 }
                               },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                             )
                           : null,
+                      isDark: Theme.of(context).brightness == Brightness.dark,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: ShadInputFormField(
-                      id: 'apiEndpoint',
+                    child: ImeSafeTextField(
                       controller: _apiEndpointController,
-                      label: Text(localizations?.apiEndpointLabel ?? 'API地址'),
-                      placeholder: Text(localizations?.apiEndpointHint ?? 'https://api.example.com'),
-                      leading: Icon(Icons.code, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                      labelText: localizations?.apiEndpointLabel ?? 'API地址',
+                      hintText: localizations?.apiEndpointHint ?? 'https://api.example.com',
+                      prefixIcon: Icon(Icons.code, size: 18, color: shadTheme.colorScheme.mutedForeground),
                       keyboardType: TextInputType.url,
+                      isDark: Theme.of(context).brightness == Brightness.dark,
                     ),
                   ),
                 ],
@@ -565,25 +530,17 @@ class _KeyFormPageState extends State<KeyFormPage> {
               const SizedBox(height: 16),
 
               // 密钥值
-              ShadInputFormField(
-                id: 'keyValue',
+              ImeSafeTextField(
                 controller: _keyValueController,
-                label: Text(localizations?.keyValueLabelForm ?? '密钥值 *'),
-                placeholder: Text(localizations?.keyValueHint ?? '请输入密钥值'),
-                leading: Padding(
+                labelText: localizations?.keyValueLabelForm ?? '密钥值 *',
+                hintText: localizations?.keyValueHint ?? '请输入密钥值',
+                prefixIcon: Padding(
                   padding: const EdgeInsets.all(4.0),
                   child: Icon(Icons.key, size: 18, color: shadTheme.colorScheme.mutedForeground),
                 ),
-                maxLength: AppConstants.maxKeyValueLength,
                 obscureText: _obscureKeyValue,
-                trailing: ShadButton(
-                  width: 24,
-                  height: 24,
-                  padding: EdgeInsets.zero,
-                  backgroundColor: Colors.transparent,
-                  foregroundColor: iconColor,
-                  hoverBackgroundColor: Colors.transparent,
-                  child: Icon(
+                suffixIcon: IconButton(
+                  icon: Icon(
                     _obscureKeyValue ? Icons.visibility_off : Icons.visibility,
                     size: 18,
                     color: iconColor,
@@ -593,42 +550,39 @@ class _KeyFormPageState extends State<KeyFormPage> {
                       _obscureKeyValue = !_obscureKeyValue;
                     });
                   },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return localizations?.keyValueRequired ?? '请输入密钥值';
-                  }
-                  return null;
-                },
+                isDark: Theme.of(context).brightness == Brightness.dark,
               ),
               const SizedBox(height: 16),
 
               // 过期日期（单独一行）
-              ShadInputFormField(
-                id: 'expiryDate',
+              ImeSafeTextField(
                 controller: _expiryDateController,
-                label: Text(localizations?.expiryDateLabel ?? '过期日期'),
-                placeholder: Text(localizations?.expiryDateHint ?? '选择日期（可选）'),
-                trailing: Row(
+                labelText: localizations?.expiryDateLabel ?? '过期日期',
+                hintText: localizations?.expiryDateHint ?? '选择日期（可选）',
+                suffixIcon: SizedBox(
+                  width: _expiryDate != null ? 56 : 32, // 有清除按钮时更宽
+                  child: Row(
                   mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     if (_expiryDate != null) ...[
-                      ShadButton(
-                        width: 24,
-                        height: 24,
-                        padding: EdgeInsets.zero,
-                        backgroundColor: Colors.transparent,
-                        foregroundColor: iconColor,
-                        hoverBackgroundColor: Colors.transparent,
-                        child: Icon(Icons.clear, size: 18, color: iconColor),
+                        IconButton(
+                          icon: Icon(Icons.clear, size: 18, color: iconColor),
                         onPressed: () {
                           setState(() {
                             _expiryDate = null;
                             _expiryDateController.text = '';
                           });
                         },
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 24,
+                            minHeight: 24,
                       ),
-                      const SizedBox(width: 4),
+                        ),
                     ],
                     ShadPopover(
                       controller: _datePickerPopoverController,
@@ -660,30 +614,30 @@ class _KeyFormPageState extends State<KeyFormPage> {
                           }
                         },
                       ),
-                      child: ShadButton(
-                        width: 24,
-                        height: 24,
-                        padding: EdgeInsets.zero,
-                        backgroundColor: Colors.transparent,
-                        foregroundColor: iconColor,
-                        hoverBackgroundColor: Colors.transparent,
-                        child: Icon(Icons.calendar_today, size: 18, color: iconColor),
+                        child: IconButton(
+                          icon: Icon(Icons.calendar_today, size: 18, color: iconColor),
                         onPressed: () => _datePickerPopoverController.toggle(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 24,
+                            minHeight: 24,
+                          ),
                       ),
                     ),
                   ],
                 ),
+                ),
+                isDark: Theme.of(context).brightness == Brightness.dark,
               ),
               const SizedBox(height: 16),
 
               // 备注（单行100字符）
-              ShadInputFormField(
-                id: 'notes',
+              ImeSafeTextField(
                 controller: _notesController,
-                label: Text(localizations?.notesLabel ?? '备注'),
-                placeholder: Text(localizations?.notesHint ?? '请输入备注信息'),
-                      leading: Icon(Icons.notes, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                maxLength: 100,
+                labelText: localizations?.notesLabel ?? '备注',
+                hintText: localizations?.notesHint ?? '请输入备注信息',
+                prefixIcon: Icon(Icons.notes, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                isDark: Theme.of(context).brightness == Brightness.dark,
               ),
               const SizedBox(height: 24),
               
@@ -738,7 +692,6 @@ class _KeyFormPageState extends State<KeyFormPage> {
                 },
               ),
                     ],
-                  ),
                 ),
               ),
             ),
@@ -1033,7 +986,36 @@ class _KeyFormPageState extends State<KeyFormPage> {
 
 
   void _handleSubmit() {
-    if (_formKey.currentState!.saveAndValidate()) {
+    final localizations = AppLocalizations.of(context);
+    
+    // ⚠️ 手动验证必填字段和长度（替代 validator 以避免输入时重建导致 IME 卡住）
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localizations?.keyNameRequired ?? '请输入密钥名称')),
+      );
+      return;
+    }
+    if (_keyValueController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localizations?.keyValueRequired ?? '请输入密钥值')),
+      );
+      return;
+    }
+    
+    // 手动验证长度（替代 maxLength 以避免 IME 冲突）
+    if (_nameController.text.trim().length > AppConstants.maxNameLength) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('密钥名称不能超过 ${AppConstants.maxNameLength} 个字符')),
+      );
+      return;
+    }
+    if (_tagsController.text.trim().length > 200) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('标签不能超过 200 个字符')),
+      );
+      return;
+    }
+    
       // 解析标签
       final tags = _tagsController.text
           .split(',')
@@ -1099,7 +1081,6 @@ class _KeyFormPageState extends State<KeyFormPage> {
       );
 
       Navigator.of(context).pop(key);
-    }
   }
 
   /// 构建 ClaudeCode 配置区域
@@ -1112,17 +1093,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
         ? ProviderConfig.getClaudeCodeProviderByPlatform(_selectedPlatform!)
         : null;
     
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: shadTheme.colorScheme.border,
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -1212,35 +1183,35 @@ class _KeyFormPageState extends State<KeyFormPage> {
           ),
           if (_enableClaudeCode) ...[
             const SizedBox(height: 16),
-            ShadInputFormField(
-              id: 'claudeCodeBaseUrl',
+          ImeSafeTextField(
               controller: _claudeCodeBaseUrlController,
-              label: Text(localizations?.requestUrl ?? '请求地址'),
-              placeholder: Text('https://api.anthropic.com'),
-              leading: Icon(Icons.link, size: 18, color: shadTheme.colorScheme.mutedForeground),
+            labelText: localizations?.requestUrl ?? '请求地址',
+            hintText: 'https://api.anthropic.com',
+            prefixIcon: Icon(Icons.link, size: 18, color: shadTheme.colorScheme.mutedForeground),
               keyboardType: TextInputType.url,
+            isDark: Theme.of(context).brightness == Brightness.dark,
             ),
             const SizedBox(height: 12),
             // 第一行：主模型和 Haiku 模型
             Row(
               children: [
                 Expanded(
-                  child: ShadInputFormField(
-                    id: 'claudeCodeModel',
+                child: ImeSafeTextField(
                     controller: _claudeCodeModelController,
-                    label: Text(localizations?.mainModel ?? '主模型'),
-                    placeholder: Text(localizations?.mainModelHint ?? '请输入主模型名称'),
-                    leading: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  labelText: localizations?.mainModel ?? '主模型',
+                  hintText: localizations?.mainModelHint ?? '请输入主模型名称',
+                  prefixIcon: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  isDark: Theme.of(context).brightness == Brightness.dark,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ShadInputFormField(
-                    id: 'claudeCodeHaikuModel',
+                child: ImeSafeTextField(
                     controller: _claudeCodeHaikuModelController,
-                    label: Text(localizations?.haikuModel ?? 'Haiku 模型'),
-                    placeholder: Text(localizations?.haikuModelHint ?? '请输入 Haiku 模型名称'),
-                    leading: Icon(Icons.flash_on, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  labelText: localizations?.haikuModel ?? 'Haiku 模型',
+                  hintText: localizations?.haikuModelHint ?? '请输入 Haiku 模型名称',
+                  prefixIcon: Icon(Icons.flash_on, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  isDark: Theme.of(context).brightness == Brightness.dark,
                   ),
                 ),
               ],
@@ -1250,29 +1221,28 @@ class _KeyFormPageState extends State<KeyFormPage> {
             Row(
               children: [
                 Expanded(
-                  child: ShadInputFormField(
-                    id: 'claudeCodeSonnetModel',
+                child: ImeSafeTextField(
                     controller: _claudeCodeSonnetModelController,
-                    label: Text(localizations?.sonnetModel ?? 'Sonnet 模型'),
-                    placeholder: Text(localizations?.sonnetModelHint ?? '请输入 Sonnet 模型名称'),
-                    leading: Icon(Icons.auto_awesome, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  labelText: localizations?.sonnetModel ?? 'Sonnet 模型',
+                  hintText: localizations?.sonnetModelHint ?? '请输入 Sonnet 模型名称',
+                  prefixIcon: Icon(Icons.auto_awesome, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  isDark: Theme.of(context).brightness == Brightness.dark,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ShadInputFormField(
-                    id: 'claudeCodeOpusModel',
+                child: ImeSafeTextField(
                     controller: _claudeCodeOpusModelController,
-                    label: Text(localizations?.opusModel ?? 'Opus 模型'),
-                    placeholder: Text(localizations?.opusModelHint ?? '请输入 Opus 模型名称'),
-                    leading: Icon(Icons.stars, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  labelText: localizations?.opusModel ?? 'Opus 模型',
+                  hintText: localizations?.opusModelHint ?? '请输入 Opus 模型名称',
+                  prefixIcon: Icon(Icons.stars, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  isDark: Theme.of(context).brightness == Brightness.dark,
                   ),
                 ),
               ],
             ),
           ],
         ],
-      ),
     );
   }
 
@@ -1286,17 +1256,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
         ? ProviderConfig.getCodexProviderByPlatform(_selectedPlatform!)
         : null;
     
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: shadTheme.colorScheme.border,
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -1358,21 +1318,21 @@ class _KeyFormPageState extends State<KeyFormPage> {
           ),
           if (_enableCodex) ...[
             const SizedBox(height: 16),
-            ShadInputFormField(
-              id: 'codexBaseUrl',
+          ImeSafeTextField(
               controller: _codexBaseUrlController,
-              label: Text(localizations?.requestUrl ?? '请求地址'),
-              placeholder: Text('https://api.openai.com/v1'),
-              leading: Icon(Icons.link, size: 18, color: shadTheme.colorScheme.mutedForeground),
+            labelText: localizations?.requestUrl ?? '请求地址',
+            hintText: 'https://api.openai.com/v1',
+            prefixIcon: Icon(Icons.link, size: 18, color: shadTheme.colorScheme.mutedForeground),
               keyboardType: TextInputType.url,
+            isDark: Theme.of(context).brightness == Brightness.dark,
             ),
             const SizedBox(height: 12),
-            ShadInputFormField(
-              id: 'codexModel',
+          ImeSafeTextField(
               controller: _codexModelController,
-              label: Text(localizations?.modelName ?? '模型名称'),
-              placeholder: Text('gpt-5-codex'),
-              leading: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
+            labelText: localizations?.modelName ?? '模型名称',
+            hintText: 'gpt-5-codex',
+            prefixIcon: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
+            isDark: Theme.of(context).brightness == Brightness.dark,
             ),
             // 环境变量提示（如果不支持 auth.json）
             FutureBuilder<bool>(
@@ -1386,7 +1346,6 @@ class _KeyFormPageState extends State<KeyFormPage> {
             ),
           ],
         ],
-      ),
     );
   }
 
@@ -1396,17 +1355,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
     ShadThemeData shadTheme,
     AppLocalizations? localizations,
   ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: shadTheme.colorScheme.border,
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -1455,7 +1404,6 @@ class _KeyFormPageState extends State<KeyFormPage> {
           ),
           // Gemini 只支持官方 API，无需额外配置
         ],
-      ),
     );
   }
 
@@ -1481,17 +1429,29 @@ class _KeyFormPageState extends State<KeyFormPage> {
             });
           }
         },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          child: Center(
         child: _selectedIcon != null
-            ? SvgPicture.asset(
-                'assets/icons/platforms/$_selectedIcon',
+                ? SizedBox(
                 width: 18,
                 height: 18,
+                    child: SvgPicture.asset(
+                      'assets/icons/platforms/$_selectedIcon',
                 allowDrawingOutsideViewBox: true,
+                      fit: BoxFit.contain,
+                    ),
               )
-            : PlatformIconHelper.buildIcon(
+                : SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: PlatformIconHelper.buildIcon(
                 platform: _selectedPlatform!,
                 size: 18,
                 color: shadTheme.colorScheme.mutedForeground,
+                    ),
+                  ),
+          ),
               ),
       );
     }
@@ -1515,14 +1475,22 @@ class _KeyFormPageState extends State<KeyFormPage> {
           });
         }
       },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: Center(
       child: _selectedIcon != null
-          ? SvgPicture.asset(
-              'assets/icons/platforms/$_selectedIcon',
+              ? SizedBox(
               width: 18,
               height: 18,
+                  child: SvgPicture.asset(
+                    'assets/icons/platforms/$_selectedIcon',
               allowDrawingOutsideViewBox: true,
+                    fit: BoxFit.contain,
+                  ),
             )
-          : Icon(Icons.label_outline, size: 18, color: shadTheme.colorScheme.mutedForeground),
+              : const Icon(Icons.label_outline, size: 18),
+        ),
+      ),
     );
   }
   

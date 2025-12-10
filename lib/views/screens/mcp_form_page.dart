@@ -6,7 +6,9 @@ import '../../models/mcp_server.dart';
 import '../../models/mcp_server_category.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/mcp_server_presets.dart';
+import '../../utils/ime_friendly_formatter.dart';
 import '../widgets/icon_picker.dart';
+import '../widgets/ime_safe_text_field.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 /// JSON 输入格式化器，自动去除 mcpServers 包装
@@ -522,30 +524,25 @@ class _McpFormPageState extends State<McpFormPage> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // 显示名称 - 图标在输入框内部左侧
-                          Expanded(
-                            child: ShadInputFormField(
-                              id: 'name',
-                              controller: _nameController,
-                              label: Text(localizations?.mcpDisplayName ?? '显示名称 *'),
-                              placeholder: Text(localizations?.mcpDisplayNameHint ?? '例如: Context7 MCP'),
-                              leading: _buildClickableIcon(context, shadTheme),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return localizations?.mcpDisplayNameRequired ?? '请输入显示名称';
-                                }
-                                return null;
-                              },
-                            ),
+                        // 显示名称 - 使用 ImeSafeTextField，统一输入框高度和图标尺寸
+                        Expanded(
+                          child: ImeSafeTextField(
+                            controller: _nameController,
+                            labelText: localizations?.mcpDisplayName ?? '显示名称 *',
+                            hintText: localizations?.mcpDisplayNameHint ?? '例如: Context7 MCP',
+                            prefixIcon: _buildClickableIcon(context, shadTheme),
+                            isDark: Theme.of(context).brightness == Brightness.dark,
                           ),
+                        ),
                           const SizedBox(width: 12),
                           // 标签
                           Expanded(
-                            child: ShadInputFormField(
-                              id: 'tags',
+                            child: ImeSafeTextField(
                               controller: _tagsController,
-                              label: Text(localizations?.mcpTags ?? '标签'),
-                              placeholder: Text(localizations?.mcpTagsHint ?? '多个标签用逗号分隔'),
+                              labelText: localizations?.mcpTags ?? '标签',
+                              hintText: localizations?.mcpTagsHint ?? '多个标签用逗号分隔',
+                              prefixIcon: Icon(Icons.local_offer, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                              isDark: Theme.of(context).brightness == Brightness.dark,
                             ),
                           ),
                         ],
@@ -559,35 +556,36 @@ class _McpFormPageState extends State<McpFormPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: ShadInputFormField(
-                              id: 'homepage',
+                            child: ImeSafeTextField(
                               controller: _homepageController,
-                              label: Text(localizations?.mcpHomepage ?? '管理地址（选填）'),
-                              placeholder: Text(localizations?.mcpHomepageHint ?? 'https://example.com'),
+                              labelText: localizations?.mcpHomepage ?? '管理地址（选填）',
+                              hintText: localizations?.mcpHomepageHint ?? 'https://example.com',
+                              prefixIcon: Icon(Icons.language, size: 18, color: shadTheme.colorScheme.mutedForeground),
                               keyboardType: TextInputType.url,
+                              isDark: Theme.of(context).brightness == Brightness.dark,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: ShadInputFormField(
-                              id: 'docs',
+                            child: ImeSafeTextField(
                               controller: _docsController,
-                              label: Text(localizations?.mcpDocs ?? '文档地址（选填）'),
-                              placeholder: Text(localizations?.mcpDocsHint ?? 'https://docs.example.com'),
+                              labelText: localizations?.mcpDocs ?? '文档地址（选填）',
+                              hintText: localizations?.mcpDocsHint ?? 'https://docs.example.com',
+                              prefixIcon: Icon(Icons.book, size: 18, color: shadTheme.colorScheme.mutedForeground),
                               keyboardType: TextInputType.url,
+                              isDark: Theme.of(context).brightness == Brightness.dark,
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // 第四行：描述文本输入框（选填）
-                      ShadInputFormField(
-                        id: 'description',
+                      // 第四行：描述文本输入框（选填）去掉前置图标
+                      ImeSafeTextField(
                         controller: _descriptionController,
-                        label: Text(localizations?.mcpDescription ?? '描述（选填）'),
-                        placeholder: Text(localizations?.mcpDescriptionHint ?? 'MCP 服务器描述'),
-                        maxLength: 500,
+                        labelText: localizations?.mcpDescription ?? '描述（选填）',
+                        hintText: localizations?.mcpDescriptionHint ?? 'MCP 服务器描述',
                         maxLines: 3,
+                        isDark: Theme.of(context).brightness == Brightness.dark,
                       ),
                     ],
                   ),
@@ -990,12 +988,10 @@ class _McpFormPageState extends State<McpFormPage> {
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: shadTheme.colorScheme.muted,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: shadTheme.colorScheme.border,
-            ),
+            color: shadTheme.colorScheme.muted.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
           ),
+          padding: EdgeInsets.zero,
           child: TextFormField(
             controller: _jsonConfigController,
             maxLines: 12,
@@ -1016,17 +1012,16 @@ class _McpFormPageState extends State<McpFormPage> {
               ),
             ],
             style: TextStyle(
-              // 使用系统等宽字体（macOS上会使用Menlo，Windows上使用Courier New）
-              fontFamily: 'monospace',
-              fontSize: 13.5, // 稍微增大字体，提升可读性
-              height: 1.7, // 增加行高，让JSON结构更清晰
-              letterSpacing: 0.4, // 增加字符间距，让JSON更易读
+              fontFamily: 'JetBrainsMono, SFMono-Regular, Menlo, Consolas, monospace',
+              fontSize: 13.5,
+              height: 1.7,
+              letterSpacing: 0.4,
               color: shadTheme.colorScheme.foreground,
-          ),
+            ),
             decoration: InputDecoration(
               hintText: localizations?.mcpJsonConfigHint ?? '粘贴MCP配置JSON，例如:\n{\n  "context7": {\n    "command": "npx",\n    "args": [\n      "-y",\n      "@upstash/context7-mcp@latest"\n    ]\n  }\n}\n\n或带mcpServers包装:\n{\n  "mcpServers": {\n    "context7": {...}\n  }\n}',
               hintStyle: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: 'JetBrainsMono, SFMono-Regular, Menlo, Consolas, monospace',
                 fontSize: 13.5,
             color: shadTheme.colorScheme.mutedForeground,
                 height: 1.7,
@@ -1037,8 +1032,30 @@ class _McpFormPageState extends State<McpFormPage> {
                 horizontal: 14,
                 vertical: 14,
               ),
-              border: InputBorder.none,
-              isDense: false, // 改为false以使用完整的padding
+              filled: true,
+              fillColor: shadTheme.colorScheme.background,
+              isDense: false,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: shadTheme.colorScheme.border,
+                  width: 1,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: shadTheme.colorScheme.border,
+                  width: 1,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: shadTheme.colorScheme.foreground.withOpacity(0.5),
+                  width: 1.2,
+                ),
+              ),
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
@@ -1096,28 +1113,34 @@ class _McpFormPageState extends State<McpFormPage> {
   Widget _buildClickableIcon(BuildContext context, ShadThemeData shadTheme) {
     return GestureDetector(
       onTap: () async {
-          final icon = await showDialog<String?>(
-            context: context,
-            builder: (context) => IconPicker(
-              selectedIcon: _selectedIcon,
-              onIconSelected: (icon) {
-                // IconPicker会在确定时自动pop并返回图标
-              },
+        final icon = await showDialog<String?>(
+          context: context,
+          builder: (context) => IconPicker(
+            selectedIcon: _selectedIcon,
+            onIconSelected: (icon) {
+              // IconPicker会在确定时自动pop并返回图标
+            },
+          ),
+        );
+        if (mounted) {
+          setState(() {
+            _selectedIcon = icon;
+          });
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: SvgPicture.asset(
+              'assets/icons/platforms/${_selectedIcon ?? 'mcp.svg'}',
+              allowDrawingOutsideViewBox: true,
+              fit: BoxFit.contain,
             ),
-          );
-          // 处理返回的图标（包括null，表示取消或清除）
-          if (mounted) {
-            setState(() {
-              _selectedIcon = icon;
-            });
-          }
-        },
-      child: SvgPicture.asset(
-        'assets/icons/platforms/${_selectedIcon ?? 'mcp.svg'}',
-        width: 18,
-        height: 18,
-        // 所有图标都显示原始颜色，不使用colorFilter
-        allowDrawingOutsideViewBox: true,
+          ),
+        ),
       ),
     );
   }

@@ -6,7 +6,9 @@ import '../../constants/app_constants.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/macos_input_decoration.dart';
 import '../../utils/platform_icon_helper.dart';
+import '../../utils/ime_friendly_formatter.dart';
 import 'platform_category_tabs.dart';
+import 'ime_safe_text_field.dart';
 
 /// 密钥编辑表单对话框
 class KeyFormDialog extends StatefulWidget {
@@ -24,7 +26,8 @@ class KeyFormDialog extends StatefulWidget {
 }
 
 class _KeyFormDialogState extends State<KeyFormDialog> {
-  final _formKey = GlobalKey<FormState>();
+  // ⚠️ 移除 _formKey，不再使用 Form
+  // final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _managementUrlController;
   late TextEditingController _apiEndpointController;
@@ -157,11 +160,10 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
             // 表单内容
             Flexible(
               child: SingleChildScrollView(
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                // ⚠️ 移除 Form，使用普通 Column，避免验证导致的重建
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                       // 供应商选择（分类选项卡）
                       PlatformCategoryTabs(
                         selectedPlatform: _selectedPlatform,
@@ -174,21 +176,15 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
                       const SizedBox(height: 24),
 
                       // 密钥名称
-                      TextFormField(
+                      ImeSafeTextField(
                         controller: _nameController,
-                        decoration: MacOSInputDecoration.build(
-                          labelText: '密钥名称 *',
-                          hintText: '请输入密钥名称',
-                          prefixIcon: const Icon(Icons.label_outline, size: 20),
-                          isDark: isDark,
-                        ),
-                        maxLength: AppConstants.maxNameLength,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return '请输入密钥名称';
-                          }
-                          return null;
-                        },
+                        labelText: '密钥名称 *',
+                        hintText: '请输入密钥名称',
+                        prefixIcon: const Icon(Icons.label_outline, size: 20),
+                        // ⚠️ 移除 maxLength 和 validator，避免重建
+                        // maxLength: AppConstants.maxNameLength,
+                        isDark: isDark,
+                        // validator 已在 ImeSafeTextField 中移除
                       ),
                       const SizedBox(height: 20),
 
@@ -224,7 +220,7 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
                         const SizedBox(height: 20),
 
                       // 管理地址
-                      TextFormField(
+                      TextField(
                         controller: _managementUrlController,
                         decoration: MacOSInputDecoration.build(
                           labelText: '管理地址',
@@ -233,11 +229,14 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
                           isDark: isDark,
                         ),
                         keyboardType: TextInputType.url,
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        enableIMEPersonalizedLearning: false,
                       ),
                       const SizedBox(height: 20),
 
                       // API地址
-                      TextFormField(
+                      TextField(
                         controller: _apiEndpointController,
                         decoration: MacOSInputDecoration.build(
                           labelText: 'API地址',
@@ -246,11 +245,14 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
                           isDark: isDark,
                         ),
                         keyboardType: TextInputType.url,
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        enableIMEPersonalizedLearning: false,
                       ),
                       const SizedBox(height: 20),
 
                       // 密钥值
-                      TextFormField(
+                      TextField(
                         controller: _keyValueController,
                         decoration: MacOSInputDecoration.build(
                           labelText: '密钥值 *',
@@ -270,14 +272,10 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
                           ),
                           isDark: isDark,
                         ),
-                        maxLength: AppConstants.maxKeyValueLength,
                         obscureText: _obscureKeyValue,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return '请输入密钥值';
-                          }
-                          return null;
-                        },
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        enableIMEPersonalizedLearning: false,
                       ),
                       const SizedBox(height: 20),
 
@@ -308,15 +306,13 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: TextFormField(
+                            child: ImeSafeTextField(
                               controller: _tagsController,
-                              decoration: MacOSInputDecoration.build(
-                                labelText: '标签',
-                                hintText: '多个标签用逗号分隔',
-                                prefixIcon: const Icon(Icons.local_offer, size: 20),
-                                isDark: isDark,
-                              ),
+                              labelText: '标签',
+                              hintText: '多个标签用逗号分隔',
+                              prefixIcon: const Icon(Icons.local_offer, size: 20),
                               maxLength: 200,
+                              isDark: isDark,
                             ),
                           ),
                         ],
@@ -324,7 +320,7 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
                       const SizedBox(height: 20),
 
                       // 备注
-                      TextFormField(
+                      TextField(
                         controller: _notesController,
                         decoration: MacOSInputDecoration.build(
                           labelText: '备注',
@@ -335,10 +331,11 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
                           alignLabelWithHint: true,
                         ),
                         maxLines: 3,
-                        maxLength: AppConstants.maxNotesLength,
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        enableIMEPersonalizedLearning: false,
                       ),
                     ],
-                  ),
                 ),
               ),
             ),
@@ -419,42 +416,76 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
   }
 
   void _handleSubmit() {
-    if (_formKey.currentState!.validate()) {
-      // 解析标签
-      final tags = _tagsController.text
-          .split(',')
-          .map((tag) => tag.trim())
-          .where((tag) => tag.isNotEmpty)
-          .toList();
+    // ⚠️ 移除 Form 验证，改用手动检查必填字段和长度
 
-      final now = DateTime.now();
-      final platform = _selectedPlatform ?? PlatformType.custom;
-      
-      final key = AIKey(
-        id: widget.editingKey?.id,
-        name: _nameController.text.trim(),
-        platform: platform.value,
-        platformType: platform,
-        managementUrl: _managementUrlController.text.trim().isEmpty
-            ? null
-            : _managementUrlController.text.trim(),
-        apiEndpoint: _apiEndpointController.text.trim().isEmpty
-            ? null
-            : _apiEndpointController.text.trim(),
-        keyValue: _keyValueController.text.trim(),
-        expiryDate: _expiryDate,
-        tags: tags,
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
-        isActive: widget.editingKey?.isActive ?? true,
-        createdAt: widget.editingKey?.createdAt ?? now,
-        updatedAt: now,
-        isFavorite: widget.editingKey?.isFavorite ?? false,
+    // 检查必填字段
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请输入密钥名称')),
       );
-
-      widget.onSubmit(key);
-      Navigator.of(context).pop();
+      return;
     }
+    if (_keyValueController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请输入密钥值')),
+      );
+      return;
+    }
+
+    // 手动验证长度（替代 maxLength 以避免 IME 冲突）
+    if (_nameController.text.trim().length > AppConstants.maxNameLength) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('密钥名称不能超过 ${AppConstants.maxNameLength} 个字符')),
+      );
+      return;
+    }
+    if (_keyValueController.text.trim().length > AppConstants.maxKeyValueLength) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('密钥值不能超过 ${AppConstants.maxKeyValueLength} 个字符')),
+      );
+      return;
+    }
+    if (_notesController.text.trim().length > AppConstants.maxNotesLength) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('备注不能超过 ${AppConstants.maxNotesLength} 个字符')),
+      );
+      return;
+    }
+
+    // 解析标签
+    final tags = _tagsController.text
+        .split(',')
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList();
+
+    final now = DateTime.now();
+    final platform = _selectedPlatform ?? PlatformType.custom;
+
+    final key = AIKey(
+      id: widget.editingKey?.id,
+      name: _nameController.text.trim(),
+      platform: platform.value,
+      platformType: platform,
+      managementUrl: _managementUrlController.text.trim().isEmpty
+          ? null
+          : _managementUrlController.text.trim(),
+      apiEndpoint: _apiEndpointController.text.trim().isEmpty
+          ? null
+          : _apiEndpointController.text.trim(),
+      keyValue: _keyValueController.text.trim(),
+      expiryDate: _expiryDate,
+      tags: tags,
+      notes: _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
+      isActive: widget.editingKey?.isActive ?? true,
+      createdAt: widget.editingKey?.createdAt ?? now,
+      updatedAt: now,
+      isFavorite: widget.editingKey?.isFavorite ?? false,
+    );
+
+    widget.onSubmit(key);
+    Navigator.of(context).pop();
   }
 }

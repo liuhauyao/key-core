@@ -79,7 +79,7 @@ Key Core runs entirely on your device, and all data is stored locally on your Ma
 The application requires the following permissions to provide core functionality:
 
 - **Documents Folder Access**: Used to select configuration directory
-- **Downloads Folder Access**: Used to select configuration directory
+- **User-selected File Access**: Used for importing/exporting configuration files when you explicitly choose them
 - **Network Access** (Optional): Used to check for configuration updates. You can disable this feature at any time.
 
 #### Data Usage

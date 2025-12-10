@@ -322,20 +322,5 @@ class SettingsService {
     _cachedHomeDir = homeDir;
     return homeDir;
   }
-
-  /// 获取用户下载目录
-  static Future<String> getDownloadsDirectory() async {
-    final homeDir = await getUserHomeDir();
-    
-    if (Platform.isMacOS || Platform.isLinux) {
-      return path.join(homeDir, 'Downloads');
-    } else if (Platform.isWindows) {
-      return path.join(homeDir, 'Downloads');
-    } else {
-      // 其他平台，使用应用文档目录下的 Downloads 子目录
-      final appDocDir = await getApplicationDocumentsDirectory();
-      return path.join(appDocDir.path, 'Downloads');
-    }
-  }
 }
 

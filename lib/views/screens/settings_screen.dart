@@ -3,13 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:path/path.dart' as path;
 import 'package:file_picker/file_picker.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../../viewmodels/mcp_viewmodel.dart';
 import '../../services/auth_service.dart';
-import '../../services/settings_service.dart';
 import '../../services/cloud_config_service.dart';
 import '../../services/language_pack_service.dart';
 import '../../config/provider_config.dart';
@@ -1341,15 +1339,24 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
 
   Future<void> _handleExport(BuildContext context, KeyManagerViewModel viewModel) async {
     final localizations = AppLocalizations.of(context)!;
-    
-    try {
-      // 1. 获取下载目录并生成文件路径
-      final downloadsDir = await SettingsService.getDownloadsDirectory();
-      final fileName = 'ai-keys-export-${DateTime.now().toIso8601String().split('T')[0]}.json';
-      final filePath = path.join(downloadsDir, fileName);
 
-      // 2. 执行导出（不再需要密码）
-      final exportedPath = await viewModel.exportKeys(filePath);
+    try {
+      // 1. 让用户选择保存位置
+      final fileName = 'ai-keys-export-${DateTime.now().toIso8601String().split('T')[0]}.json';
+      String? selectedPath = await FilePicker.platform.saveFile(
+        dialogTitle: localizations.exportKeys,
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (selectedPath == null) {
+        // 用户取消了保存
+        return;
+      }
+
+      // 2. 执行导出
+      final exportedPath = await viewModel.exportKeys(selectedPath);
 
       // 3. 显示结果
       if (mounted) {
