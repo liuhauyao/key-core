@@ -13,11 +13,13 @@ import 'services/cloud_config_service.dart';
 import 'services/language_pack_service.dart';
 import 'services/macos_preferences_bridge.dart';
 import 'services/tray_menu_bridge.dart';
+import 'services/macos_bookmark_service.dart';
 import 'dart:io';
 import 'package:window_manager/window_manager.dart';
 import 'config/provider_config.dart';
 import 'utils/platform_presets.dart';
 import 'utils/mcp_server_presets.dart';
+import 'utils/platform_icon_service.dart';
 import 'services/platform_registry.dart';
 
 // 全局 NavigatorKey，用于保持导航状态
@@ -49,6 +51,32 @@ void main() async {
   final settingsService = SettingsService();
   await settingsService.init();
   
+  // macOS: 恢复 Security-Scoped Bookmark 访问权限（延迟调用，确保 MethodChannel 已注册）
+  // 注意：原生端已经在 applicationDidFinishLaunching 中恢复了权限
+  // 这里只是验证权限是否已恢复
+  if (Platform.isMacOS) {
+    // 延迟调用，确保 MethodChannel 已注册（延迟 2 秒，确保原生端的 MethodChannel 注册完成）
+    Future.delayed(const Duration(milliseconds: 2000), () async {
+      try {
+        final bookmarkService = MacOSBookmarkService();
+        
+        // 检查是否有保存的 bookmark
+        final hasBookmark = await bookmarkService.hasHomeDirAuthorization();
+        
+        if (hasBookmark) {
+          // 尝试恢复权限（验证）
+          final restored = await bookmarkService.restoreHomeDirAccess();
+          if (restored) {
+          } else {
+          }
+        } else {
+        }
+      } catch (e) {
+        // 忽略错误，因为原生端已经恢复了权限
+      }
+    });
+  }
+  
   // 初始化云端配置服务并加载配置
   final cloudConfigService = CloudConfigService();
   await cloudConfigService.init();
@@ -62,40 +90,37 @@ void main() async {
     final defaultConfig = await cloudConfigService.loadLocalDefaultConfig();
     if (defaultConfig != null) {
       await cloudConfigService.saveConfigToCache(defaultConfig);
-      print('Main: 成功加载并缓存默认配置，版本: ${defaultConfig.version}');
     }
   } catch (e) {
-    print('Main: 加载默认配置失败: $e');
   }
   
   // 初始化平台注册表（内置平台）
   PlatformRegistry.initBuiltinPlatforms();
-  print('Main: PlatformRegistry 内置平台数量: ${PlatformRegistry.builtinCount}');
   
   // 加载动态平台（从云端配置）
   await PlatformRegistry.loadDynamicPlatforms(cloudConfigService);
-  print('Main: PlatformRegistry 总平台数量: ${PlatformRegistry.count} (内置: ${PlatformRegistry.builtinCount}, 动态: ${PlatformRegistry.dynamicCount})');
   
   // 初始化所有配置模块
   await ProviderConfig.init();
   await PlatformPresets.init();
   await McpServerPresets.init();
+  await PlatformIconService.init();
+  
+  // 输出配置加载总结
+  final configData = await cloudConfigService.getConfigData();
+  if (configData != null) {
+    print('配置加载总结 - 供应商总数: ${configData.providers.length}, 平台总数: ${PlatformRegistry.count} (内置: ${PlatformRegistry.builtinCount}, 动态: ${PlatformRegistry.dynamicCount}), ClaudeCode供应商: ${ProviderConfig.claudeCodeProviders.length}, Codex供应商: ${ProviderConfig.codexProviders.length}, 平台预设: ${PlatformPresets.presetPlatforms.length}');
+  }
   
   // 获取当前语言设置并检查语言包更新
   final currentLanguage = await settingsService.getLanguage();
   languagePackService.checkLanguagePackUpdate(currentLanguage).then((hasUpdate) {
     if (hasUpdate) {
-      print('Main: 语言包已更新: $currentLanguage');
     }
   }).catchError((e) {
-    print('Main: 检查语言包更新失败: $e');
   });
   
   // 打印加载状态用于调试
-  print('Main: ProviderConfig ClaudeCode 供应商数量: ${ProviderConfig.claudeCodeProviders.length}');
-  print('Main: ProviderConfig Codex 供应商数量: ${ProviderConfig.codexProviders.length}');
-  print('Main: PlatformPresets 预设数量: ${PlatformPresets.presetPlatforms.length}');
-  print('Main: McpServerPresets 模板数量: ${McpServerPresets.allTemplates.length}');
   
   // 异步检查配置更新（不阻塞应用启动）
   // 注意：配置更新只是更新 JSON 数据（供应商列表、MCP 服务器模板等），不涉及可执行代码
@@ -115,11 +140,9 @@ void main() async {
       final receiptFile = File(receiptPath);
       isAppStoreVersion = await receiptFile.exists();
       if (isAppStoreVersion) {
-        print('Main: 检测到 App Store 版本，禁用自动配置更新检查（用户可在设置中手动检查）');
       }
     } catch (e) {
       // 如果检测失败，默认允许更新检查（非 App Store 版本）
-      print('Main: 检测 App Store 版本失败: $e，允许自动更新检查');
     }
   }
   
@@ -128,26 +151,19 @@ void main() async {
   if (!isAppStoreVersion) {
     cloudConfigService.checkForUpdates(force: false).then((hasUpdate) async {
       if (hasUpdate) {
-        print('Main: 配置已更新，重新加载所有配置模块');
         // 如果有更新，重新加载动态平台
         await PlatformRegistry.reloadDynamicPlatforms(cloudConfigService);
-        print('Main: 更新后 - PlatformRegistry 总平台数量: ${PlatformRegistry.count} (内置: ${PlatformRegistry.builtinCount}, 动态: ${PlatformRegistry.dynamicCount})');
         // 强制刷新并重新加载配置模块
         await ProviderConfig.init(forceRefresh: true);
         await PlatformPresets.init(forceRefresh: true);
         await McpServerPresets.init(forceRefresh: true);
         // 打印更新后的状态
-        print('Main: 更新后 - ProviderConfig ClaudeCode 供应商数量: ${ProviderConfig.claudeCodeProviders.length}');
-        print('Main: 更新后 - ProviderConfig Codex 供应商数量: ${ProviderConfig.codexProviders.length}');
-        print('Main: 更新后 - PlatformPresets 预设数量: ${PlatformPresets.presetPlatforms.length}');
-        print('Main: 更新后 - McpServerPresets 模板数量: ${McpServerPresets.allTemplates.length}');
       }
     }).catchError((e) {
       // 静默忽略错误，不影响应用启动
       print('自动检查配置更新失败: $e');
     });
   } else {
-    print('Main: App Store 版本，已跳过自动配置更新检查（用户可在设置中手动检查）');
   }
   
   runApp(const KeyCoreApp());

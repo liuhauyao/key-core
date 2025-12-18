@@ -49,6 +49,14 @@ class AppLocalizations {
       'delete': '删除',
       'search': '搜索密钥...',
       'all_platforms': '全部平台',
+      'all_categories': '全部分组',
+      'category_popular': '常用',
+      'category_claudecode': 'ClaudeCode',
+      'category_codex': 'Codex',
+      'category_llm': '大语言模型',
+      'category_cloud': '云服务',
+      'category_tools': '工具',
+      'category_vector': '其他',
       'add_key': '添加密钥',
       'edit_key': '编辑密钥',
       'key_name': '密钥名称',
@@ -521,6 +529,7 @@ class AppLocalizations {
       'delete': 'Delete',
       'search': 'Search keys...',
       'all_platforms': 'All Platforms',
+      'all_categories': 'All Categories',
       'add_key': 'Add Key',
       'edit_key': 'Edit Key',
       'key_name': 'Key Name',
@@ -961,6 +970,11 @@ class AppLocalizations {
   String get delete => translate('delete');
   String get search => translate('search');
   String get allPlatforms => translate('all_platforms');
+  String get allCategories => translate('all_categories');
+  String get categoryOfficial => translate('category_official');
+  String get categoryCnOfficial => translate('category_cn_official');
+  String get categoryThirdParty => translate('category_third_party');
+  String get categoryAggregator => translate('category_aggregator');
   String get addKey => translate('add_key');
   String get editKey => translate('edit_key');
   String get keyName => translate('key_name');
@@ -1366,6 +1380,12 @@ class AppLocalizations {
   // Model list related
   String get viewModels => translate('view_models');
   String get modelList => translate('model_list');
+  String get selectModel => translate('select_model');
+  String get enterKeyValueFirst => translate('enter_key_value_first');
+  String validationFailedWithError(String error) => translate('validation_failed_with_error').replaceAll('{error}', error);
+  String queryFailedWithError(String error) => translate('query_failed_with_error').replaceAll('{error}', error);
+  String keyNameTooLong(int maxLength) => translate('key_name_too_long').replaceAll('{maxLength}', maxLength.toString());
+  String get tagsTooLong => translate('tags_too_long');
   String get modelId => translate('model_id');
   // modelName is already defined above (line 1064)
   String get modelDescription => translate('model_description');
@@ -1441,6 +1461,12 @@ class AppLocalizations {
   String get updateModelList => translate('update_model_list');
   String get viewCachedModels => translate('view_cached_models');
   String get noCachedModelsPleaseSync => translate('no_cached_models_please_sync');
+
+  /// 清除所有已加载的语言包缓存（用于配置更新后重新加载）
+  static void clearLoadedPacksCache() {
+    _AppLocalizationsDelegate._loadedPacks.clear();
+    print('AppLocalizations: 已清除所有语言包缓存');
+  }
 }
 
 class _AppLocalizationsDelegate

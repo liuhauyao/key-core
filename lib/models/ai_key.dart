@@ -166,7 +166,8 @@ class AIKey extends Equatable {
       'id': id,
       'name': name,
       'platform': platform,
-      'platform_type': platformType.index,
+      'platform_type': platformType.index, // 保持向后兼容
+      'platform_type_id': platformType.id, // 使用平台ID作为主要标识
       'management_url': managementUrl,
       'api_endpoint': apiEndpoint,
       'key_value': keyValue,
@@ -210,11 +211,58 @@ class AIKey extends Equatable {
       }
     }
     
+    // 恢复平台类型：优先使用 platform_type_id，其次使用 platform 字段（平台名称），最后使用索引
+    PlatformType platformType = PlatformType.custom;
+    
+    // 方法1：优先使用 platform_type_id（如果存在）
+    if (map['platform_type_id'] != null && map['platform_type_id'].toString().isNotEmpty) {
+      final platformTypeById = PlatformRegistry.get(map['platform_type_id'] as String);
+      if (platformTypeById != null) {
+        platformType = platformTypeById;
+      }
+    }
+    
+    // 方法2：如果 platform_type_id 不存在，使用 platform 字段（平台名称）恢复
+    if (platformType == PlatformType.custom && map['platform'] != null) {
+      final platformName = map['platform'] as String;
+      if (platformName.isNotEmpty) {
+        // 尝试通过平台ID匹配
+        final platformTypeById = PlatformRegistry.get(platformName);
+        if (platformTypeById != null) {
+          platformType = platformTypeById;
+        } else {
+          // 尝试通过平台显示名称匹配
+          final matchedList = PlatformRegistry.values.where((p) => p.value == platformName).toList();
+          if (matchedList.isNotEmpty) {
+            platformType = matchedList.first;
+          } else {
+            // 使用 fromString 方法（支持模糊匹配）
+            try {
+              final platformTypeFromString = PlatformRegistry.fromString(platformName);
+              if (platformTypeFromString != PlatformType.custom) {
+                platformType = platformTypeFromString;
+              }
+            } catch (e) {
+              // 忽略错误，继续尝试索引恢复
+            }
+          }
+        }
+      }
+    }
+    
+    // 方法3：如果都失败，尝试从索引恢复（向后兼容，但可能不准确）
+    if (platformType == PlatformType.custom && map['platform_type'] != null) {
+      final index = map['platform_type']?.toInt() ?? 0;
+      if (index >= 0 && index < PlatformRegistry.values.length) {
+        platformType = PlatformRegistry.values[index];
+      }
+    }
+    
     return AIKey(
       id: map['id']?.toInt(),
       name: map['name'] ?? '',
       platform: map['platform'] ?? '',
-      platformType: PlatformRegistry.values[map['platform_type']?.toInt() ?? 0],
+      platformType: platformType,
       managementUrl: map['management_url'],
       apiEndpoint: map['api_endpoint'],
       keyValue: map['key_value'] ?? '',

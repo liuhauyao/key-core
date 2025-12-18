@@ -12,7 +12,7 @@ import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/codex_config_service.dart';
 import '../../services/settings_service.dart';
-import '../../utils/platform_icon_helper.dart';
+import '../../utils/platform_icon_service.dart';
 import '../../models/platform_type.dart';
 import 'key_form_page.dart';
 
@@ -690,7 +690,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
     return OfficialKeyCard(
       key: ValueKey('official_${_isOfficial ? 'current' : 'inactive'}'),
       isCurrent: _isOfficial,
-      icon: PlatformIconHelper.buildIcon(
+      icon: PlatformIconService.buildIcon(
         platform: PlatformType.openAI,
         size: 28,
       ),
@@ -834,7 +834,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
                   ),
                   child: Row(
                     children: [
-                      PlatformIconHelper.buildIcon(
+                      PlatformIconService.buildIcon(
                         platform: PlatformType.openAI,
                         size: 24,
                       ),

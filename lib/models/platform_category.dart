@@ -51,156 +51,20 @@ class PlatformCategoryManager {
   static List<PlatformType> getPlatformsByCategory(PlatformCategory category) {
     switch (category) {
       case PlatformCategory.popular:
-        // 常用平台：硬编码 + 配置文件中标记为 popular 的所有平台（内置和动态）
-        final popularIds = [
-          'openAI',
-          'anthropic',
-          'deepSeek',
-          'zhipu',
-          'qwen',
-          'openRouter',
-          'gemini',
-          'mistral',
-          'kimi',
-          'zeroOne',
-          'githubCopilot',
-        ];
-        final platforms = popularIds
-            .map((id) => PlatformRegistry.get(id))
-            .where((p) => p != null)
-            .cast<PlatformType>()
-            .toList();
-
-        // 添加配置文件中标记为 popular 的所有平台（内置平台和动态平台）
-        final configPopularPlatforms = PlatformRegistry.getPlatformsByCategory('popular');
-        for (var platform in configPopularPlatforms) {
-          if (!platforms.contains(platform)) {
-            platforms.add(platform);
-          }
-        }
-
-        return platforms;
+        // 常用平台：完全依赖配置文件中标记为 popular 的所有平台（内置和动态）
+        return PlatformRegistry.getPlatformsByCategory('popular');
       case PlatformCategory.llm:
-        // 大语言模型提供商：硬编码 + 配置文件中标记为 llm 的所有平台（内置和动态）
-        final llmIds = [
-          'openAI',
-          'anthropic',
-          'google',
-          'gemini',
-          'deepSeek',
-          'minimax',
-          'zhipu',
-          'bailian',
-          'baidu',
-          'wenxin',
-          'qwen',
-          'openRouter',
-          'huggingFace',
-          'mistral',
-          'cohere',
-          'xai',
-          'ollama',
-          'moonshot',
-          'zeroOne',
-          'baichuan',
-          'kimi',
-          'nova',
-        ];
-        final platforms = llmIds
-            .map((id) => PlatformRegistry.get(id))
-            .where((p) => p != null)
-            .cast<PlatformType>()
-            .toList();
-
-        // 添加配置文件中标记为 llm 的所有平台（内置平台和动态平台）
-        final configLlmPlatforms = PlatformRegistry.getPlatformsByCategory('llm');
-        for (var platform in configLlmPlatforms) {
-          if (!platforms.contains(platform)) {
-            platforms.add(platform);
-          }
-        }
-
-        return platforms;
+        // 大语言模型提供商：完全依赖配置文件中标记为 llm 的所有平台（内置和动态）
+        return PlatformRegistry.getPlatformsByCategory('llm');
       case PlatformCategory.cloud:
-        // 云服务平台：硬编码 + 配置文件中标记为 cloud 的所有平台
-        final cloudIds = [
-          'azureOpenAI',
-          'aws',
-          'volcengine',
-          'tencent',
-          'alibaba',
-        ];
-        final platforms = cloudIds
-            .map((id) => PlatformRegistry.get(id))
-            .where((p) => p != null)
-            .cast<PlatformType>()
-            .toList();
-
-        // 添加配置文件中标记为 cloud 的所有平台
-        final configCloudPlatforms = PlatformRegistry.getPlatformsByCategory('cloud');
-        for (var platform in configCloudPlatforms) {
-          if (!platforms.contains(platform)) {
-            platforms.add(platform);
-          }
-        }
-
-        return platforms;
+        // 云服务平台：完全依赖配置文件中标记为 cloud 的所有平台
+        return PlatformRegistry.getPlatformsByCategory('cloud');
       case PlatformCategory.tools:
-        // AI工具平台：硬编码 + 配置文件中标记为 tools 的所有平台
-        final toolsIds = [
-          'n8n',
-          'dify',
-          'openRouter',
-          'huggingFace',
-          'supabase',
-          'notion',
-          'ollama',
-          'github',
-          'githubCopilot',
-          'gitee',
-          'coze',
-          'figma',
-          'v0',
-        ];
-
-        // 从 PlatformRegistry 获取内置平台实例
-        final platforms = toolsIds
-            .map((id) => PlatformRegistry.get(id))
-            .where((p) => p != null)
-            .cast<PlatformType>()
-            .toList();
-
-        // 添加配置文件中标记为 tools 的所有平台（内置平台和动态平台）
-        final configToolsPlatforms = PlatformRegistry.getPlatformsByCategory('tools');
-        for (var platform in configToolsPlatforms) {
-          if (!platforms.contains(platform)) {
-            platforms.add(platform);
-          }
-        }
-
-        return platforms;
+        // AI工具平台：完全依赖配置文件中标记为 tools 的所有平台
+        return PlatformRegistry.getPlatformsByCategory('tools');
       case PlatformCategory.vector:
-        // 向量数据库/其他平台：硬编码 + 配置文件中标记为 vector 的所有平台
-        final vectorIds = [
-          'qdrant',
-          'pinecone',
-          'weaviate',
-        ];
-        final platforms = vectorIds
-            .map((id) => PlatformRegistry.get(id))
-            .where((p) => p != null)
-            .cast<PlatformType>()
-            .toList();
-
-        // 添加配置文件中标记为 vector 的所有平台
-        final configVectorPlatforms = PlatformRegistry.getPlatformsByCategory('vector');
-        for (var platform in configVectorPlatforms) {
-          if (!platforms.contains(platform)) {
-            platforms.add(platform);
-          }
-        }
-
-        return platforms;
+        // 向量数据库/其他平台：完全依赖配置文件中标记为 vector 的所有平台
+        return PlatformRegistry.getPlatformsByCategory('vector');
       case PlatformCategory.claudeCode:
         // ClaudeCode 支持的平台
         return ProviderConfig.supportedClaudeCodePlatforms;

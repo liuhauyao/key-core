@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../models/ai_key.dart';
 import '../../models/validation_config.dart';
 import '../../models/validation_result.dart';
+import '../../models/unified_provider_config.dart';
 import 'base_validator.dart';
 import 'validation_helper.dart';
 
@@ -12,12 +13,13 @@ class AnthropicValidator extends BaseValidator {
   Future<KeyValidationResult> validate({
     required AIKey key,
     required ValidationConfig config,
+    UnifiedProviderConfig? providerConfig,
     Duration? timeout,
   }) async {
     print('AnthropicValidator: 开始校验');
     
     // 获取所有需要尝试的 baseUrl
-    final baseUrls = getBaseUrlsToTry(key, config);
+    final baseUrls = getBaseUrlsToTry(key, config, providerConfig);
     
     if (baseUrls.isEmpty) {
       print('AnthropicValidator: 没有可用的 baseUrl');
@@ -63,8 +65,7 @@ class AnthropicValidator extends BaseValidator {
     print('AnthropicValidator: 请求体: $requestBody');
 
     // 尝试每个 baseUrl
-    KeyValidationResult? lastError;
-    final requestTimeout = timeout ?? const Duration(seconds: 10);
+    final requestTimeout = timeout ?? const Duration(seconds: 5);
     
     for (int i = 0; i < baseUrls.length; i++) {
       final baseUrl = baseUrls[i];
@@ -98,64 +99,53 @@ class AnthropicValidator extends BaseValidator {
           return KeyValidationResult.success(message: '验证通过');
         }
 
-        // 如果是密钥错误（401/403），不再尝试其他地址
-        if (response.statusCode == 401 || response.statusCode == 403) {
-          final errorMessage = ValidationHelper.getErrorMessage(response.statusCode, config) ?? '验证失败';
-          print('AnthropicValidator: 密钥错误，不再尝试其他地址');
-          return KeyValidationResult.failure(
-            error: ValidationError.invalidKey,
-            message: errorMessage,
-          );
-        }
-
-        // 记录错误，继续尝试下一个地址
+        // 失败即自动取消，不再尝试其他地址
         final errorMessage = ValidationHelper.getErrorMessage(response.statusCode, config) ?? '验证失败';
         print('AnthropicValidator: baseUrl $baseUrl 校验失败，状态码: ${response.statusCode}');
-        lastError = KeyValidationResult.failure(
-          error: response.statusCode >= 500
-              ? ValidationError.serverError
-              : ValidationError.unknown,
+        return KeyValidationResult.failure(
+          error: response.statusCode == 401 || response.statusCode == 403
+              ? ValidationError.invalidKey
+              : response.statusCode >= 500
+                  ? ValidationError.serverError
+                  : ValidationError.unknown,
           message: errorMessage,
         );
       } on http.ClientException catch (e) {
         print('AnthropicValidator: baseUrl $baseUrl 网络异常: ${e.message}');
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.networkError,
           message: '网络错误：${e.message}',
         );
-        // 网络错误继续尝试下一个地址
-        continue;
       } on FormatException catch (e) {
         print('AnthropicValidator: baseUrl $baseUrl 格式异常: ${e.message}');
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.unknown,
           message: '响应格式错误：${e.message}',
         );
-        // 格式错误继续尝试下一个地址
-        continue;
       } catch (e) {
         print('AnthropicValidator: baseUrl $baseUrl 未知异常: $e');
         
+        // 失败即自动取消
         if (e.toString().contains('TimeoutException') ||
             e.toString().contains('timeout')) {
-          lastError = KeyValidationResult.failure(
+          return KeyValidationResult.failure(
             error: ValidationError.timeout,
             message: '请求超时，请检查网络连接',
           );
         } else {
-          lastError = KeyValidationResult.failure(
+          return KeyValidationResult.failure(
             error: ValidationError.unknown,
             message: '校验失败：${e.toString()}',
           );
         }
-        // 继续尝试下一个地址
-        continue;
       }
     }
 
-    // 所有地址都尝试失败
+    // 理论上不应该到达这里，因为失败时会立即返回
     print('AnthropicValidator: 所有 baseUrl 都尝试失败');
-    return lastError ?? KeyValidationResult.failure(
+    return KeyValidationResult.failure(
       error: ValidationError.unknown,
       message: '所有校验地址都失败',
     );

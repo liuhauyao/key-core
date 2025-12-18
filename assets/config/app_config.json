@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "schemaVersion": 2,
   "lastUpdated": "2025-12-02T08:00:00.000000",
   "config": {
@@ -80,9 +80,11 @@
         "id": "anthropic",
         "name": "Claude Official",
         "platformType": "anthropic",
+        "icon": "anthropic.svg",
         "categories": [
           "claudeCode",
-          "popular"
+          "popular",
+          "llm"
         ],
         "providerCategory": "official",
         "websiteUrl": "https://www.anthropic.com/claude-code",
@@ -101,7 +103,7 @@
         },
         "validation": {
           "type": "custom",
-          "endpoint": "/v1/models",
+          "endpoint": "/models",
           "method": "GET",
           "headers": {
             "x-api-key": "{apiKey}",
@@ -114,16 +116,14 @@
             "429": "请求频率超限",
             "500": "服务器错误"
           },
-          "baseUrlSource": null,
-          "fallbackBaseUrl": "https://api.anthropic.com",
-          "modelsEndpoint": "/v1/models",
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
           "modelIdField": "id",
           "modelNameField": "display_name",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.anthropic.com",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -134,9 +134,11 @@
         "id": "deepSeek",
         "name": "DeepSeek",
         "platformType": "deepSeek",
+        "icon": "deepseek-color.svg",
         "categories": [
           "claudeCode",
-          "popular"
+          "popular",
+          "llm"
         ],
         "providerCategory": "cnOfficial",
         "websiteUrl": "https://platform.deepseek.com",
@@ -172,8 +174,7 @@
             "500": "服务器错误",
             "503": "服务暂时不可用，请稍后重试"
           },
-          "baseUrlSource": null,
-          "fallbackBaseUrl": "https://api.deepseek.com",
+          "baseUrlSource": "platform.apiEndpoint",
           "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -181,20 +182,20 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.deepseek.com",
           "balanceEndpoint": "/v1/user/balance",
           "balanceMethod": "GET",
-          "balanceBaseUrlSource": null,
-          "balanceFallbackBaseUrl": "https://api.deepseek.com"
+          "balanceBaseUrlSource": null
         }
       },
       {
         "id": "zhipu",
         "name": "Zhipu GLM",
         "platformType": "zhipu",
+        "icon": "zhipu-color.svg",
         "categories": [
           "claudeCode",
-          "popular"
+          "popular",
+          "llm"
         ],
         "providerCategory": "cnOfficial",
         "websiteUrl": "https://open.bigmodel.cn",
@@ -232,7 +233,6 @@
             "503": "服务暂时不可用，请稍后重试"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://open.bigmodel.cn/api/paas/v4",
           "modelsEndpoint": "/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -240,7 +240,6 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://open.bigmodel.cn/api/paas/v4",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -251,6 +250,7 @@
         "id": "zai",
         "name": "Z.ai GLM",
         "platformType": "zai",
+        "icon": "zai.svg",
         "categories": [
           "claudeCode"
         ],
@@ -298,7 +298,6 @@
             "403": "密钥权限不足"
           },
           "baseUrlSource": "claudeCode.baseUrl",
-          "fallbackBaseUrl": "https://api.z.ai/api/anthropic",
           "modelsEndpoint": null,
           "modelsMethod": null,
           "modelsResponsePath": null,
@@ -315,11 +314,13 @@
       },
       {
         "id": "kimi",
-        "name": "Kimi k2",
+        "name": "月之暗面",
         "platformType": "moonshot",
+        "icon": "kimi-color.svg",
         "categories": [
           "claudeCode",
-          "popular"
+          "popular",
+          "llm"
         ],
         "providerCategory": "cnOfficial",
         "websiteUrl": "https://platform.moonshot.cn/console",
@@ -340,31 +341,25 @@
           "defaultName": "Kimi API Key"
         },
         "validation": {
-          "type": "anthropic-compatible",
-          "endpoint": "/v1/messages",
+          "type": "openai-compatible",
+          "endpoint": "/chat/completions",
           "method": "POST",
-          "headers": {
-            "x-api-key": "{apiKey}",
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json"
-          },
+          "baseUrlSource": "platform.apiEndpoint",
           "body": {
             "model": "moonshot-v1-8k",
-            "max_tokens": 1,
             "messages": [
               {
                 "role": "user",
                 "content": "test"
               }
-            ]
+            ],
+            "max_tokens": 1
           },
           "successStatus": [200],
           "errorStatus": {
             "401": "密钥无效或已过期",
             "403": "密钥权限不足"
           },
-          "baseUrlSource": "claudeCode.baseUrl",
-          "fallbackBaseUrl": "https://api.moonshot.cn/anthropic",
           "modelsEndpoint": "/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -372,11 +367,9 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": "platform.apiEndpoint",
-          "modelsFallbackBaseUrl": "https://api.moonshot.cn/v1",
           "balanceEndpoint": "/users/me/balance",
           "balanceMethod": "GET",
-          "balanceBaseUrlSource": "platform.apiEndpoint",
-          "balanceFallbackBaseUrl": "https://api.moonshot.cn/v1"
+          "balanceBaseUrlSource": "platform.apiEndpoint"
         }
       },
       {
@@ -410,6 +403,7 @@
         "id": "longcat",
         "name": "Longcat",
         "platformType": "longcat",
+        "icon": "longcat-color.svg",
         "categories": [
           "claudeCode"
         ],
@@ -437,8 +431,10 @@
         "id": "minimax",
         "name": "MiniMax",
         "platformType": "minimax",
+        "icon": "minimax-color.svg",
         "categories": [
-          "claudeCode"
+          "claudeCode",
+          "llm"
         ],
         "providerCategory": "cnOfficial",
         "websiteUrl": "https://platform.minimaxi.com",
@@ -460,34 +456,25 @@
           "defaultName": "MiniMax API Key"
         },
         "validation": {
-          "type": "anthropic-compatible",
-          "endpoint": "/v1/messages",
+          "type": "openai-compatible",
+          "endpoint": "/chat/completions",
           "method": "POST",
-          "headers": {
-            "x-api-key": "{apiKey}",
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json"
-          },
+          "baseUrlSource": "platform.apiEndpoint",
           "body": {
             "model": "MiniMax-M2",
-            "max_tokens": 1,
             "messages": [
               {
                 "role": "user",
                 "content": "test"
               }
-            ]
+            ],
+            "max_tokens": 1
           },
           "successStatus": [200],
           "errorStatus": {
             "401": "密钥无效或已过期",
             "403": "密钥权限不足"
-          },
-          "baseUrlSource": "claudeCode.baseUrl",
-          "fallbackBaseUrl": "https://api.minimaxi.com/anthropic",
-          "fallbackBaseUrls": [
-            "https://api.minimax.io/anthropic"
-          ]
+          }
         }
       },
       {
@@ -495,10 +482,11 @@
         "name": "BaiLing",
         "platformType": "bailing",
         "categories": [
-          "claudeCode"
+          "claudeCode",
+          "codex"
         ],
         "providerCategory": "cnOfficial",
-        "websiteUrl": "https://alipaytbox.yuque.com/sxs0ba/ling/get_started",
+        "websiteUrl": "https://ling.tbox.cn/open",
         "isOfficial": false,
         "isPartner": false,
         "claudeCode": {
@@ -510,18 +498,52 @@
             "opusModel": "Ling-1T"
           }
         },
+        "codex": {
+          "baseUrl": "https://api.tbox.cn/api/v1",
+          "model": "Ling-1T"
+        },
         "platform": {
           "managementUrl": "https://alipaytbox.yuque.com/sxs0ba/ling/get_started",
-          "apiEndpoint": "https://api.tbox.cn/api/anthropic",
+          "apiEndpoint": "https://api.tbox.cn/api/llm/v1",
           "defaultName": "BaiLing API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或账户余额不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": "platform.apiEndpoint",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "modelScope",
         "name": "ModelScope",
         "platformType": "modelScope",
+        "icon": "modelscope-color.svg",
         "categories": [
-          "claudeCode"
+          "llm"
         ],
         "providerCategory": "aggregator",
         "websiteUrl": "https://modelscope.cn",
@@ -540,15 +562,47 @@
           "managementUrl": "https://modelscope.cn",
           "apiEndpoint": "https://api-inference.modelscope.cn",
           "defaultName": "ModelScope API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": null,
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "openRouter",
         "name": "OpenRouter",
         "platformType": "openRouter",
+        "icon": "openrouter.svg",
         "categories": [
           "claudeCode",
           "codex",
+          "llm",
+          "tools",
           "popular"
         ],
         "providerCategory": "aggregator",
@@ -586,7 +640,6 @@
             "500": "服务器错误"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://openrouter.ai/api/v1",
           "modelsEndpoint": "/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -594,20 +647,21 @@
           "modelNameField": "name",
           "modelDescriptionField": "description",
           "modelsBaseUrlSource": "platform.apiEndpoint",
-          "modelsFallbackBaseUrl": "https://openrouter.ai/api/v1",
           "balanceEndpoint": "/key",
           "balanceMethod": "GET",
-          "balanceBaseUrlSource": "platform.apiEndpoint",
-          "balanceFallbackBaseUrl": "https://openrouter.ai/api/v1"
+          "balanceBaseUrlSource": "platform.apiEndpoint"
         }
       },
       {
         "id": "huggingFace",
         "name": "Hugging Face",
         "platformType": "huggingFace",
+        "icon": "huggingface-color.svg",
         "categories": [
           "claudeCode",
-          "codex"
+          "codex",
+          "llm",
+          "tools"
         ],
         "providerCategory": "aggregator",
         "websiteUrl": "https://huggingface.co",
@@ -643,8 +697,9 @@
             "429": "请求频率超限",
             "500": "服务器错误"
           },
-          "baseUrlSource": null,
-          "fallbackBaseUrl": "https://huggingface.co",
+          "fallbackBaseUrls": [
+            "https://huggingface.co"
+          ],
           "modelsEndpoint": null,
           "modelsMethod": null,
           "modelsResponsePath": null,
@@ -663,6 +718,7 @@
         "id": "aihubmix",
         "name": "AiHubMix",
         "platformType": "aihubmix",
+        "icon": "aihubmix-color.svg",
         "categories": [
           "claudeCode",
           "codex"
@@ -697,7 +753,7 @@
         },
         "validation": {
           "type": "openai-compatible",
-          "endpoint": "/models",
+          "endpoint": "/api/v1/models",
           "method": "GET",
           "headers": {
             "Authorization": "Bearer {apiKey}"
@@ -713,23 +769,21 @@
           },
           "baseUrlSource": "platform.apiEndpoint",
           "fallbackBaseUrls": [
-            "https://aihubmix.com",
             "https://api.aihubmix.com"
           ],
-          "modelsEndpoint": "/models",
+          "modelsEndpoint": "/api/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
-          "modelIdField": "id",
-          "modelNameField": "id",
-          "modelDescriptionField": null,
-          "modelsBaseUrlSource": null,
+          "modelIdField": "model_id",
+          "modelNameField": "model_id",
+          "modelDescriptionField": "desc",
+          "modelsBaseUrlSource": "platform.apiEndpoint",
           "modelsFallbackBaseUrls": [
-            "https://aihubmix.com",
             "https://api.aihubmix.com"
           ],
-          "balanceEndpoint": null,
-          "balanceMethod": null,
-          "balanceBaseUrlSource": null,
+          "balanceEndpoint": "/api/user/self",
+          "balanceMethod": "GET",
+          "balanceBaseUrlSource": "platform.apiEndpoint",
           "balanceFallbackBaseUrl": null
         }
       },
@@ -784,18 +838,16 @@
             "503": "服务暂时不可用，请稍后重试"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://www.dmxapi.cn",
-          "modelsEndpoint": "/models",
+          "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
           "modelIdField": "id",
           "modelNameField": "id",
           "modelDescriptionField": null,
-          "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://www.dmxapi.cn",
-          "balanceEndpoint": null,
-          "balanceMethod": null,
-          "balanceBaseUrlSource": null,
+          "modelsBaseUrlSource": "platform.apiEndpoint",
+          "balanceEndpoint": "/api/user/self",
+          "balanceMethod": "GET",
+          "balanceBaseUrlSource": "platform.apiEndpoint",
           "balanceFallbackBaseUrl": null
         }
       },
@@ -856,13 +908,13 @@
             "https://www.packyapi.com",
             "https://api-slb.packyapi.com"
           ],
-          "modelsEndpoint": "/models",
+          "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
           "modelIdField": "id",
           "modelNameField": "id",
           "modelDescriptionField": null,
-          "modelsBaseUrlSource": null,
+          "modelsBaseUrlSource": "platform.apiEndpoint",
           "modelsFallbackBaseUrls": [
             "https://www.packyapi.com",
             "https://api-slb.packyapi.com"
@@ -877,6 +929,7 @@
         "id": "anyrouter",
         "name": "AnyRouter",
         "platformType": "anyrouter",
+        "icon": "anyrouter-color.svg",
         "categories": [
           "claudeCode",
           "codex"
@@ -928,7 +981,6 @@
             "503": "服务暂时不可用，请稍后重试"
           },
           "baseUrlSource": null,
-          "fallbackBaseUrl": "https://anyrouter.top/v1",
           "modelsEndpoint": "/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -936,7 +988,6 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://anyrouter.top/v1",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -947,9 +998,11 @@
         "id": "openAI",
         "name": "OpenAI Official",
         "platformType": "openAI",
+        "icon": "openai.svg",
         "categories": [
           "codex",
-          "popular"
+          "popular",
+          "llm"
         ],
         "providerCategory": "official",
         "websiteUrl": "https://chatgpt.com/codex",
@@ -965,8 +1018,8 @@
           "defaultName": "OpenAI API Key"
         },
         "validation": {
-          "type": "custom",
-          "endpoint": "/v1/me",
+          "type": "openai-compatible",
+          "endpoint": "/me",
           "method": "GET",
           "headers": {
             "Authorization": "Bearer {apiKey}"
@@ -978,8 +1031,7 @@
             "429": "请求频率超限",
             "500": "服务器错误"
           },
-          "baseUrlSource": null,
-          "fallbackBaseUrl": "https://api.openai.com",
+          "baseUrlSource": "codex.baseUrl",
           "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -987,7 +1039,6 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.openai.com",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -998,8 +1049,10 @@
         "id": "azureOpenAI",
         "name": "Azure OpenAI",
         "platformType": "azureOpenAI",
+        "icon": "microsoft-color.svg",
         "categories": [
-          "codex"
+          "codex",
+          "cloud"
         ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://learn.microsoft.com/azure/ai-services/openai/how-to/overview",
@@ -1021,8 +1074,12 @@
       {
         "id": "google",
         "name": "Google AI API Key",
-        "platformType": "google",
-        "categories": [],
+        "platformType": "gemini",
+        "icon": "gemini-color.svg",
+        "categories": [
+          "popular",
+          "llm"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://makersuite.google.com/app/apikey",
         "isOfficial": false,
@@ -1031,13 +1088,42 @@
           "managementUrl": "https://makersuite.google.com/app/apikey",
           "apiEndpoint": "https://generativelanguage.googleapis.com/v1",
           "defaultName": "Google AI API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/v1/models?key={apiKey}",
+          "method": "GET",
+          "headers": {},
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "API Key 格式错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": null,
+          "modelsEndpoint": "/v1/models?key={apiKey}",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "models",
+          "modelIdField": "name",
+          "modelNameField": "displayName",
+          "modelDescriptionField": "description",
+          "modelsBaseUrlSource": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "aws",
         "name": "AWS API Key",
         "platformType": "aws",
-        "categories": [],
+        "icon": "aws-color.svg",
+        "categories": [
+          "cloud"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.aws.amazon.com",
         "isOfficial": false,
@@ -1046,12 +1132,44 @@
           "managementUrl": "https://console.aws.amazon.com",
           "apiEndpoint": "https://bedrock-runtime.{region}.amazonaws.com",
           "defaultName": "AWS API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/foundation-models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "AWS4-HMAC-SHA256 Credential={apiKey}",
+            "X-Amz-Target": "AmazonBedrock.ListFoundationModels"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "AWS凭证无效或已过期",
+            "403": "AWS凭证权限不足",
+            "429": "请求频率超限",
+            "500": "AWS服务器错误",
+            "503": "AWS服务暂时不可用"
+          },
+          "baseUrlSource": null,
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "siliconFlow",
         "name": "SiliconFlow",
         "platformType": "siliconFlow",
+        "icon": "siliconcloud-color.svg",
         "categories": [
           "claudeCode",
           "codex",
@@ -1103,7 +1221,6 @@
             "504": "网关超时"
           },
           "baseUrlSource": null,
-          "fallbackBaseUrl": "https://api.siliconflow.cn",
           "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -1111,18 +1228,19 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.siliconflow.cn",
           "balanceEndpoint": "/v1/user/info",
           "balanceMethod": "GET",
-          "balanceBaseUrlSource": null,
-          "balanceFallbackBaseUrl": "https://api.siliconflow.cn"
+          "balanceBaseUrlSource": null
         }
       },
       {
         "id": "bailian",
         "name": "百炼云 API Key",
         "platformType": "bailian",
-        "categories": [],
+        "icon": "bailian-color.svg",
+        "categories": [
+          "llm"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://dashscope.console.aliyun.com",
         "isOfficial": false,
@@ -1171,31 +1289,82 @@
         "id": "baidu",
         "name": "百度千帆 API Key",
         "platformType": "baidu",
-        "categories": [],
+        "icon": "baiducloud-color.svg",
+        "categories": [
+          "llm"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.bce.baidu.com/qianfan",
         "isOfficial": false,
         "isPartner": false,
         "platform": {
           "managementUrl": "https://console.bce.baidu.com/qianfan",
-          "apiEndpoint": "https://aip.baidubce.com",
+          "apiEndpoint": "https://qianfan.baidubce.com/v2",
           "defaultName": "百度千帆 API Key"
         },
         "validation": {
-          "type": "custom",
-          "endpoint": "/oauth/2.0/token?grant_type=client_credentials&client_id={apiKey}&client_secret={apiKey}",
-          "method": "GET",
-          "headers": {},
+          "type": "openai-compatible",
+          "endpoint": "/chat/completions",
+          "method": "POST",
+          "baseUrlSource": "platform.apiEndpoint",
+          "body": {
+            "model": "ernie-3.5-8k",
+            "messages": [
+              {
+                "role": "user",
+                "content": "test"
+              }
+            ],
+            "max_tokens": 1
+          },
           "successStatus": [200],
           "errorStatus": {
-            "400": "请求参数错误，请确保提供了完整的 API Key 和 Secret Key（格式：API_KEY:SECRET_KEY）",
-            "401": "API Key 或 Secret Key 无效",
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
             "403": "API Key 权限不足",
             "429": "请求频率超限",
             "500": "服务器错误"
           },
-          "baseUrlSource": null,
-          "fallbackBaseUrl": "https://aip.baidubce.com",
+          "fallbackBaseUrls": [
+            "https://qianfan.baidubce.com/v2"
+          ]
+        }
+      },
+      {
+        "id": "n8n",
+        "name": "n8n API Key",
+        "platformType": "n8n",
+        "icon": "n8n-color.svg",
+        "categories": [
+          "tools"
+        ],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://app.n8n.cloud/settings/api",
+        "isOfficial": false,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://app.n8n.cloud/settings/api",
+          "apiEndpoint": "https://{name}.app.n8n.cloud/api/v1",
+          "defaultName": "n8n API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/api/v1/workflows",
+          "method": "GET",
+          "headers": {
+            "X-N8N-API-KEY": "{apiKey}",
+            "accept": "application/json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "n8n API Key 无效或已过期",
+            "403": "n8n API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "n8n服务器错误",
+            "503": "n8n服务暂时不可用"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
           "modelsEndpoint": null,
           "modelsMethod": null,
           "modelsResponsePath": null,
@@ -1211,25 +1380,13 @@
         }
       },
       {
-        "id": "n8n",
-        "name": "n8n API Key",
-        "platformType": "n8n",
-        "categories": [],
-        "providerCategory": "thirdParty",
-        "websiteUrl": "https://app.n8n.cloud/settings/api",
-        "isOfficial": false,
-        "isPartner": false,
-        "platform": {
-          "managementUrl": "https://app.n8n.cloud/settings/api",
-          "apiEndpoint": "https://{name}.app.n8n.cloud/api/v1",
-          "defaultName": "n8n API Key"
-        }
-      },
-      {
         "id": "dify",
         "name": "Dify API Key",
         "platformType": "dify",
-        "categories": [],
+        "icon": "dify-color.svg",
+        "categories": [
+          "tools"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://dify.ai/settings/api-keys",
         "isOfficial": false,
@@ -1238,13 +1395,47 @@
           "managementUrl": "https://dify.ai/settings/api-keys",
           "apiEndpoint": "https://api.dify.ai/v1",
           "defaultName": "Dify API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/datasets",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}",
+            "accept": "application/json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "Dify API Key 无效或已过期",
+            "403": "Dify API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "Dify服务器错误",
+            "503": "Dify服务暂时不可用"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "qdrant",
         "name": "Qdrant API Key",
         "platformType": "qdrant",
-        "categories": [],
+        "icon": "qdrant-icon.svg",
+        "categories": [
+          "vector"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://cloud.qdrant.io/",
         "isOfficial": false,
@@ -1253,13 +1444,48 @@
           "managementUrl": "https://cloud.qdrant.io/",
           "apiEndpoint": "https://{cluster}.qdrant.io",
           "defaultName": "Qdrant API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/",
+          "method": "GET",
+          "headers": {
+            "api-key": "{apiKey}",
+            "accept": "application/json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "Qdrant API Key 无效或已过期",
+            "403": "Qdrant API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "Qdrant服务器错误",
+            "503": "Qdrant服务暂时不可用"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "volcengine",
         "name": "火山引擎 API Key",
         "platformType": "volcengine",
-        "categories": [],
+        "icon": "volcengine-color.svg",
+        "categories": [
+          "cloud",
+          "llm"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.volcengine.com/ark/keymanage",
         "isOfficial": false,
@@ -1282,7 +1508,6 @@
             "403": "密钥权限不足"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
           "modelsEndpoint": "/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -1290,7 +1515,6 @@
           "modelNameField": "name",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -1301,8 +1525,10 @@
         "id": "mistral",
         "name": "Mistral AI API Key",
         "platformType": "mistral",
+        "icon": "mistral-color.svg",
         "categories": [
-          "popular"
+          "popular",
+          "llm"
         ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.mistral.ai/api-keys",
@@ -1330,7 +1556,6 @@
             "503": "服务暂时不可用，请稍后重试"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://api.mistral.ai",
           "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -1338,7 +1563,6 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.mistral.ai",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -1349,7 +1573,10 @@
         "id": "cohere",
         "name": "Cohere API Key",
         "platformType": "cohere",
-        "categories": [],
+        "icon": "cohere-color.svg",
+        "categories": [
+          "llm"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://dashboard.cohere.com/api-keys",
         "isOfficial": false,
@@ -1375,7 +1602,6 @@
             "500": "服务器错误"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://api.cohere.ai/v1",
           "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "models",
@@ -1383,7 +1609,6 @@
           "modelNameField": "name",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.cohere.ai/v1",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -1394,7 +1619,10 @@
         "id": "perplexity",
         "name": "Perplexity API Key",
         "platformType": "perplexity",
-        "categories": [],
+        "icon": "perplexity-color.svg",
+        "categories": [
+          "llm"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://www.perplexity.ai/settings/api",
         "isOfficial": false,
@@ -1420,7 +1648,6 @@
             "500": "服务器错误"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://api.perplexity.ai",
           "modelsEndpoint": "/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -1428,52 +1655,6 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.perplexity.ai",
-          "balanceEndpoint": null,
-          "balanceMethod": null,
-          "balanceBaseUrlSource": null,
-          "balanceFallbackBaseUrl": null
-        }
-      },
-      {
-        "id": "gemini",
-        "name": "Gemini API Key",
-        "platformType": "gemini",
-        "categories": [
-          "popular"
-        ],
-        "providerCategory": "thirdParty",
-        "websiteUrl": "https://makersuite.google.com/app/apikey",
-        "isOfficial": false,
-        "isPartner": false,
-        "platform": {
-          "managementUrl": "https://makersuite.google.com/app/apikey",
-          "apiEndpoint": "https://generativelanguage.googleapis.com/v1",
-          "defaultName": "Gemini API Key"
-        },
-        "validation": {
-          "type": "custom",
-          "endpoint": "/v1/models?key={apiKey}",
-          "method": "GET",
-          "headers": {},
-          "successStatus": [200],
-          "errorStatus": {
-            "400": "API Key 格式错误",
-            "401": "API Key 无效或已过期",
-            "403": "API Key 权限不足",
-            "429": "请求频率超限",
-            "500": "服务器错误"
-          },
-          "baseUrlSource": null,
-          "fallbackBaseUrl": "https://generativelanguage.googleapis.com",
-          "modelsEndpoint": "/v1/models?key={apiKey}",
-          "modelsMethod": "GET",
-          "modelsResponsePath": "models",
-          "modelIdField": "name",
-          "modelNameField": "displayName",
-          "modelDescriptionField": "description",
-          "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://generativelanguage.googleapis.com",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -1484,7 +1665,10 @@
         "id": "xai",
         "name": "xAI API Key",
         "platformType": "xai",
-        "categories": [],
+        "icon": "xai.svg",
+        "categories": [
+          "llm"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.x.ai/",
         "isOfficial": false,
@@ -1510,7 +1694,6 @@
             "500": "服务器错误"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://api.x.ai/v1",
           "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -1518,7 +1701,6 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.x.ai/v1",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -1529,7 +1711,11 @@
         "id": "ollama",
         "name": "Ollama API Key",
         "platformType": "ollama",
-        "categories": [],
+        "icon": "ollama.svg",
+        "categories": [
+          "llm",
+          "tools"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://ollama.ai/",
         "isOfficial": false,
@@ -1538,14 +1724,44 @@
           "managementUrl": "https://ollama.ai/",
           "apiEndpoint": "http://localhost:11434/api",
           "defaultName": "Ollama API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/health",
+          "method": "GET",
+          "headers": {},
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "404": "服务未运行，请确保 Ollama 已启动",
+            "429": "请求频率超限",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/tags",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "models",
+          "modelIdField": "name",
+          "modelNameField": "name",
+          "modelDescriptionField": "description",
+          "modelsBaseUrlSource": "platform.apiEndpoint",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "zeroOne",
         "name": "零一万物 API Key",
         "platformType": "zeroOne",
+        "icon": "yi-color.svg",
         "categories": [
-          "popular"
+          "popular",
+          "llm"
         ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://platform.01.ai/console/api-keys",
@@ -1573,7 +1789,6 @@
             "503": "服务暂时不可用，请稍后重试"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://api.01.ai/v1",
           "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -1581,7 +1796,6 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.01.ai/v1",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -1592,7 +1806,10 @@
         "id": "baichuan",
         "name": "百川智能 API Key",
         "platformType": "baichuan",
-        "categories": [],
+        "icon": "baichuan-color.svg",
+        "categories": [
+          "llm"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://platform.baichuan-ai.com/console/api-keys",
         "isOfficial": false,
@@ -1618,7 +1835,6 @@
             "500": "服务器错误"
           },
           "baseUrlSource": "platform.apiEndpoint",
-          "fallbackBaseUrl": "https://api.baichuan-ai.com/v1",
           "modelsEndpoint": "/v1/models",
           "modelsMethod": "GET",
           "modelsResponsePath": "data",
@@ -1626,7 +1842,6 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
-          "modelsFallbackBaseUrl": "https://api.baichuan-ai.com/v1",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -1635,24 +1850,64 @@
       },
       {
         "id": "nova",
-        "name": "Nova API Key",
+        "name": "Amazon Nova",
         "platformType": "nova",
-        "categories": [],
+        "icon": "nova-color.svg",
+        "categories": [
+          "llm"
+        ],
         "providerCategory": "thirdParty",
-        "websiteUrl": "https://platform.doubao.com/console/api-keys",
+        "websiteUrl": "https://console.aws.amazon.com/bedrock",
         "isOfficial": false,
         "isPartner": false,
+        "apiKeyUrl": "https://console.aws.amazon.com/bedrock/home?region=us-east-1#/api-keys",
         "platform": {
-          "managementUrl": "https://platform.doubao.com/console/api-keys",
-          "apiEndpoint": "https://ark.cn-beijing.volces.com/api/v3",
-          "defaultName": "Nova API Key"
+          "managementUrl": "https://console.aws.amazon.com/bedrock",
+          "apiEndpoint": "https://bedrock-mantle.us-east-1.api.aws",
+          "defaultName": "Amazon Nova API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": "platform.apiEndpoint",
+          "modelsFallbackBaseUrls": [
+            "https://bedrock-mantle.us-east-1.api.aws",
+            "https://bedrock-mantle.us-west-2.api.aws"
+          ],
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "tencent",
         "name": "腾讯云 API Key",
         "platformType": "tencent",
-        "categories": [],
+        "icon": "tencentcloud-color.svg",
+        "categories": [
+          "cloud"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.cloud.tencent.com/cam/capi",
         "isOfficial": false,
@@ -1661,13 +1916,48 @@
           "managementUrl": "https://console.cloud.tencent.com/cam/capi",
           "apiEndpoint": "https://hunyuan.tencentcloudapi.com",
           "defaultName": "腾讯云 API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/",
+          "method": "POST",
+          "headers": {
+            "X-TC-Action": "DescribeInstances",
+            "X-TC-Version": "2017-03-12",
+            "Authorization": "TC3-HMAC-SHA256 Credential={apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "腾讯云API密钥无效或已过期",
+            "403": "腾讯云API密钥权限不足",
+            "429": "请求频率超限",
+            "500": "腾讯云服务器错误",
+            "503": "腾讯云服务暂时不可用"
+          },
+          "baseUrlSource": null,
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "alibaba",
         "name": "阿里云 API Key",
         "platformType": "alibaba",
-        "categories": [],
+        "icon": "alibabacloud-color.svg",
+        "categories": [
+          "cloud"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://ram.console.aliyun.com/manage/ak",
         "isOfficial": false,
@@ -1676,13 +1966,46 @@
           "managementUrl": "https://ram.console.aliyun.com/manage/ak",
           "apiEndpoint": "https://dashscope.aliyuncs.com/api/v1",
           "defaultName": "阿里云 API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/",
+          "method": "GET",
+          "headers": {
+            "Authorization": "ACS3-HMAC-SHA256 Credential={apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "阿里云API密钥无效或已过期",
+            "403": "阿里云API密钥权限不足",
+            "429": "请求频率超限",
+            "500": "阿里云服务器错误",
+            "503": "阿里云服务暂时不可用"
+          },
+          "baseUrlSource": null,
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "pinecone",
         "name": "Pinecone API Key",
         "platformType": "pinecone",
-        "categories": [],
+        "icon": "pinecone-icon.svg",
+        "categories": [
+          "vector"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://app.pinecone.io/",
         "isOfficial": false,
@@ -1691,13 +2014,51 @@
           "managementUrl": "https://app.pinecone.io/",
           "apiEndpoint": "https://{index}.svc.{environment}.pinecone.io",
           "defaultName": "Pinecone API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/actions/whoami",
+          "method": "GET",
+          "headers": {
+            "Api-Key": "{apiKey}",
+            "accept": "application/json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "Pinecone API Key 无效或已过期",
+            "403": "Pinecone API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "Pinecone服务器错误",
+            "503": "Pinecone服务暂时不可用"
+          },
+          "baseUrlSource": null,
+          "fallbackBaseUrl": "https://api.pinecone.io",
+          "fallbackBaseUrls": [
+            "https://api.pinecone.io"
+          ],
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "weaviate",
         "name": "Weaviate API Key",
         "platformType": "weaviate",
-        "categories": [],
+        "icon": "Weaviate-icon.svg",
+        "categories": [
+          "vector"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.weaviate.io/",
         "isOfficial": false,
@@ -1706,13 +2067,47 @@
           "managementUrl": "https://console.weaviate.io/",
           "apiEndpoint": "https://{cluster}.weaviate.network/v1",
           "defaultName": "Weaviate API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/v1/meta",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}",
+            "accept": "application/json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "Weaviate API Key 无效或已过期",
+            "403": "Weaviate API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "Weaviate服务器错误",
+            "503": "Weaviate服务暂时不可用"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "supabase",
         "name": "Supabase API Key",
         "platformType": "supabase",
-        "categories": [],
+        "icon": "supabase-icon.svg",
+        "categories": [
+          "tools"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://app.supabase.com/project/_/settings/api",
         "isOfficial": false,
@@ -1721,27 +2116,80 @@
           "managementUrl": "https://app.supabase.com/project/_/settings/api",
           "apiEndpoint": "https://{project-ref}.supabase.co/rest/v1",
           "defaultName": "Supabase API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/rest/v1/",
+          "method": "GET",
+          "headers": {
+            "apikey": "{apiKey}",
+            "accept": "application/json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足"
+          },
+          "baseUrlSource": "platform.apiEndpoint"
         }
       },
       {
         "id": "notion",
-        "name": "Notion API Key",
+        "name": "Notion",
         "platformType": "notion",
-        "categories": [],
+        "icon": "notion.svg",
+        "categories": [
+          "tools"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://www.notion.so/my-integrations",
         "isOfficial": false,
         "isPartner": false,
+        "apiKeyUrl": "https://www.notion.so/my-integrations",
         "platform": {
           "managementUrl": "https://www.notion.so/my-integrations",
-          "apiEndpoint": "https://api.notion.com/v1",
-          "defaultName": "Notion API Key"
+          "apiEndpoint": "https://api.notion.com",
+          "defaultName": "Notion Integration Token"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/v1/users/me",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}",
+            "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "Integration Token 无效或已过期",
+            "403": "Integration Token 权限不足",
+            "404": "资源不存在",
+            "429": "请求频率超限",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "bytedance",
         "name": "字节跳动 API Key",
         "platformType": "bytedance",
+        "icon": "bytedance-color.svg",
         "categories": [],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.volcengine.com/",
@@ -1751,13 +2199,41 @@
           "managementUrl": "https://console.volcengine.com/",
           "apiEndpoint": "https://ark.cn-beijing.volces.com/api/v3",
           "defaultName": "字节跳动 API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "密钥无效或已过期",
+            "403": "密钥权限不足"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "name",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "github",
         "name": "GitHub Token",
         "platformType": "github",
-        "categories": [],
+        "icon": "github.svg",
+        "categories": [
+          "tools"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://github.com/settings/tokens",
         "isOfficial": false,
@@ -1766,14 +2242,49 @@
           "managementUrl": "https://github.com/settings/tokens",
           "apiEndpoint": "https://api.github.com",
           "defaultName": "GitHub Token"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/user",
+          "method": "GET",
+          "headers": {
+            "Authorization": "token {apiKey}",
+            "accept": "application/vnd.github.v3+json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "GitHub Token 无效或已过期",
+            "403": "GitHub Token 权限不足",
+            "429": "请求频率超限",
+            "500": "GitHub服务器错误",
+            "503": "GitHub服务暂时不可用"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/catalog/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "models",
+          "modelIdField": "id",
+          "modelNameField": "name",
+          "modelDescriptionField": "description",
+          "modelsBaseUrlSource": "platform.apiEndpoint",
+          "modelsFallbackBaseUrls": [
+            "https://models.github.ai"
+          ],
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "githubCopilot",
         "name": "GitHub Copilot Token",
         "platformType": "githubCopilot",
+        "icon": "githubcopilot.svg",
         "categories": [
-          "popular"
+          "popular",
+          "tools"
         ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://github.com/settings/copilot",
@@ -1783,13 +2294,47 @@
           "managementUrl": "https://github.com/settings/copilot",
           "apiEndpoint": "https://api.githubcopilot.com",
           "defaultName": "GitHub Copilot Token"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/user",
+          "method": "GET",
+          "headers": {
+            "Authorization": "token {apiKey}",
+            "accept": "application/vnd.github.v3+json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "GitHub Copilot Token 无效或已过期",
+            "403": "GitHub Copilot Token 权限不足",
+            "429": "请求频率超限",
+            "500": "GitHub Copilot服务器错误",
+            "503": "GitHub Copilot服务暂时不可用"
+          },
+          "baseUrlSource": null,
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "gitee",
         "name": "Gitee Token",
         "platformType": "gitee",
-        "categories": [],
+        "icon": "giteeai.svg",
+        "categories": [
+          "tools"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://gitee.com/profile/personal_access_tokens",
         "isOfficial": false,
@@ -1798,28 +2343,105 @@
           "managementUrl": "https://gitee.com/profile/personal_access_tokens",
           "apiEndpoint": "https://gitee.com/api/v5",
           "defaultName": "Gitee Token"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/user",
+          "method": "GET",
+          "headers": {
+            "Authorization": "token {apiKey}",
+            "accept": "application/json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "Gitee Token 无效或已过期",
+            "403": "Gitee Token 权限不足",
+            "429": "请求频率超限",
+            "500": "Gitee服务器错误",
+            "503": "Gitee服务暂时不可用"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "v0",
-        "name": "v0 API Key",
+        "name": "v0",
         "platformType": "v0",
-        "categories": [],
+        "icon": "v0.svg",
+        "categories": [
+          "tools"
+        ],
         "providerCategory": "thirdParty",
-        "websiteUrl": "https://v0.dev",
+        "websiteUrl": "https://v0.app",
         "isOfficial": false,
         "isPartner": false,
+        "apiKeyUrl": "https://v0.app/settings",
         "platform": {
-          "managementUrl": "https://v0.dev",
+          "managementUrl": "https://v0.app/settings",
           "apiEndpoint": "https://api.v0.dev",
           "defaultName": "v0 API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/chat/completions",
+          "method": "POST",
+          "baseUrlSource": "platform.apiEndpoint",
+          "body": {
+            "model": "v0-1.5-md",
+            "messages": [
+              {
+                "role": "user",
+                "content": "test"
+              }
+            ],
+            "max_tokens": 1
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": "platform.apiEndpoint",
+          "modelsFallbackBaseUrls": [
+            "https://api.v0.dev"
+          ],
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "figma",
         "name": "Figma API Key",
         "platformType": "figma",
-        "categories": [],
+        "icon": "figma-color.svg",
+        "categories": [
+          "tools"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://www.figma.com/developers/api#access-tokens",
         "isOfficial": false,
@@ -1828,6 +2450,37 @@
           "managementUrl": "https://www.figma.com/developers/api#access-tokens",
           "apiEndpoint": "https://api.figma.com/v1",
           "defaultName": "Figma API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/me",
+          "method": "GET",
+          "headers": {
+            "X-Figma-Token": "{apiKey}",
+            "accept": "application/json"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "Figma API Key 无效或已过期",
+            "403": "Figma API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "Figma服务器错误",
+            "503": "Figma服务暂时不可用"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       }
     ],

@@ -5,7 +5,7 @@ import '../../models/platform_type.dart';
 import '../../constants/app_constants.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/macos_input_decoration.dart';
-import '../../utils/platform_icon_helper.dart';
+import '../../utils/platform_icon_service.dart';
 import '../../utils/ime_friendly_formatter.dart';
 import 'platform_category_tabs.dart';
 import 'ime_safe_text_field.dart';
@@ -201,7 +201,7 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
                           ),
                           child: Row(
                             children: [
-                              PlatformIconHelper.buildIcon(
+                              PlatformIconService.buildIcon(
                                 platform: _selectedPlatform!,
                                 size: 24,
                               ),
@@ -375,7 +375,7 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
       label: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          PlatformIconHelper.buildIcon(
+          PlatformIconService.buildIcon(
             platform: platform,
             size: 18,
             color: isSelected ? Colors.white : null,

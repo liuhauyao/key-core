@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_service.dart';
+import 'macos_bookmark_service.dart';
 import 'claude_config_service.dart';
 import 'codex_config_service.dart';
 import 'gemini_config_service.dart';
@@ -214,6 +215,27 @@ class FirstLaunchService {
   /// 检查是否需要统一目录授权（首次启动时）
   /// 如果用户主目录无法访问，返回 true，表示需要授权
   Future<bool> needsHomeDirAuthorization() async {
+    // macOS: 先检查是否有保存的 Security-Scoped Bookmark
+    if (Platform.isMacOS) {
+      final bookmarkService = MacOSBookmarkService();
+      final hasBookmark = await bookmarkService.hasHomeDirAuthorization();
+      if (hasBookmark) {
+        // 有保存的 bookmark，尝试恢复访问权限
+        final restored = await bookmarkService.restoreHomeDirAccess();
+        if (restored) {
+          // 权限已恢复，检查是否已经提示过
+          if (!hasPromptedForTool(_keyHasPromptedHomeDir)) {
+            // 如果权限已恢复但还没提示过，标记为已提示（避免重复提示）
+            await markHomeDirPrompted();
+          }
+          return false; // 权限已恢复，不需要授权
+        } else {
+          // bookmark 存在但无法恢复，可能需要重新授权
+          print("FirstLaunchService: Security-Scoped Bookmark 存在但无法恢复，可能需要重新授权");
+        }
+      }
+    }
+    
     // 如果已经提示过，不再提示
     if (hasPromptedForTool(_keyHasPromptedHomeDir)) {
       return false;

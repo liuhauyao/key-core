@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'dart:io';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../services/first_launch_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/macos_bookmark_service.dart';
 import '../../utils/app_localizations.dart';
 import '../../models/mcp_server.dart';
 
@@ -28,7 +30,83 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
   bool _isSelecting = false;
   bool _isDetecting = false;
   List<ToolConfigDetected> _detectedTools = [];
-  Set<String> _autoEnabledTools = {}; // 记录自动开启的工具名称
+  Map<String, bool> _selectedTools = {}; // 工具选择状态：toolName -> isSelected
+  bool _showToolSelection = false; // 是否显示工具选择界面
+  bool _isEnablingTools = false; // 是否正在开启工具
+
+  /// 确认工具选择并开启
+  Future<void> _confirmToolSelection() async {
+    setState(() {
+      _isEnablingTools = true;
+    });
+
+    try {
+      final settingsViewModel = context.read<SettingsViewModel>();
+      final firstLaunchService = FirstLaunchService();
+      await firstLaunchService.init();
+
+      // 根据用户选择开启工具
+      for (final tool in _detectedTools) {
+        final isSelected = _selectedTools[tool.toolName] ?? false;
+        if (!isSelected) continue;
+
+        AiToolType? toolType;
+        
+        // 先设置配置目录
+        if (tool.toolName == 'Claude') {
+          await settingsViewModel.setClaudeConfigDir(tool.configDir);
+          toolType = AiToolType.claudecode;
+        } else if (tool.toolName == 'Codex') {
+          await settingsViewModel.setCodexConfigDir(tool.configDir);
+          toolType = AiToolType.codex;
+        } else if (tool.toolType != null) {
+          await settingsViewModel.setToolConfigDir(
+            tool.toolType!,
+            tool.configDir,
+          );
+          toolType = tool.toolType;
+        }
+        
+        // 开启选中的工具
+        if (toolType != null) {
+          // 等待一小段时间，确保配置目录设置已生效
+          await Future.delayed(const Duration(milliseconds: 100));
+          
+          // 刷新配置验证状态
+          await settingsViewModel.refreshToolConfigValidation(toolType);
+          
+          // 如果配置有效，开启工具
+          if (settingsViewModel.isToolConfigValid(toolType)) {
+            await settingsViewModel.setToolEnabled(toolType, true);
+          }
+        }
+      }
+
+      // 标记已提示过用户主目录授权
+      await firstLaunchService.markHomeDirPrompted();
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+        widget.onComplete?.call();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('开启工具失败: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isEnablingTools = false;
+        });
+      }
+    }
+  }
 
   Future<void> _requestHomeDirectoryAccess() async {
     setState(() {
@@ -56,62 +134,24 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
       final canAccess = await firstLaunchService.canAccessConfigDir(homeDir);
       
       if (canAccess) {
-        // 可以访问，检测该目录下的所有工具配置
+        // 可以访问，保存 Security-Scoped Bookmark 以持久化权限
+        if (Platform.isMacOS) {
+          final bookmarkService = MacOSBookmarkService();
+          final saved = await bookmarkService.saveHomeDirBookmark(homeDir);
+          if (!saved) {
+            print('FirstLaunchDialog: 直接访问时保存 Security-Scoped Bookmark 失败，可能需要通过文件选择对话框授权');
+          }
+        }
+        
+        // 检测该目录下的所有工具配置
         final detected = await firstLaunchService.detectToolConfigsInHomeDir(homeDir);
         
+        // 显示工具选择界面（默认全部勾选）
         setState(() {
           _detectedTools = detected;
+          _selectedTools = {for (var tool in detected) tool.toolName: true};
+          _showToolSelection = true;
         });
-
-        // 自动设置检测到的工具配置目录并开启工具
-        final autoEnabled = <String>[];
-        for (final tool in detected) {
-          AiToolType? toolType;
-          
-          // 先设置配置目录
-          if (tool.toolName == 'Claude') {
-            await settingsViewModel.setClaudeConfigDir(tool.configDir);
-            toolType = AiToolType.claudecode;
-          } else if (tool.toolName == 'Codex') {
-            await settingsViewModel.setCodexConfigDir(tool.configDir);
-            toolType = AiToolType.codex;
-          } else if (tool.toolType != null) {
-            await settingsViewModel.setToolConfigDir(
-              tool.toolType!,
-              tool.configDir,
-            );
-            toolType = tool.toolType;
-          }
-          
-          // 自动开启检测到的工具（如果配置有效）
-          if (toolType != null) {
-            // 等待一小段时间，确保配置目录设置已生效
-            await Future.delayed(const Duration(milliseconds: 100));
-            
-            // 刷新配置验证状态（验证配置文件是否存在且有效）
-            await settingsViewModel.refreshToolConfigValidation(toolType);
-            
-            // 如果配置有效，自动开启工具
-            if (settingsViewModel.isToolConfigValid(toolType)) {
-              final success = await settingsViewModel.setToolEnabled(toolType, true);
-              if (success) {
-                autoEnabled.add(tool.toolName);
-              }
-            }
-          }
-        }
-        
-        setState(() {
-          _autoEnabledTools = autoEnabled.toSet();
-        });
-
-        // 标记已提示过用户主目录授权
-        await firstLaunchService.markHomeDirPrompted();
-
-        if (mounted) {
-          Navigator.of(context).pop(true);
-          widget.onComplete?.call();
-        }
       } else {
         // 无法直接访问，需要通过 NSOpenPanel 让用户选择目录来授予权限
         // 这是 macOS 沙盒应用的标准做法：通过文件选择对话框授予权限
@@ -124,61 +164,44 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
 
           if (selectedHomeDir != null && selectedHomeDir.isNotEmpty) {
             // 用户通过 NSOpenPanel 选择了目录，系统已自动授予该目录的访问权限
-            // 检测工具配置
-            final detected = await firstLaunchService.detectToolConfigsInHomeDir(selectedHomeDir);
-            
-            setState(() {
-              _detectedTools = detected;
-            });
-
-            // 自动设置检测到的工具配置目录并开启工具
-            final autoEnabled = <String>[];
-            for (final tool in detected) {
-              AiToolType? toolType;
-              
-              // 先设置配置目录
-              if (tool.toolName == 'Claude') {
-                await settingsViewModel.setClaudeConfigDir(tool.configDir);
-                toolType = AiToolType.claudecode;
-              } else if (tool.toolName == 'Codex') {
-                await settingsViewModel.setCodexConfigDir(tool.configDir);
-                toolType = AiToolType.codex;
-              } else if (tool.toolType != null) {
-                await settingsViewModel.setToolConfigDir(
-                  tool.toolType!,
-                  tool.configDir,
-                );
-                toolType = tool.toolType;
-              }
-              
-              // 自动开启检测到的工具（如果配置有效）
-              if (toolType != null) {
-                // 等待一小段时间，确保配置目录设置已生效
-                await Future.delayed(const Duration(milliseconds: 100));
-                
-                // 刷新配置验证状态（验证配置文件是否存在且有效）
-                await settingsViewModel.refreshToolConfigValidation(toolType);
-                
-                // 如果配置有效，自动开启工具
-                if (settingsViewModel.isToolConfigValid(toolType)) {
-                  final success = await settingsViewModel.setToolEnabled(toolType, true);
-                  if (success) {
-                    autoEnabled.add(tool.toolName);
-                  }
+            // 立即保存 Security-Scoped Bookmark 以持久化权限（必须在权限有效时创建）
+            // 注意：FilePicker 返回后，权限上下文可能仍然有效，需要立即创建 bookmark
+            if (Platform.isMacOS) {
+              final bookmarkService = MacOSBookmarkService();
+              // 立即保存，不等待
+              final saved = await bookmarkService.saveHomeDirBookmark(selectedHomeDir);
+              if (!saved) {
+                print('FirstLaunchDialog: 保存 Security-Scoped Bookmark 失败，可能需要重新授权');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('保存权限失败，请重试'),
+                      backgroundColor: Colors.orange,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } else {
+                print('FirstLaunchDialog: Security-Scoped Bookmark 已保存: $selectedHomeDir');
+                // 立即验证权限是否已恢复
+                final restored = await bookmarkService.restoreHomeDirAccess();
+                if (restored) {
+                  print('FirstLaunchDialog: 权限已恢复并验证成功');
+                } else {
+                  print('FirstLaunchDialog: 警告：Bookmark 已保存但无法立即恢复，可能需要重启应用');
                 }
               }
             }
             
+            // 检测工具配置
+            final detected = await firstLaunchService.detectToolConfigsInHomeDir(selectedHomeDir);
+            
+            // 显示工具选择界面（默认全部勾选）
             setState(() {
-              _autoEnabledTools = autoEnabled.toSet();
+              _detectedTools = detected;
+              _selectedTools = {for (var tool in detected) tool.toolName: true};
+              _showToolSelection = true;
             });
-
-            await firstLaunchService.markHomeDirPrompted();
-
-            if (mounted) {
-              Navigator.of(context).pop(true);
-              widget.onComplete?.call();
-            }
           } else {
             // 用户取消了选择，标记为已提示，避免重复提示
             await firstLaunchService.markHomeDirPrompted();
@@ -273,7 +296,9 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          localizations?.firstLaunchTitle ?? '首次启动设置',
+                          _showToolSelection 
+                              ? '选择要开启的工具'
+                              : (localizations?.firstLaunchTitle ?? '首次启动设置'),
                           style: shadTheme.textTheme.h4.copyWith(
                             color: shadTheme.colorScheme.foreground,
                             fontSize: 18,
@@ -282,7 +307,9 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '需要授权访问用户主目录',
+                          _showToolSelection
+                              ? '已检测到 ${_detectedTools.length} 个工具配置'
+                              : '需要授权访问用户主目录',
                           style: shadTheme.textTheme.small.copyWith(
                             color: shadTheme.colorScheme.mutedForeground,
                             fontSize: 11,
@@ -301,121 +328,123 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 主描述文字 - 使用更小的字体和更好的排版
-                    Text(
-                      localizations?.firstLaunchHomeDirMessage ?? 
-                          '应用需要访问您的用户主目录以读取工具配置文件。',
-                      style: shadTheme.textTheme.small.copyWith(
-                        color: shadTheme.colorScheme.foreground,
-                        height: 1.5,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // 操作说明 - 分段显示，更易读
-                    Text(
-                      localizations?.firstLaunchInstruction ?? 
-                          '点击"授权"按钮后，macOS 将弹出系统权限请求对话框，请选择"允许"以授予访问权限。',
-                      style: shadTheme.textTheme.small.copyWith(
-                        color: shadTheme.colorScheme.mutedForeground,
-                        height: 1.5,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // 功能说明 - 使用列表样式
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            '• ',
-                            style: shadTheme.textTheme.small.copyWith(
-                              color: shadTheme.colorScheme.primary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            localizations?.firstLaunchFeature ?? 
-                                '应用将自动检测并加载该目录下的所有工具配置',
-                            style: shadTheme.textTheme.small.copyWith(
-                              color: shadTheme.colorScheme.mutedForeground,
-                              height: 1.5,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 12),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          _buildToolTag('.claude', shadTheme),
-                          _buildToolTag('.codex', shadTheme),
-                          _buildToolTag('.gemini', shadTheme),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // 路径信息卡片 - 优化样式
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: shadTheme.colorScheme.muted.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: shadTheme.colorScheme.border.withOpacity(0.5),
-                          width: 1,
+                    if (!_showToolSelection) ...[
+                      // 主描述文字 - 使用更小的字体和更好的排版
+                      Text(
+                        localizations?.firstLaunchHomeDirMessage ?? 
+                            '应用需要访问您的用户主目录以读取工具配置文件。',
+                        style: shadTheme.textTheme.small.copyWith(
+                          color: shadTheme.colorScheme.foreground,
+                          height: 1.5,
+                          fontSize: 13,
                         ),
                       ),
-                      child: Row(
+                      const SizedBox(height: 12),
+                      // 操作说明 - 分段显示，更易读
+                      Text(
+                        localizations?.firstLaunchInstruction ?? 
+                            '点击"授权"按钮后，macOS 将弹出系统权限请求对话框，请选择"允许"以授予访问权限。',
+                        style: shadTheme.textTheme.small.copyWith(
+                          color: shadTheme.colorScheme.mutedForeground,
+                          height: 1.5,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // 功能说明 - 使用列表样式
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: Icon(
-                              Icons.info_outline,
-                              size: 16,
-                              color: shadTheme.colorScheme.mutedForeground,
+                            child: Text(
+                              '• ',
+                              style: shadTheme.textTheme.small.copyWith(
+                                color: shadTheme.colorScheme.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 8),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  localizations?.firstLaunchHomeDirLabel ?? '用户主目录',
-                                  style: shadTheme.textTheme.small.copyWith(
-                                    color: shadTheme.colorScheme.foreground,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.defaultHomeDir ?? '/Users/您的用户名',
-                                  style: shadTheme.textTheme.small.copyWith(
-                                    color: shadTheme.colorScheme.mutedForeground,
-                                    fontSize: 11,
-                                    fontFamily: 'monospace',
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ],
+                            child: Text(
+                              localizations?.firstLaunchFeature ?? 
+                                  '应用将自动检测并加载该目录下的所有工具配置',
+                              style: shadTheme.textTheme.small.copyWith(
+                                color: shadTheme.colorScheme.mutedForeground,
+                                height: 1.5,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            _buildToolTag('.claude', shadTheme),
+                            _buildToolTag('.codex', shadTheme),
+                            _buildToolTag('.gemini', shadTheme),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // 路径信息卡片 - 优化样式
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: shadTheme.colorScheme.muted.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: shadTheme.colorScheme.border.withOpacity(0.5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Icon(
+                                Icons.info_outline,
+                                size: 16,
+                                color: shadTheme.colorScheme.mutedForeground,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    localizations?.firstLaunchHomeDirLabel ?? '用户主目录',
+                                    style: shadTheme.textTheme.small.copyWith(
+                                      color: shadTheme.colorScheme.foreground,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    widget.defaultHomeDir ?? '/Users/您的用户名',
+                                    style: shadTheme.textTheme.small.copyWith(
+                                      color: shadTheme.colorScheme.mutedForeground,
+                                      fontSize: 11,
+                                      fontFamily: 'monospace',
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (_isDetecting) ...[
                       const SizedBox(height: 16),
                       Container(
@@ -448,13 +477,13 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
                         ),
                       ),
                     ],
-                    if (_detectedTools.isNotEmpty) ...[
+                    if (_showToolSelection && _detectedTools.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: shadTheme.colorScheme.primary.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: shadTheme.colorScheme.primary.withOpacity(0.2),
                             width: 1,
@@ -466,63 +495,83 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
                             Row(
                               children: [
                                 Icon(
-                                  Icons.check_circle,
-                                  size: 16,
+                                  Icons.check_circle_outline,
+                                  size: 18,
                                   color: shadTheme.colorScheme.primary,
                                 ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    '已检测到 ${_detectedTools.length} 个工具配置${_autoEnabledTools.isNotEmpty ? '，已自动开启 ${_autoEnabledTools.length} 个' : ''}',
-                                    style: shadTheme.textTheme.small.copyWith(
-                                      color: shadTheme.colorScheme.primary,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '检测到 ${_detectedTools.length} 个工具配置',
+                                  style: shadTheme.textTheme.p.copyWith(
+                                    color: shadTheme.colorScheme.foreground,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 12),
+                            Text(
+                              '请选择要开启的工具（默认全选）：',
+                              style: shadTheme.textTheme.small.copyWith(
+                                color: shadTheme.colorScheme.mutedForeground,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
+                              spacing: 12,
+                              runSpacing: 12,
                               children: _detectedTools.map((tool) {
-                                final isEnabled = _autoEnabledTools.contains(tool.toolName);
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: isEnabled
-                                        ? shadTheme.colorScheme.primary.withOpacity(0.15)
-                                        : shadTheme.colorScheme.primary.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: isEnabled
-                                        ? Border.all(
-                                            color: shadTheme.colorScheme.primary.withOpacity(0.3),
-                                            width: 1,
-                                          )
-                                        : null,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        tool.toolName,
-                                        style: shadTheme.textTheme.small.copyWith(
-                                          color: shadTheme.colorScheme.primary,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w500,
-                                        ),
+                                final isSelected = _selectedTools[tool.toolName] ?? false;
+                                return InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedTools[tool.toolName] = !isSelected;
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? shadTheme.colorScheme.primary.withOpacity(0.15)
+                                          : shadTheme.colorScheme.background,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? shadTheme.colorScheme.primary
+                                            : shadTheme.colorScheme.border,
+                                        width: 1,
                                       ),
-                                      if (isEnabled) ...[
-                                        const SizedBox(width: 4),
-                                        Icon(
-                                          Icons.check,
-                                          size: 12,
-                                          color: shadTheme.colorScheme.primary,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: Checkbox(
+                                            value: isSelected,
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _selectedTools[tool.toolName] = value ?? false;
+                                              });
+                                            },
+                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          tool.toolName,
+                                          style: shadTheme.textTheme.small.copyWith(
+                                            color: shadTheme.colorScheme.foreground,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ],
-                                    ],
+                                    ),
                                   ),
                                 );
                               }).toList(),
@@ -546,41 +595,81 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          ShadButton.outline(
-                            onPressed: (_isSelecting || _isDetecting) ? null : () async {
-                              // 用户选择跳过，标记为已提示
-                              final firstLaunchService = FirstLaunchService();
-                              await firstLaunchService.init();
-                              await firstLaunchService.markHomeDirPrompted();
-                              if (mounted) {
-                                Navigator.of(context).pop(false);
-                                widget.onComplete?.call();
-                              }
-                            },
-                            child: Text(
-                              localizations?.skip ?? '跳过',
-                              style: const TextStyle(fontSize: 13),
+                          if (!_showToolSelection) ...[
+                            // 第一阶段：显示跳过和授权按钮
+                            ShadButton.outline(
+                              onPressed: (_isSelecting || _isDetecting) ? null : () async {
+                                // 用户选择跳过，标记为已提示
+                                final firstLaunchService = FirstLaunchService();
+                                await firstLaunchService.init();
+                                await firstLaunchService.markHomeDirPrompted();
+                                if (mounted) {
+                                  Navigator.of(context).pop(false);
+                                  widget.onComplete?.call();
+                                }
+                              },
+                              child: Text(
+                                localizations?.skip ?? '跳过',
+                                style: const TextStyle(fontSize: 13),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          ShadButton(
-                            onPressed: (_isSelecting || _isDetecting) ? null : _requestHomeDirectoryAccess,
-                            child: (_isSelecting || _isDetecting)
-                                ? SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
+                            const SizedBox(width: 10),
+                            ShadButton(
+                              onPressed: (_isSelecting || _isDetecting) ? null : _requestHomeDirectoryAccess,
+                              child: (_isSelecting || _isDetecting)
+                                  ? SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
                                       ),
+                                    )
+                                  : Text(
+                                      localizations?.authorize ?? '授权',
+                                      style: const TextStyle(fontSize: 13),
                                     ),
-                                  )
-                                : Text(
-                                    localizations?.authorize ?? '授权',
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                          ),
+                            ),
+                          ] else ...[
+                            // 第二阶段：显示取消和确认按钮
+                            ShadButton.outline(
+                              onPressed: _isEnablingTools ? null : () async {
+                                // 用户取消，标记为已提示但不开启任何工具
+                                final firstLaunchService = FirstLaunchService();
+                                await firstLaunchService.init();
+                                await firstLaunchService.markHomeDirPrompted();
+                                if (mounted) {
+                                  Navigator.of(context).pop(false);
+                                  widget.onComplete?.call();
+                                }
+                              },
+                              child: Text(
+                                localizations?.cancel ?? '取消',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            ShadButton(
+                              onPressed: _isEnablingTools ? null : _confirmToolSelection,
+                              child: _isEnablingTools
+                                  ? SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      localizations?.confirm ?? '确认',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

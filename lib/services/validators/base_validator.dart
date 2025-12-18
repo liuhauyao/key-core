@@ -1,6 +1,7 @@
 import '../../models/ai_key.dart';
 import '../../models/validation_config.dart';
 import '../../models/validation_result.dart';
+import '../../models/unified_provider_config.dart';
 import 'validation_helper.dart';
 
 /// 校验器基类
@@ -9,20 +10,21 @@ abstract class BaseValidator {
   Future<KeyValidationResult> validate({
     required AIKey key,
     required ValidationConfig config,
+    UnifiedProviderConfig? providerConfig,
     Duration? timeout,
   });
 
   /// 获取 baseUrl（委托给 ValidationHelper）
-  String? getBaseUrl(AIKey key, ValidationConfig config) {
-    return ValidationHelper.getBaseUrl(key, config);
+  String? getBaseUrl(AIKey key, ValidationConfig config, [UnifiedProviderConfig? providerConfig]) {
+    return ValidationHelper.getBaseUrl(key, config, providerConfig);
   }
 
   /// 获取所有需要尝试的 baseUrl 列表（包括默认和备用地址）
-  List<String> getBaseUrlsToTry(AIKey key, ValidationConfig config) {
+  List<String> getBaseUrlsToTry(AIKey key, ValidationConfig config, [UnifiedProviderConfig? providerConfig]) {
     final baseUrls = <String>[];
     
     // 1. 优先使用默认 baseUrl
-    final defaultBaseUrl = getBaseUrl(key, config);
+    final defaultBaseUrl = getBaseUrl(key, config, providerConfig);
     if (defaultBaseUrl != null && defaultBaseUrl.isNotEmpty) {
       baseUrls.add(defaultBaseUrl);
     }

@@ -8,16 +8,25 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
   var statusBarChannel: FlutterMethodChannel?
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
+    print("AppDelegate: ========== 应用启动 ==========")
+    
+    // ⚠️ 关键：必须在 super.applicationDidFinishLaunching 之前恢复权限
+    // 因为 super 会启动 Flutter 引擎，Flutter 应用启动后立即会访问文件
+    print("AppDelegate: [1/3] 恢复 Security-Scoped Bookmark 访问权限（在 Flutter 启动前）...")
+    restoreBookmarkOnLaunch()
+    
+    print("AppDelegate: [2/3] 启动 Flutter 引擎...")
     super.applicationDidFinishLaunching(notification)
     
     // 激活应用并置于前台
     NSApp.setActivationPolicy(.regular)
     
     // 参考标准 macOS 做法：在应用启动时立即创建状态栏图标
-    // applicationDidFinishLaunching 本身就在主线程，不需要异步
+    print("AppDelegate: [3/3] 设置状态栏图标...")
     checkAndSetupStatusBar()
     
     // 立即尝试注册 MethodChannel（不等待窗口创建）
+    print("AppDelegate: [4/4] 注册 MethodChannel...")
     setupMethodChannel()
     
     // 延迟激活，确保窗口已创建
@@ -29,26 +38,22 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
         self?.mainWindow = window
         // 确保窗口显示在前台
         window.makeKeyAndOrderFront(nil)
+        print("AppDelegate: ✅ 主窗口已创建并显示")
       }
     }
+    
+    print("AppDelegate: ========== 应用启动完成 ==========")
   }
   
   func setupMethodChannel() {
-    // 延迟注册，确保窗口已创建
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-      self?.registerMethodChannel()
-    }
-    
-    // 如果窗口已经存在，立即尝试注册（不等待延迟）
-    if let window = NSApplication.shared.windows.first,
-       window.contentViewController is FlutterViewController {
-      registerMethodChannel()
-    }
+    // 使用递归延迟重试，确保 FlutterViewController 已创建
+    registerMethodChannel(retryCount: 0, maxRetries: 20)
   }
   
-  func registerMethodChannel() {
+  func registerMethodChannel(retryCount: Int, maxRetries: Int) {
     // 如果已经注册过，跳过
     if statusBarChannel != nil {
+      print("AppDelegate: MethodChannel 已注册，跳过")
       return
     }
     
@@ -69,11 +74,18 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
     
     guard let flutterController = controller else {
       // 如果窗口还未创建，延迟重试
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-        self?.registerMethodChannel()
+      if retryCount < maxRetries {
+        print("AppDelegate: FlutterViewController 未创建，延迟重试 (\(retryCount + 1)/\(maxRetries))...")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+          self?.registerMethodChannel(retryCount: retryCount + 1, maxRetries: maxRetries)
+        }
+      } else {
+        print("AppDelegate: ❌ 无法获取 FlutterViewController，已达最大重试次数")
       }
       return
     }
+    
+    print("AppDelegate: ✅ 找到 FlutterViewController，开始注册 MethodChannel...")
     
     let channel = FlutterMethodChannel(
       name: "cn.dlrow.keycore/window",
@@ -84,11 +96,39 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
       self?.handleMethodCall(call, result: result)
     }
     
+    // 注册文件访问权限相关的 MethodChannel
+    let fileAccessChannel = FlutterMethodChannel(
+      name: "cn.dlrow.keycore/fileAccess",
+      binaryMessenger: flutterController.engine.binaryMessenger
+    )
+    
+    fileAccessChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      switch call.method {
+      case "saveSecurityScopedBookmark":
+        if let args = call.arguments as? [String: Any],
+           let path = args["path"] as? String {
+          self?.saveSecurityScopedBookmark(path: path, result: result)
+        } else {
+          result(FlutterError(code: "INVALID_ARGS", message: "Invalid arguments", details: nil))
+        }
+      case "restoreSecurityScopedBookmark":
+        self?.restoreSecurityScopedBookmark(result: result)
+      case "hasSecurityScopedBookmark":
+        self?.hasSecurityScopedBookmark(result: result)
+      case "clearSecurityScopedBookmark":
+        self?.clearSecurityScopedBookmark(result: result)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    
     // 创建状态栏菜单专用的 MethodChannel
     statusBarChannel = FlutterMethodChannel(
       name: "cn.dlrow.keycore/statusBar",
       binaryMessenger: flutterController.engine.binaryMessenger
     )
+    
+    print("AppDelegate: ✅ MethodChannel 注册完成")
     
     // statusBarChannel 初始化后，更新状态栏菜单（如果状态栏已存在）
     if statusItem != nil {
@@ -251,7 +291,7 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
     if statusBarChannel == nil {
       if let window = NSApplication.shared.windows.first,
          window.contentViewController is FlutterViewController {
-        registerMethodChannel()
+        registerMethodChannel(retryCount: 0, maxRetries: 20)
       }
     }
     
@@ -810,6 +850,16 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
     }
   }
 
+  override func applicationWillTerminate(_ notification: Notification) {
+    // 应用退出时，停止访问 Security-Scoped 资源
+    if let url = self.securityScopedURL {
+      url.stopAccessingSecurityScopedResource()
+      self.securityScopedURL = nil
+      print("AppDelegate: 应用退出时已停止访问 Security-Scoped 资源")
+    }
+    super.applicationWillTerminate(notification)
+  }
+  
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     // 检查是否启用了最小化到托盘
     let userDefaults = UserDefaults.standard
@@ -876,5 +926,311 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
     return true
+  }
+  
+  // MARK: - Security-Scoped Bookmarks
+  
+  private var securityScopedBookmark: Data?
+  // 保存 Security-Scoped URL 引用，确保权限在整个应用生命周期中有效
+  private var securityScopedURL: URL?
+  private let bookmarkKey = "home_dir_security_scoped_bookmark"
+  
+  /// 保存 Security-Scoped Bookmark
+  /// 注意：此方法需要在用户通过 NSOpenPanel 选择目录后立即调用
+  /// 当用户通过 NSOpenPanel 选择目录时，系统会自动授予该目录的访问权限
+  /// 我们需要在这个权限有效时创建 Security-Scoped Bookmark
+  func saveSecurityScopedBookmark(path: String, result: @escaping FlutterResult) {
+    let url = URL(fileURLWithPath: path)
+    
+    // 验证目录是否存在
+    guard FileManager.default.fileExists(atPath: path) else {
+      print("AppDelegate: 目录不存在: \(path)")
+      result(FlutterError(code: "NOT_FOUND", message: "目录不存在", details: nil))
+      return
+    }
+    
+    // 尝试访问目录以验证权限是否有效
+    // 如果用户刚刚通过 NSOpenPanel 选择了目录，这个访问应该会成功
+    var canAccess = false
+    do {
+      let contents = try FileManager.default.contentsOfDirectory(atPath: path)
+      canAccess = true
+      print("AppDelegate: 可以访问目录，包含 \(contents.count) 个项目")
+    } catch {
+      print("AppDelegate: 无法访问目录: \(error.localizedDescription)")
+      canAccess = false
+    }
+    
+    // 如果无法访问，尝试先获取 Security-Scoped 权限
+    // 这可能是因为 FilePicker 返回后权限上下文已失效
+    if !canAccess {
+      // 尝试通过 Security-Scoped Bookmark 恢复权限（如果之前保存过）
+      if let existingBookmarkData = UserDefaults.standard.data(forKey: bookmarkKey) {
+        do {
+          var isStale = false
+          let existingURL = try URL(
+            resolvingBookmarkData: existingBookmarkData,
+            options: [.withSecurityScope, .withoutUI],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+          )
+          if !isStale && existingURL.path == path {
+            let accessGranted = existingURL.startAccessingSecurityScopedResource()
+            if accessGranted {
+              print("AppDelegate: 通过现有 Bookmark 恢复了访问权限")
+              canAccess = true
+            }
+          }
+        } catch {
+          print("AppDelegate: 无法通过现有 Bookmark 恢复权限: \(error)")
+        }
+      }
+    }
+    
+    do {
+      // 创建 Security-Scoped Bookmark
+      // 当用户通过 NSOpenPanel 选择目录时，系统已经授予了访问权限
+      // bookmarkData 方法会使用当前的访问权限上下文创建 bookmark
+      // 注意：即使当前无法访问，bookmarkData 也可能成功创建 bookmark
+      // 但这个 bookmark 可能无法在下次启动时恢复权限
+      let bookmarkData = try url.bookmarkData(
+        options: [.withSecurityScope],
+        includingResourceValuesForKeys: nil,
+        relativeTo: nil
+      )
+      
+      // 保存到 UserDefaults
+      UserDefaults.standard.set(bookmarkData, forKey: bookmarkKey)
+      UserDefaults.standard.set(path, forKey: "home_dir_path")
+      UserDefaults.standard.synchronize() // 确保立即保存
+      self.securityScopedBookmark = bookmarkData
+      
+      print("AppDelegate: Security-Scoped Bookmark 已保存: \(path)")
+      
+      // 立即尝试恢复并激活 bookmark，验证是否成功
+      // 注意：如果之前已经有激活的 URL，先停止访问（避免资源泄漏）
+      if let existingURL = self.securityScopedURL {
+        existingURL.stopAccessingSecurityScopedResource()
+        self.securityScopedURL = nil
+      }
+      
+      do {
+        var isStale = false
+        let resolvedURL = try URL(
+          resolvingBookmarkData: bookmarkData,
+          options: [.withSecurityScope, .withoutUI],
+          relativeTo: nil,
+          bookmarkDataIsStale: &isStale
+        )
+        
+        if !isStale {
+          let accessGranted = resolvedURL.startAccessingSecurityScopedResource()
+          if accessGranted {
+            // 保存 URL 引用，确保权限在整个应用生命周期中有效
+            self.securityScopedURL = resolvedURL
+            
+            // 验证权限是否真的有效（尝试列出目录内容）
+            do {
+              let contents = try FileManager.default.contentsOfDirectory(atPath: resolvedURL.path)
+              print("AppDelegate: Security-Scoped Bookmark 已激活并验证成功: \(resolvedURL.path)（包含 \(contents.count) 个项目）")
+              result(true)
+              return
+            } catch {
+              print("AppDelegate: Security-Scoped Bookmark 已激活，但无法读取目录: \(error.localizedDescription)")
+            }
+          } else {
+            print("AppDelegate: Security-Scoped Bookmark 已保存，但无法立即激活")
+          }
+        } else {
+          print("AppDelegate: Security-Scoped Bookmark 已过期")
+        }
+      } catch {
+        print("AppDelegate: 验证 Security-Scoped Bookmark 失败: \(error)")
+      }
+      
+      // 即使激活失败，也保存 bookmark（下次启动时可以恢复）
+      if canAccess {
+        print("AppDelegate: Security-Scoped Bookmark 已保存（当前可以访问，但激活失败，可能需要重启应用）")
+      } else {
+        print("AppDelegate: Security-Scoped Bookmark 已保存（当前无法访问，可能需要重启应用后恢复权限）")
+      }
+      result(true)
+    } catch {
+      print("AppDelegate: 保存 Security-Scoped Bookmark 失败: \(error)")
+      result(FlutterError(code: "SAVE_FAILED", message: error.localizedDescription, details: nil))
+    }
+  }
+  
+  /// 恢复 Security-Scoped Bookmark 访问权限
+  func restoreSecurityScopedBookmark(result: @escaping FlutterResult) {
+    guard let bookmarkData = UserDefaults.standard.data(forKey: bookmarkKey) else {
+      print("AppDelegate: 没有保存的 Security-Scoped Bookmark")
+      result(false)
+      return
+    }
+    
+    do {
+      var isStale = false
+      let url = try URL(
+        resolvingBookmarkData: bookmarkData,
+        options: [.withSecurityScope, .withoutUI],
+        relativeTo: nil,
+        bookmarkDataIsStale: &isStale
+      )
+      
+      if isStale {
+        print("AppDelegate: Bookmark 已过期，需要重新授权")
+        if let existingURL = self.securityScopedURL {
+          existingURL.stopAccessingSecurityScopedResource()
+        }
+        UserDefaults.standard.removeObject(forKey: bookmarkKey)
+        UserDefaults.standard.removeObject(forKey: "home_dir_path")
+        self.securityScopedBookmark = nil
+        self.securityScopedURL = nil
+        result(false)
+        return
+      }
+      
+      // 如果之前已经有激活的 URL，先停止访问（避免资源泄漏）
+      if let existingURL = self.securityScopedURL {
+        existingURL.stopAccessingSecurityScopedResource()
+      }
+      
+      // 开始访问 Security-Scoped 资源
+      let success = url.startAccessingSecurityScopedResource()
+      if success {
+        print("AppDelegate: Security-Scoped Bookmark 访问权限已恢复: \(url.path)")
+        self.securityScopedBookmark = bookmarkData
+        // 保存 URL 引用，确保权限在整个应用生命周期中有效
+        self.securityScopedURL = url
+        
+        // 验证权限是否真的有效（尝试列出目录内容）
+        do {
+          let contents = try FileManager.default.contentsOfDirectory(atPath: url.path)
+          print("AppDelegate: 权限验证成功，可以访问目录（包含 \(contents.count) 个项目）")
+        } catch {
+          print("AppDelegate: 警告：startAccessingSecurityScopedResource 返回成功，但无法访问目录: \(error.localizedDescription)")
+        }
+        
+        result(true)
+      } else {
+        print("AppDelegate: 无法访问 Security-Scoped Bookmark，可能需要重新授权")
+        self.securityScopedURL = nil
+        result(false)
+      }
+    } catch {
+      print("AppDelegate: 恢复 Security-Scoped Bookmark 失败: \(error)")
+      // 清除无效的 bookmark
+      if let url = self.securityScopedURL {
+        url.stopAccessingSecurityScopedResource()
+      }
+      UserDefaults.standard.removeObject(forKey: bookmarkKey)
+      UserDefaults.standard.removeObject(forKey: "home_dir_path")
+      self.securityScopedBookmark = nil
+      self.securityScopedURL = nil
+      result(false)
+    }
+  }
+  
+  /// 检查是否有保存的 Security-Scoped Bookmark
+  func hasSecurityScopedBookmark(result: @escaping FlutterResult) {
+    let hasBookmark = UserDefaults.standard.data(forKey: bookmarkKey) != nil
+    result(hasBookmark)
+  }
+  
+  /// 清除 Security-Scoped Bookmark
+  func clearSecurityScopedBookmark(result: @escaping FlutterResult) {
+    // 停止访问 Security-Scoped 资源
+    if let url = self.securityScopedURL {
+      url.stopAccessingSecurityScopedResource()
+      self.securityScopedURL = nil
+    }
+    UserDefaults.standard.removeObject(forKey: bookmarkKey)
+    UserDefaults.standard.removeObject(forKey: "home_dir_path")
+    self.securityScopedBookmark = nil
+    result(true)
+  }
+  
+  /// 在应用启动时恢复 Security-Scoped Bookmark 访问权限
+  /// 这个方法必须在应用启动时立即调用，以确保后续文件访问有权限
+  func restoreBookmarkOnLaunch() {
+    print("AppDelegate: 开始恢复 Security-Scoped Bookmark 访问权限...")
+    guard let bookmarkData = UserDefaults.standard.data(forKey: bookmarkKey) else {
+      print("AppDelegate: 没有保存的 Security-Scoped Bookmark（首次启动或未授权）")
+      return
+    }
+    print("AppDelegate: 找到保存的 Security-Scoped Bookmark，开始恢复...")
+    
+    do {
+      var isStale = false
+      let url = try URL(
+        resolvingBookmarkData: bookmarkData,
+        options: [.withSecurityScope, .withoutUI],
+        relativeTo: nil,
+        bookmarkDataIsStale: &isStale
+      )
+      
+      if isStale {
+        print("AppDelegate: Bookmark 已过期，已清除")
+        UserDefaults.standard.removeObject(forKey: bookmarkKey)
+        UserDefaults.standard.removeObject(forKey: "home_dir_path")
+        self.securityScopedBookmark = nil
+        self.securityScopedURL = nil
+        return
+      }
+      
+      // 开始访问 Security-Scoped 资源
+      // 注意：一旦调用 startAccessingSecurityScopedResource()，权限就会保持有效
+      // 直到应用退出或调用 stopAccessingSecurityScopedResource()
+      // 根据 Apple 文档，对于需要在整个应用生命周期中保持访问权限的情况，
+      // 应该在应用启动时调用 startAccessingSecurityScopedResource()，并在应用退出时调用 stopAccessingSecurityScopedResource()
+      let success = url.startAccessingSecurityScopedResource()
+      if success {
+        print("AppDelegate: 应用启动时已恢复 Security-Scoped Bookmark 访问权限: \(url.path)")
+        self.securityScopedBookmark = bookmarkData
+        // 保存 URL 引用，确保权限在整个应用生命周期中有效
+        self.securityScopedURL = url
+        
+        // 验证权限是否真的有效（尝试列出目录内容）
+        do {
+          let contents = try FileManager.default.contentsOfDirectory(atPath: url.path)
+          print("AppDelegate: ✅ 权限验证成功，可以访问目录（包含 \(contents.count) 个项目）")
+          
+          // 进一步验证：尝试访问子目录（模拟实际使用场景）
+          let testSubdirs = [".claude", ".codex", ".gemini", ".cursor", ".codeium"]
+          var accessibleSubdirs: [String] = []
+          for subdir in testSubdirs {
+            let subdirPath = (url.path as NSString).appendingPathComponent(subdir)
+            if FileManager.default.fileExists(atPath: subdirPath) {
+              do {
+                let _ = try FileManager.default.contentsOfDirectory(atPath: subdirPath)
+                accessibleSubdirs.append(subdir)
+              } catch {
+                print("AppDelegate: ⚠️ 无法访问子目录 \(subdir): \(error.localizedDescription)")
+              }
+            }
+          }
+          if !accessibleSubdirs.isEmpty {
+            print("AppDelegate: ✅ 可以访问以下子目录: \(accessibleSubdirs.joined(separator: ", "))")
+          }
+        } catch {
+          print("AppDelegate: ❌ 警告：startAccessingSecurityScopedResource 返回成功，但无法访问目录: \(error.localizedDescription)")
+          // 即使无法访问，也保留 bookmark，因为可能是临时问题
+        }
+      } else {
+        print("AppDelegate: 无法访问 Security-Scoped Bookmark，可能需要重新授权")
+        // 清除无效的 bookmark
+        UserDefaults.standard.removeObject(forKey: bookmarkKey)
+        UserDefaults.standard.removeObject(forKey: "home_dir_path")
+        self.securityScopedBookmark = nil
+        self.securityScopedURL = nil
+      }
+    } catch {
+      print("AppDelegate: 启动时恢复 Bookmark 失败: \(error)")
+      // 清除无效的 bookmark
+      UserDefaults.standard.removeObject(forKey: bookmarkKey)
+      UserDefaults.standard.removeObject(forKey: "home_dir_path")
+      self.securityScopedBookmark = nil
+    }
   }
 }

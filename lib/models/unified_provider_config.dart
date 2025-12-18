@@ -142,6 +142,9 @@ class UnifiedProviderConfig {
   
   /// 校验配置（可选）
   final ValidationConfig? validation;
+  
+  /// 图标文件名（相对于 assets/icons/platforms 目录）
+  final String? icon;
 
   UnifiedProviderConfig({
     required this.id,
@@ -157,6 +160,7 @@ class UnifiedProviderConfig {
     this.codex,
     this.platform,
     this.validation,
+    this.icon,
   });
 
   factory UnifiedProviderConfig.fromJson(Map<String, dynamic> json) {
@@ -185,6 +189,7 @@ class UnifiedProviderConfig {
       validation: json['validation'] != null
           ? ValidationConfig.fromJson(json['validation'] as Map<String, dynamic>)
           : null,
+      icon: json['icon'] as String?,
     );
   }
 
@@ -203,6 +208,7 @@ class UnifiedProviderConfig {
       if (codex != null) 'codex': codex!.toJson(),
       if (platform != null) 'platform': platform!.toJson(),
       if (validation != null) 'validation': validation!.toJson(),
+      if (icon != null) 'icon': icon,
     };
   }
 

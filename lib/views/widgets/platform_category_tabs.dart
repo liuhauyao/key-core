@@ -6,7 +6,7 @@ import '../../models/platform_type.dart';
 import '../../models/platform_category.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/liquid_glass_decoration.dart';
-import '../../utils/platform_icon_helper.dart';
+import '../../utils/platform_icon_service.dart';
 import '../../utils/app_localizations.dart';
 
 /// 平台分类选项卡组件
@@ -194,7 +194,7 @@ class _PlatformCategoryTabsState extends State<PlatformCategoryTabs> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              PlatformIconHelper.buildIcon(
+              PlatformIconService.buildIcon(
                 platform: platform,
                 size: 16,
                 color: isSelected ? Colors.white : null,

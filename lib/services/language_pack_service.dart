@@ -86,7 +86,6 @@ class LanguagePackService {
     }
     
     try {
-      print('LanguagePackService: 从云端获取语言包: $url');
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -105,7 +104,6 @@ class LanguagePackService {
         final translations = Map<String, String>.from(
           jsonData.map((key, value) => MapEntry(key as String, value.toString())),
         );
-        print('LanguagePackService: 成功获取语言包: $languageCode');
         return translations;
       } else {
         print('LanguagePackService: 获取语言包失败，状态码: ${response.statusCode}');
@@ -136,7 +134,6 @@ class LanguagePackService {
             final translations = Map<String, String>.from(
               jsonData.map((key, value) => MapEntry(key as String, value.toString())),
             );
-            print('LanguagePackService: 成功从Gitee获取语言包: $languageCode');
             return translations;
           }
         } catch (e2) {
@@ -150,13 +147,11 @@ class LanguagePackService {
   /// 从内置 assets 加载语言包（应用打包时内置）
   Future<Map<String, String>?> loadBuiltinLanguagePack(String languageCode) async {
     try {
-      print('LanguagePackService: 从内置资源加载语言包: $languageCode');
       final jsonString = await rootBundle.loadString('assets/locales/$languageCode.json');
       final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
       final translations = Map<String, String>.from(
         jsonData.map((key, value) => MapEntry(key as String, value.toString())),
       );
-      print('LanguagePackService: 成功加载内置语言包: $languageCode');
       return translations;
     } catch (e) {
       print('LanguagePackService: 加载内置语言包失败: $e');
@@ -181,7 +176,6 @@ class LanguagePackService {
       final translations = Map<String, String>.from(
         jsonData.map((key, value) => MapEntry(key as String, value.toString())),
       );
-      print('LanguagePackService: 成功加载本地语言包: $languageCode');
       return translations;
     } catch (e) {
       print('LanguagePackService: 加载本地语言包失败: $e');
@@ -209,7 +203,6 @@ class LanguagePackService {
       final jsonString = const JsonEncoder.withIndent('  ').convert(jsonData);
       await langFile.writeAsString(jsonString);
       
-      print('LanguagePackService: 成功保存语言包到本地缓存: $languageCode');
       return true;
     } catch (e) {
       print('LanguagePackService: 保存语言包到本地缓存失败: $e');
@@ -251,7 +244,6 @@ class LanguagePackService {
     
     // 如果不是强制检查，且距离上次检查时间未超过间隔，则跳过
     if (!force && !await shouldCheckLanguagePackUpdate(languageCode)) {
-      print('LanguagePackService: 距离上次检查时间未超过间隔，跳过检查: $languageCode');
       return false;
     }
     
@@ -281,7 +273,6 @@ class LanguagePackService {
     
     // 如果没有本地语言包，直接下载
     if (localLastUpdated == null) {
-      print('LanguagePackService: 本地无语言包，准备下载: $languageCode');
       final translations = await fetchLanguagePack(languageCode);
       if (translations != null) {
         await saveLanguagePackToCache(languageCode, translations);
@@ -299,7 +290,6 @@ class LanguagePackService {
       
       if (cloudDate.isAfter(localDate)) {
         // 云端时间戳更新，需要更新
-        print('LanguagePackService: 发现新语言包，准备更新: $languageCode');
         final translations = await fetchLanguagePack(languageCode);
         if (translations != null) {
           await saveLanguagePackToCache(languageCode, translations);
@@ -309,7 +299,6 @@ class LanguagePackService {
         }
         return false;
       } else {
-        print('LanguagePackService: 语言包已是最新版本: $languageCode');
         return false;
       }
     } catch (e) {
@@ -417,7 +406,6 @@ class LanguagePackService {
     
     // 1. 尝试使用内存缓存
     if (_cachedPacks.containsKey(languageCode)) {
-      print('LanguagePackService: 使用内存缓存语言包: $languageCode');
       return _cachedPacks[languageCode];
     }
     
@@ -451,7 +439,6 @@ class LanguagePackService {
           if (localDate.isAfter(builtinDate)) {
             // 本地缓存版本更新，使用本地缓存
             _cachedPacks[languageCode] = cachedPack;
-            print('LanguagePackService: 使用本地缓存语言包（版本更新）: $languageCode');
             // 后台检查是否有新的更新（不阻塞）
             _checkAndUpdateLanguagePack(languageCode);
             return cachedPack;
@@ -463,7 +450,6 @@ class LanguagePackService {
       
       // 使用内置语言包
       _cachedPacks[languageCode] = builtinPack;
-      print('LanguagePackService: 使用内置语言包: $languageCode');
       // 后台检查是否有更新（不阻塞）
       _checkAndUpdateLanguagePack(languageCode);
       return builtinPack;
@@ -473,14 +459,12 @@ class LanguagePackService {
     final cachedPack = await loadLocalLanguagePack(languageCode);
     if (cachedPack != null) {
       _cachedPacks[languageCode] = cachedPack;
-      print('LanguagePackService: 使用本地缓存语言包: $languageCode');
       // 后台检查是否有更新（不阻塞）
       _checkAndUpdateLanguagePack(languageCode);
       return cachedPack;
     }
     
     // 4. 最后尝试从云端下载（新增语言包的情况）
-    print('LanguagePackService: 内置资源不存在，从云端下载语言包: $languageCode');
     final cloudPack = await fetchLanguagePack(languageCode);
     if (cloudPack != null) {
       await saveLanguagePackToCache(languageCode, cloudPack);
@@ -497,7 +481,6 @@ class LanguagePackService {
       );
       await _saveLocalLanguagePackLastUpdated(languageCode, languageInfo.lastUpdated);
       _cachedPacks[languageCode] = cloudPack;
-      print('LanguagePackService: 成功从云端下载语言包: $languageCode');
       return cloudPack;
     }
     
@@ -514,7 +497,6 @@ class LanguagePackService {
       // 检查是否有更新（24小时检查一次）
       final hasUpdate = await checkLanguagePackUpdate(languageCode, force: false);
       if (hasUpdate) {
-        print('LanguagePackService: 检测到语言包更新，已下载新版本: $languageCode');
         // 清除内存缓存，下次加载时使用新版本
         _cachedPacks.remove(languageCode);
       }
@@ -534,7 +516,6 @@ class LanguagePackService {
       final langFile = File(path.join(appDir.path, 'locales', '$languageCode.json'));
       if (await langFile.exists()) {
         await langFile.delete();
-        print('LanguagePackService: 已清除本地语言包缓存: $languageCode');
       }
       
       final lastUpdatedKey = 'lang_pack_last_updated_$languageCode';

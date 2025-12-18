@@ -14,7 +14,6 @@ class PlatformRegistry {
   static void initBuiltinPlatforms() {
     if (_builtinInitialized) return;
     
-    print('PlatformRegistry: 开始注册内置平台...');
     
     // 注册所有内置平台常量
     _registerBuiltin(PlatformType.openAI);
@@ -28,7 +27,6 @@ class PlatformRegistry {
     _registerBuiltin(PlatformType.zhipu);
     _registerBuiltin(PlatformType.bailian);
     _registerBuiltin(PlatformType.baidu);
-    _registerBuiltin(PlatformType.qwen);
     _registerBuiltin(PlatformType.n8n);
     _registerBuiltin(PlatformType.dify);
     _registerBuiltin(PlatformType.openRouter);
@@ -41,10 +39,9 @@ class PlatformRegistry {
     _registerBuiltin(PlatformType.gemini);
     _registerBuiltin(PlatformType.xai);
     _registerBuiltin(PlatformType.ollama);
-    _registerBuiltin(PlatformType.moonshot);
     _registerBuiltin(PlatformType.zeroOne);
     _registerBuiltin(PlatformType.baichuan);
-    _registerBuiltin(PlatformType.wenxin);
+    _registerBuiltin(PlatformType.moonshot);
     _registerBuiltin(PlatformType.kimi);
     _registerBuiltin(PlatformType.nova);
     _registerBuiltin(PlatformType.zai);
@@ -72,12 +69,10 @@ class PlatformRegistry {
     _registerBuiltin(PlatformType.custom);
     
     _builtinInitialized = true;
-    print('PlatformRegistry: 已注册 ${_platforms.length} 个内置平台');
   }
 
   /// 从云端配置加载动态平台
   static Future<void> loadDynamicPlatforms(CloudConfigService cloudConfigService) async {
-    print('PlatformRegistry: 开始加载动态平台...');
 
     final configData = await cloudConfigService.getConfigData();
     if (configData == null || configData.providers.isEmpty) {
@@ -87,8 +82,10 @@ class PlatformRegistry {
     }
 
     final providers = configData.providers;
+    
     int addedCount = 0;
     int updatedCategoriesCount = 0;
+    int skippedCount = 0;
 
     for (var provider in providers) {
       // 如果是内置平台，更新其 categories 信息
@@ -97,7 +94,8 @@ class PlatformRegistry {
         if (provider.categories != null && provider.categories!.isNotEmpty) {
           _platformCategories[provider.platformType] = provider.categories!;
           updatedCategoriesCount++;
-          print('PlatformRegistry: 更新内置平台分类: ${provider.platformType}, 分类: ${provider.categories}');
+        } else {
+          skippedCount++;
         }
       } else {
         // 添加云端独有的动态平台
@@ -116,12 +114,11 @@ class PlatformRegistry {
         }
 
         addedCount++;
-        print('PlatformRegistry: 注册动态平台: ${platform.id} (${platform.value}), 分类: ${provider.categories}');
       }
     }
 
     _dynamicInitialized = true;
-    print('PlatformRegistry: 已加载 $addedCount 个动态平台，更新了 $updatedCategoriesCount 个内置平台分类，总计 ${_platforms.length} 个平台');
+    print('PlatformRegistry: 加载完成 - 配置文件供应商总数: ${providers.length}, 新增动态平台: $addedCount, 更新内置平台分类: $updatedCategoriesCount, 跳过: $skippedCount, 总计平台: ${_platforms.length}');
   }
 
   /// 注册内置平台
@@ -171,7 +168,6 @@ class PlatformRegistry {
 
   /// 重新加载动态平台（用于配置更新时）
   static Future<void> reloadDynamicPlatforms(CloudConfigService cloudConfigService) async {
-    print('PlatformRegistry: 重新加载动态平台...');
     
     // 移除所有动态平台
     _platforms.removeWhere((key, value) => !value.isBuiltin);

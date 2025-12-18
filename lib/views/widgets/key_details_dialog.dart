@@ -3,7 +3,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../models/ai_key.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../../utils/app_localizations.dart';
-import '../../utils/platform_icon_helper.dart';
+import '../../utils/platform_icon_service.dart';
 
 /// 密钥详情弹窗（通用组件）
 class KeyDetailsDialog extends StatefulWidget {
@@ -72,8 +72,9 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
               ),
               child: Row(
                 children: [
-                  PlatformIconHelper.buildIcon(
+                  PlatformIconService.buildIcon(
                     platform: widget.aiKey.platformType,
+                    customIconFileName: widget.aiKey.icon,
                     size: 24,
                   ),
                   const SizedBox(width: 12),

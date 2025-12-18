@@ -55,7 +55,8 @@ class CloudConfigService {
     await init();
     await _prefs?.setString(_keyConfigUrl, url);
     // 清除缓存，强制重新加载
-    _cachedConfig = null;
+    print('CloudConfigService: 配置已更新');
+        _cachedConfig = null;
   }
 
   /// 获取本地配置版本
@@ -140,7 +141,6 @@ class CloudConfigService {
     }
     
     try {
-      print('CloudConfigService: 从云端获取配置: $url');
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -157,7 +157,6 @@ class CloudConfigService {
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         final config = CloudConfig.fromJson(jsonData);
-        print('CloudConfigService: 成功获取云端配置，版本: ${config.version}');
         return config;
       } else {
         print('CloudConfigService: 获取配置失败，状态码: ${response.statusCode}');
@@ -172,14 +171,11 @@ class CloudConfigService {
   /// 从本地文件加载配置（assets）
   Future<CloudConfig?> loadLocalDefaultConfig() async {
     try {
-      print('CloudConfigService: 加载本地默认配置');
       final jsonString = await rootBundle.loadString('assets/config/app_config.json');
       final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
       final config = CloudConfig.fromJson(jsonData);
-      print('CloudConfigService: 成功加载本地默认配置，版本: ${config.version}');
       return config;
     } catch (e) {
-      print('CloudConfigService: 加载本地默认配置失败: $e');
       return null;
     }
   }
@@ -192,14 +188,12 @@ class CloudConfigService {
       final configFile = File(path.join(appDir.path, 'cloud_config.json'));
       
       if (!await configFile.exists()) {
-        print('CloudConfigService: 本地缓存文件不存在');
         return null;
       }
       
       final jsonString = await configFile.readAsString();
       final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
       final config = CloudConfig.fromJson(jsonData);
-      print('CloudConfigService: 成功加载本地缓存配置，版本: ${config.version}');
       return config;
     } catch (e) {
       print('CloudConfigService: 加载本地缓存配置失败: $e');
@@ -220,7 +214,6 @@ class CloudConfigService {
       // 更新版本号
       await setLocalConfigVersion(config.version);
       
-      print('CloudConfigService: 成功保存配置到本地缓存，版本: ${config.version}');
       return true;
     } catch (e) {
       print('CloudConfigService: 保存配置到本地缓存失败: $e');
@@ -236,7 +229,6 @@ class CloudConfigService {
     
     // 如果不是强制检查，且距离上次检查时间未超过间隔，则跳过
     if (!force && !await shouldCheckForUpdate()) {
-      print('CloudConfigService: 距离上次检查时间未超过间隔，跳过检查');
       return false;
     }
     
@@ -246,14 +238,12 @@ class CloudConfigService {
     // 获取本地配置的时间戳
     final localConfig = await loadLocalCachedConfig();
     final localLastUpdated = localConfig?.lastUpdated;
-    print('CloudConfigService: 本地配置时间戳: $localLastUpdated');
     
     // 尝试从云端获取配置
     CloudConfig? cloudConfig = await fetchConfigFromCloud();
     
     // 如果失败，尝试使用Gitee备选URL（仅当使用默认URL时）
     if (cloudConfig == null && getConfigUrl() == _defaultConfigUrl) {
-      print('CloudConfigService: GitHub获取失败，尝试Gitee备选URL');
       cloudConfig = await fetchConfigFromCloud(customUrl: _giteeConfigUrl);
     }
     
@@ -263,13 +253,12 @@ class CloudConfigService {
     }
     
     final cloudLastUpdated = cloudConfig.lastUpdated;
-    print('CloudConfigService: 云端配置时间戳: $cloudLastUpdated');
     
     // 如果没有本地配置，直接更新
     if (localLastUpdated == null) {
-      print('CloudConfigService: 本地无配置，准备更新');
       final saved = await saveConfigToCache(cloudConfig);
       if (saved) {
+        print('CloudConfigService: 配置已更新');
         _cachedConfig = null;
         return true;
       }
@@ -283,17 +272,16 @@ class CloudConfigService {
       
       if (cloudDate.isAfter(localDate)) {
         // 云端时间戳更新，需要更新
-        print('CloudConfigService: 发现新配置，准备更新');
         final saved = await saveConfigToCache(cloudConfig);
         if (saved) {
-          _cachedConfig = null;
+          print('CloudConfigService: 配置已更新');
+        _cachedConfig = null;
           return true;
         } else {
-          print('CloudConfigService: 保存配置失败，更新中止');
+          print('CloudConfigService: 配置更新失败');
           return false;
         }
       } else {
-        print('CloudConfigService: 配置已是最新版本');
         return false;
       }
     } catch (e) {
@@ -304,15 +292,14 @@ class CloudConfigService {
       final versionCompare = compareVersions(localVersion, cloudVersion);
       
       if (versionCompare < 0) {
-        print('CloudConfigService: 发现新版本，准备更新');
         final saved = await saveConfigToCache(cloudConfig);
         if (saved) {
-          _cachedConfig = null;
+          print('CloudConfigService: 配置已更新');
+        _cachedConfig = null;
           return true;
         }
         return false;
       } else {
-        print('CloudConfigService: 配置已是最新版本');
         return false;
       }
     }
@@ -333,7 +320,8 @@ class CloudConfigService {
     final saved = await saveConfigToCache(cloudConfig);
     if (saved) {
       // 清除内存缓存，强制重新加载
-      _cachedConfig = null;
+      print('CloudConfigService: 配置已更新');
+        _cachedConfig = null;
       await _recordUpdateCheck();
       return true;
     }
@@ -347,12 +335,12 @@ class CloudConfigService {
     
     // 如果强制刷新，清除内存缓存
     if (forceRefresh) {
-      _cachedConfig = null;
+      print('CloudConfigService: 配置已更新');
+        _cachedConfig = null;
     }
     
     // 1. 尝试使用内存缓存
     if (_cachedConfig != null) {
-      print('CloudConfigService: 使用内存缓存配置');
       return _cachedConfig;
     }
     
@@ -360,7 +348,6 @@ class CloudConfigService {
     final cachedConfig = await loadLocalCachedConfig();
     if (cachedConfig != null) {
       _cachedConfig = cachedConfig;
-      print('CloudConfigService: 使用本地缓存配置');
       return cachedConfig;
     }
     
@@ -370,7 +357,6 @@ class CloudConfigService {
       // 保存到本地缓存
       await saveConfigToCache(cloudConfig);
       _cachedConfig = cloudConfig;
-      print('CloudConfigService: 使用云端配置');
       return cloudConfig;
     }
     
@@ -380,7 +366,6 @@ class CloudConfigService {
       // 保存到本地缓存
       await saveConfigToCache(defaultConfig);
       _cachedConfig = defaultConfig;
-      print('CloudConfigService: 使用默认配置');
       return defaultConfig;
     }
     
@@ -425,14 +410,14 @@ class CloudConfigService {
   /// 清除缓存
   Future<void> clearCache() async {
     await init();
-    _cachedConfig = null;
+    print('CloudConfigService: 配置已更新');
+        _cachedConfig = null;
     
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final configFile = File(path.join(appDir.path, 'cloud_config.json'));
       if (await configFile.exists()) {
         await configFile.delete();
-        print('CloudConfigService: 已清除本地缓存文件');
       }
     } catch (e) {
       print('CloudConfigService: 清除缓存失败: $e');

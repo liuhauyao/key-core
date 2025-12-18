@@ -117,7 +117,6 @@ class McpServerPresets {
         
         if (loadedTemplates.isNotEmpty) {
           _cachedTemplates = loadedTemplates;
-          print('McpServerPresets: 成功加载 ${_cachedTemplates!.length} 个 MCP 服务器模板');
         } else {
           print('McpServerPresets: MCP 服务器模板列表为空，使用默认配置');
         }
@@ -126,7 +125,6 @@ class McpServerPresets {
       }
     } catch (e, stackTrace) {
       print('McpServerPresets: 加载MCP服务器模板配置失败: $e');
-      print('McpServerPresets: 堆栈跟踪: $stackTrace');
       // 加载失败时，缓存保持为 null，getter 会返回默认配置
     }
   }

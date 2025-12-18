@@ -5,6 +5,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../models/ai_key.dart';
 import '../constants/app_constants.dart';
+import '../services/platform_registry.dart';
+import '../services/cloud_config_service.dart';
+import '../models/platform_type.dart';
 
 /// 数据库服务
 /// 提供AI密钥的CRUD操作
@@ -42,7 +45,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -56,6 +59,7 @@ class DatabaseService {
         name TEXT NOT NULL,
         platform TEXT NOT NULL,
         platform_type INTEGER NOT NULL,
+        platform_type_id TEXT,
         management_url TEXT,
         api_endpoint TEXT,
         key_value TEXT NOT NULL,
@@ -301,6 +305,13 @@ class DatabaseService {
       // 添加校验状态字段
       await db.execute('''
         ALTER TABLE ai_keys ADD COLUMN is_validated INTEGER DEFAULT 0
+      ''');
+    }
+
+    if (oldVersion < 9) {
+      // 添加 platform_type_id 字段，用于存储平台ID（字符串）而不是索引
+      await db.execute('''
+        ALTER TABLE ai_keys ADD COLUMN platform_type_id TEXT
       ''');
     }
   }

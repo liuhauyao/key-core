@@ -4,6 +4,7 @@ import 'dart:io';
 import '../../models/ai_key.dart';
 import '../../models/validation_config.dart';
 import '../../models/validation_result.dart';
+import '../../models/unified_provider_config.dart';
 import 'base_validator.dart';
 
 /// 配置驱动的通用校验器（处理 custom 类型）
@@ -12,6 +13,7 @@ class ConfigurableValidator extends BaseValidator {
   Future<KeyValidationResult> validate({
     required AIKey key,
     required ValidationConfig config,
+    UnifiedProviderConfig? providerConfig,
     Duration? timeout,
   }) async {
     // 必须有 endpoint 配置
@@ -23,7 +25,7 @@ class ConfigurableValidator extends BaseValidator {
     }
 
     // 获取所有需要尝试的 baseUrl
-    final baseUrls = getBaseUrlsToTry(key, config);
+    final baseUrls = getBaseUrlsToTry(key, config, providerConfig);
     print('ConfigurableValidator: 获取到的 baseUrls: $baseUrls');
     
     if (baseUrls.isEmpty) {
@@ -38,22 +40,31 @@ class ConfigurableValidator extends BaseValidator {
     final apiKey = key.keyValue;
 
     // 检查是否是百度千帆的双参数认证（需要 API Key 和 Secret Key）
-    // 如果 endpoint 包含 client_secret 参数，且 apiKey 包含冒号分隔符，则解析它
-    if (endpoint.contains('client_secret') && apiKey.contains(':')) {
-      final parts = apiKey.split(':');
-      if (parts.length == 2) {
-        final clientId = Uri.encodeComponent(parts[0].trim());
-        final clientSecret = Uri.encodeComponent(parts[1].trim());
-        // 替换 client_id 和 client_secret 参数
-        endpoint = endpoint.replaceAll('client_id={apiKey}', 'client_id=$clientId');
-        endpoint = endpoint.replaceAll('client_secret={apiKey}', 'client_secret=$clientSecret');
-        // 替换其他可能的 {apiKey} 占位符
-        endpoint = endpoint.replaceAll('{apiKey}', clientId);
+    // 如果 endpoint 包含 client_secret 参数，需要特殊处理
+    if (endpoint.contains('client_secret')) {
+      // 如果 apiKey 包含冒号分隔符，则解析它
+      if (apiKey.contains(':')) {
+        final parts = apiKey.split(':');
+        if (parts.length == 2) {
+          final clientId = Uri.encodeComponent(parts[0].trim());
+          final clientSecret = Uri.encodeComponent(parts[1].trim());
+          // 替换 client_id 和 client_secret 参数
+          endpoint = endpoint.replaceAll('client_id={apiKey}', 'client_id=$clientId');
+          endpoint = endpoint.replaceAll('client_secret={apiKey}', 'client_secret=$clientSecret');
+          // 替换其他可能的 {apiKey} 占位符
+          endpoint = endpoint.replaceAll('{apiKey}', clientId);
+        } else {
+          // 格式错误，返回失败
+          return KeyValidationResult.failure(
+            error: ValidationError.invalidKey,
+            message: 'API Key 格式错误，请使用格式：API_KEY:SECRET_KEY',
+          );
+        }
       } else {
-        // 格式错误，返回失败
+        // endpoint 需要 client_secret，但 apiKey 不包含冒号，说明格式不正确
         return KeyValidationResult.failure(
           error: ValidationError.invalidKey,
-          message: 'API Key 格式错误，请使用格式：API_KEY:SECRET_KEY',
+          message: 'API Key 格式错误，请使用格式：API_KEY:SECRET_KEY（用冒号分隔）',
         );
       }
     } else {
@@ -75,9 +86,7 @@ class ConfigurableValidator extends BaseValidator {
     }
 
     // 尝试每个 baseUrl
-    KeyValidationResult? lastError;
-    // Hugging Face API 可能需要更长的超时时间，增加到 60 秒
-    final requestTimeout = timeout ?? const Duration(seconds: 60);
+    final requestTimeout = timeout ?? const Duration(seconds: 5);
     
     for (int i = 0; i < baseUrls.length; i++) {
       final baseUrl = baseUrls[i];
@@ -137,7 +146,14 @@ class ConfigurableValidator extends BaseValidator {
           return KeyValidationResult.success(message: '验证通过');
         }
 
-        // 如果是密钥错误（401/403），不再尝试其他地址
+        // 如果是 404 且还有更多 baseUrl 可以尝试，继续尝试下一个
+        // 这适用于像 Pinecone 这样的情况：索引端点返回 404，但 controller 端点可能有效
+        if (response.statusCode == 404 && i < baseUrls.length - 1) {
+          print('ConfigurableValidator: 检测到 404，继续尝试下一个 baseUrl');
+          continue; // 继续尝试下一个 baseUrl
+        }
+
+        // 401/403 表示认证失败，不需要继续尝试
         if (response.statusCode == 401 || response.statusCode == 403) {
           return KeyValidationResult.failure(
             error: ValidationError.invalidKey,
@@ -145,8 +161,14 @@ class ConfigurableValidator extends BaseValidator {
           );
         }
 
-        // 记录错误，继续尝试下一个地址
-        lastError = KeyValidationResult.failure(
+        // 其他错误状态码，如果还有更多 baseUrl，继续尝试
+        if (i < baseUrls.length - 1) {
+          print('ConfigurableValidator: 状态码 ${response.statusCode}，继续尝试下一个 baseUrl');
+          continue;
+        }
+
+        // 所有 baseUrl 都尝试过了，返回失败
+        return KeyValidationResult.failure(
           error: response.statusCode >= 500
               ? ValidationError.serverError
               : ValidationError.unknown,
@@ -155,71 +177,65 @@ class ConfigurableValidator extends BaseValidator {
       } on http.ClientException catch (e) {
         print('ConfigurableValidator: ClientException: ${e.message}');
         print('ConfigurableValidator: 异常类型: ${e.runtimeType}');
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.networkError,
           message: '网络错误：${e.message}',
         );
-        // 网络错误继续尝试下一个地址
-        continue;
       } on FormatException catch (e) {
         print('ConfigurableValidator: FormatException: ${e.message}');
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.unknown,
           message: '响应格式错误：${e.message}',
         );
-        // 格式错误继续尝试下一个地址
-        continue;
       } on SocketException catch (e) {
         print('ConfigurableValidator: SocketException: ${e.message}');
         print('ConfigurableValidator: 异常类型: ${e.runtimeType}');
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.networkError,
           message: '网络连接错误：${e.message}',
         );
-        // 网络错误继续尝试下一个地址
-        continue;
       } on TlsException catch (e) {
         print('ConfigurableValidator: TlsException: ${e.message}');
         print('ConfigurableValidator: 异常类型: ${e.runtimeType}');
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.networkError,
           message: 'SSL/TLS 连接错误：${e.message}',
         );
-        // SSL 错误继续尝试下一个地址
-        continue;
       } on HandshakeException catch (e) {
         print('ConfigurableValidator: HandshakeException: ${e.message}');
         print('ConfigurableValidator: 异常类型: ${e.runtimeType}');
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.networkError,
           message: 'SSL/TLS 握手失败，请检查网络连接和系统证书',
         );
-        // SSL 握手错误继续尝试下一个地址
-        continue;
       } catch (e, stackTrace) {
         print('ConfigurableValidator: 捕获异常: ${e.toString()}');
         print('ConfigurableValidator: 异常类型: ${e.runtimeType}');
         print('ConfigurableValidator: 堆栈跟踪: $stackTrace');
+        // 失败即自动取消
         if (e.toString().contains('TimeoutException') ||
             e.toString().contains('timeout') ||
             e.toString().contains('Timeout')) {
-          lastError = KeyValidationResult.failure(
+          return KeyValidationResult.failure(
             error: ValidationError.timeout,
             message: '请求超时，请检查网络连接',
           );
         } else {
-          lastError = KeyValidationResult.failure(
+          return KeyValidationResult.failure(
             error: ValidationError.unknown,
             message: '校验失败：${e.toString()}',
           );
         }
-        // 继续尝试下一个地址
-        continue;
       }
     }
 
-    // 所有地址都尝试失败
-    return lastError ?? KeyValidationResult.failure(
+    // 理论上不应该到达这里，因为失败时会立即返回
+    return KeyValidationResult.failure(
       error: ValidationError.unknown,
       message: '所有校验地址都失败',
     );

@@ -31,6 +31,10 @@ flutter config --enable-windows-desktop
 echo "清理构建..."
 flutter clean
 
+# 生成图标列表配置文件
+echo "生成图标列表配置文件..."
+dart scripts/generate_icon_list.dart
+
 # 获取依赖
 echo "获取依赖..."
 flutter pub get

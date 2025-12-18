@@ -25,24 +25,28 @@ echo "1. 清理构建..."
 flutter clean > /dev/null 2>&1 || true
 rm -rf macos/build 2>/dev/null || true
 
-# 2. 获取依赖
-echo "2. 获取 Flutter 依赖..."
+# 2. 生成图标列表配置文件
+echo "2. 生成图标列表配置文件..."
+dart scripts/generate_icon_list.dart > /dev/null 2>&1
+
+# 3. 获取依赖
+echo "3. 获取 Flutter 依赖..."
 flutter pub get > /dev/null 2>&1
 
-# 3. 清理 sqlite3 缓存
-echo "3. 清理 sqlite3 构建缓存..."
+# 4. 清理 sqlite3 缓存
+echo "4. 清理 sqlite3 构建缓存..."
 rm -rf ~/.pub-cache/hosted/pub.flutter-io.cn/sqlite3-*/.dart_tool 2>/dev/null || true
 rm -rf ~/.pub-cache/hosted/pub.dev/sqlite3-*/.dart_tool 2>/dev/null || true
 rm -rf .dart_tool/hooks_runner/sqlite3 2>/dev/null || true
 
-# 4. 先运行 Flutter 构建来生成必要的文件（这会生成 Flutter-Generated.xcconfig 等）
-echo "4. 预构建 Flutter 文件（生成必要的资源文件）..."
+# 5. 先运行 Flutter 构建来生成必要的文件（这会生成 Flutter-Generated.xcconfig 等）
+echo "5. 预构建 Flutter 文件（生成必要的资源文件）..."
 flutter build macos --release > /tmp/flutter_build.log 2>&1 || {
     echo "警告: Flutter 构建失败，但继续..."
     cat /tmp/flutter_build.log | tail -20
 }
 
-# 5. 确保 ephemeral 目录存在
+# 6. 确保 ephemeral 目录存在
 echo "5. 确保 Flutter ephemeral 文件存在..."
 mkdir -p macos/Flutter/ephemeral
 if [ ! -f "macos/Flutter/ephemeral/FlutterInputs.xcfilelist" ]; then

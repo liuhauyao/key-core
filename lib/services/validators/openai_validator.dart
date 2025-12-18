@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../models/ai_key.dart';
 import '../../models/validation_config.dart';
 import '../../models/validation_result.dart';
+import '../../models/unified_provider_config.dart';
 import 'base_validator.dart';
 import 'validation_helper.dart';
 
@@ -12,12 +13,13 @@ class OpenAIValidator extends BaseValidator {
   Future<KeyValidationResult> validate({
     required AIKey key,
     required ValidationConfig config,
+    UnifiedProviderConfig? providerConfig,
     Duration? timeout,
   }) async {
     print('OpenAIValidator: 开始校验');
     
     // 获取所有需要尝试的 baseUrl
-    final baseUrls = getBaseUrlsToTry(key, config);
+    final baseUrls = getBaseUrlsToTry(key, config, providerConfig);
     
     if (baseUrls.isEmpty) {
       print('OpenAIValidator: 没有可用的 baseUrl');
@@ -53,8 +55,7 @@ class OpenAIValidator extends BaseValidator {
     }
 
     // 尝试每个 baseUrl
-    KeyValidationResult? lastError;
-    final requestTimeout = timeout ?? const Duration(seconds: 10);
+    final requestTimeout = timeout ?? const Duration(seconds: 5);
     
     for (int i = 0; i < baseUrls.length; i++) {
       final baseUrl = baseUrls[i];
@@ -97,65 +98,80 @@ class OpenAIValidator extends BaseValidator {
           return KeyValidationResult.success(message: '验证通过');
         }
 
-        // 如果是密钥错误（401/403），不再尝试其他地址
-        if (response.statusCode == 401 || response.statusCode == 403) {
-          final errorMessage = ValidationHelper.getErrorMessage(response.statusCode, config) ?? '验证失败';
-          print('OpenAIValidator: 密钥错误，不再尝试其他地址');
-          return KeyValidationResult.failure(
-            error: ValidationError.invalidKey,
-            message: errorMessage,
-          );
+        // 如果是 302 重定向，且是旧地址，继续尝试其他地址（可能是旧地址重定向到新地址）
+        if (response.statusCode == 302 && baseUrl.contains('aip.baidubce.com')) {
+          print('OpenAIValidator: 检测到旧地址 302 重定向，继续尝试其他地址');
+          continue; // 继续尝试下一个 baseUrl
         }
 
-        // 记录错误，继续尝试下一个地址
+        // 429 速率限制：API Key 有效，只是请求太频繁，视为校验成功
+        if (response.statusCode == 429) {
+          print('OpenAIValidator: 检测到 429 速率限制，API Key 有效，视为校验成功');
+          return KeyValidationResult.success(message: '验证通过（速率限制）');
+        }
+
+        // 403 权限不足：检查是否是 API Key 有效但需要付费计划的情况
+        if (response.statusCode == 403) {
+          final responseBodyLower = responseBody.toLowerCase();
+          // 检查是否是账户权限问题（如需要付费计划），而不是 API Key 无效
+          if (responseBodyLower.contains('premium') || 
+              responseBodyLower.contains('team plan') ||
+              responseBodyLower.contains('subscription') ||
+              responseBodyLower.contains('billing') ||
+              responseBodyLower.contains('plan required')) {
+            print('OpenAIValidator: 检测到 403 权限不足（需要付费计划），API Key 有效，视为校验成功');
+            return KeyValidationResult.success(message: '验证通过（需要付费计划）');
+          }
+        }
+
+        // 失败即自动取消，不再尝试其他地址
         final errorMessage = ValidationHelper.getErrorMessage(response.statusCode, config) ?? '验证失败';
         print('OpenAIValidator: baseUrl $baseUrl 校验失败，状态码: ${response.statusCode}');
-        lastError = KeyValidationResult.failure(
-          error: response.statusCode >= 500
-              ? ValidationError.serverError
-              : ValidationError.unknown,
+        return KeyValidationResult.failure(
+          error: response.statusCode == 401 || response.statusCode == 403
+              ? ValidationError.invalidKey
+              : response.statusCode >= 500
+                  ? ValidationError.serverError
+                  : ValidationError.unknown,
           message: errorMessage,
         );
       } on http.ClientException catch (e) {
         print('OpenAIValidator: baseUrl $baseUrl 网络异常: ${e.message}');
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.networkError,
           message: '网络错误：${e.message}',
         );
-        // 网络错误继续尝试下一个地址
-        continue;
       } on FormatException catch (e) {
         print('OpenAIValidator: baseUrl $baseUrl 格式异常: ${e.message}');
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.unknown,
           message: '响应格式错误：${e.message}',
         );
-        // 格式错误继续尝试下一个地址
-        continue;
       } catch (e, stackTrace) {
         print('OpenAIValidator: baseUrl $baseUrl 未知异常: $e');
         print('OpenAIValidator: 堆栈跟踪: $stackTrace');
         
+        // 失败即自动取消
         if (e.toString().contains('TimeoutException') ||
             e.toString().contains('timeout')) {
-          lastError = KeyValidationResult.failure(
+          return KeyValidationResult.failure(
             error: ValidationError.timeout,
             message: '请求超时，请检查网络连接',
           );
         } else {
-          lastError = KeyValidationResult.failure(
+          return KeyValidationResult.failure(
             error: ValidationError.unknown,
             message: '校验失败：${e.toString()}',
           );
         }
-        // 继续尝试下一个地址
-        continue;
       }
     }
 
-    // 所有地址都尝试失败
+    // 理论上不应该到达这里，因为失败时会立即返回
     print('OpenAIValidator: 所有 baseUrl 都尝试失败');
-    return lastError ?? KeyValidationResult.failure(
+    return KeyValidationResult.failure(
       error: ValidationError.unknown,
       message: '所有校验地址都失败',
     );

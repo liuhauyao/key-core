@@ -425,10 +425,10 @@ class PlatformType {
     // 返回在内置平台列表中的索引
     final builtinPlatforms = [
       openAI, anthropic, google, azureOpenAI, aws,
-      minimax, deepSeek, siliconFlow, zhipu, bailian, baidu, qwen,
+      minimax, deepSeek, siliconFlow, zhipu, bailian, baidu,
       n8n, dify, openRouter, huggingFace, qdrant, volcengine,
       mistral, cohere, perplexity, gemini, xai, ollama,
-      moonshot, zeroOne, baichuan, wenxin, kimi, nova,
+      zeroOne, baichuan, kimi, nova,
       zai, katCoder, longcat, bailing, modelScope, aihubmix, dmxapi, packycode, anyrouter,
       tencent, alibaba,
       pinecone, weaviate,

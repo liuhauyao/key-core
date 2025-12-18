@@ -15,7 +15,6 @@ class MacOSPreferencesBridge {
     print('MacOSPreferencesBridge: syncMinimizeToTray 被调用，值: $value');
     try {
       // 优先使用 MethodChannel 同步（更可靠，支持沙箱环境）
-      print('MacOSPreferencesBridge: 调用 MethodChannel syncMinimizeToTray');
       await _channel.invokeMethod('syncMinimizeToTray', {'value': value});
       print('MacOSPreferencesBridge: MethodChannel syncMinimizeToTray 调用成功');
     } catch (e) {
@@ -110,7 +109,6 @@ class MacOSPreferencesBridge {
 
     print('MacOSPreferencesBridge: updateStatusBar 被调用');
     try {
-      print('MacOSPreferencesBridge: 调用 MethodChannel updateStatusBar');
       await _channel.invokeMethod('updateStatusBar');
       print('MacOSPreferencesBridge: MethodChannel updateStatusBar 调用成功');
     } catch (e) {

@@ -16,6 +16,7 @@ import 'settings_screen.dart';
 import '../widgets/first_launch_dialog.dart';
 import '../../models/ai_key.dart';
 import '../../models/platform_type.dart';
+import '../../models/platform_category.dart';
 import '../../models/mcp_server.dart';
 import '../../services/database_service.dart';
 import '../../services/url_launcher_service.dart';
@@ -27,7 +28,7 @@ import '../../services/model_list_service.dart';
 import '../widgets/model_list_dialog.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../utils/app_localizations.dart';
-import '../../utils/platform_icon_helper.dart';
+import '../../utils/platform_icon_service.dart';
 import 'dart:io';
 
 class MainScreen extends StatefulWidget {
@@ -419,7 +420,7 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       // 搜索栏（左侧）
                       Expanded(
-                        flex: 2,
+                        flex: 1,
                         child: Container(
                           padding: const EdgeInsets.only(right: 12),
                           height: 38, // 固定高度，避免输入时高度变化
@@ -462,18 +463,56 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
                       ),
-                      // 平台过滤器（中间）
+                      // 供应商分组过滤器
                       Expanded(
                         flex: 1,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          padding: const EdgeInsets.only(left: 0, right: 12),
                           child: Builder(
                             builder: (context) {
                               final localizations = AppLocalizations.of(context);
-                              // 只显示已添加的平台
-                              final addedPlatforms = viewModel.addedPlatforms;
+                              // 只显示已添加的平台分组
+                              final addedCategories = viewModel.addedPlatformCategories;
+                              return ShadSelect<PlatformCategory?>(
+                                key: ValueKey('platform_category_filter_${viewModel.filterPlatformCategory}_${addedCategories.length}'),
+                                initialValue: viewModel.filterPlatformCategory,
+                                placeholder: Text(localizations?.allCategories ?? '全部分组'),
+                                options: [
+                                  ShadOption<PlatformCategory?>(
+                                    value: null,
+                                    child: Text(localizations?.allCategories ?? '全部分组'),
+                                  ),
+                                  ...addedCategories.map((category) {
+                                    return ShadOption<PlatformCategory?>(
+                                      value: category,
+                                      child: Text(_getPlatformCategoryDisplayName(category, context)),
+                                    );
+                                  }),
+                                ],
+                                selectedOptionBuilder: (selectContext, value) {
+                                  if (value == null) {
+                                    return Text(localizations?.allCategories ?? '全部分组');
+                                  }
+                                  return Text(_getPlatformCategoryDisplayName(value, selectContext));
+                                },
+                                onChanged: (value) => viewModel.setPlatformCategoryFilter(value),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      // 平台过滤器（右侧）
+                      Expanded(
+                        flex: 1,
+                        child: Container(
+                          padding: const EdgeInsets.only(left: 0, right: 12),
+                          child: Builder(
+                            builder: (context) {
+                              final localizations = AppLocalizations.of(context);
+                              // 根据当前分组筛选获取可用的平台
+                              final availablePlatforms = viewModel.getAvailablePlatformsForCurrentCategory();
                               return ShadSelect<PlatformType?>(
-                                key: ValueKey('platform_filter_${viewModel.filterPlatform}_${addedPlatforms.length}'),
+                                key: ValueKey('platform_filter_${viewModel.filterPlatform}_${viewModel.filterPlatformCategory}_${availablePlatforms.length}'),
                                 initialValue: viewModel.filterPlatform,
                                 placeholder: Text(localizations?.allPlatforms ?? '全部平台'),
                                 options: [
@@ -481,13 +520,13 @@ class _MainScreenState extends State<MainScreen> {
                                     value: null,
                                     child: Text(localizations?.allPlatforms ?? '全部平台'),
                                   ),
-                                  ...addedPlatforms.map((platform) {
+                                  ...availablePlatforms.map((platform) {
                                     return ShadOption<PlatformType?>(
                                       value: platform,
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          PlatformIconHelper.buildIcon(
+                                          PlatformIconService.buildIcon(
                                             platform: platform,
                                             size: 18,
                                           ),
@@ -505,7 +544,7 @@ class _MainScreenState extends State<MainScreen> {
                                   return Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      PlatformIconHelper.buildIcon(
+                                      PlatformIconService.buildIcon(
                                         platform: value,
                                         size: 18,
                                       ),
@@ -521,9 +560,11 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                       ),
                       // 按钮组：拖动模式、添加
-                      Container(
-                        height: 38, // 与输入框高度一致
-                        decoration: BoxDecoration(
+                      Padding(
+                        padding: const EdgeInsets.only(left: 0),
+                        child: Container(
+                          height: 38, // 与输入框高度一致
+                          decoration: BoxDecoration(
                           border: Border.all(
                             color: shadTheme.colorScheme.border,
                             width: 1,
@@ -615,6 +656,7 @@ class _MainScreenState extends State<MainScreen> {
                           ],
                         ),
                       ),
+                    ),
                     ],
                   ),
                 ),
@@ -1085,6 +1127,11 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+
+  /// 获取平台分组的显示名称
+  String _getPlatformCategoryDisplayName(PlatformCategory category, BuildContext context) {
+    return category.getValue(context); // 使用 PlatformCategory 自带的本地化方法
+  }
 
   void _showSnackBar(BuildContext context, String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(

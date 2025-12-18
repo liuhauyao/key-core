@@ -132,11 +132,9 @@ class GeminiConfigService {
       await settingsFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(defaultSettings),
       );
-      print('GeminiConfigService: 创建默认 settings.json: $settingsPath');
       
       // 创建默认的 .env 文件（空文件）
       await envFile.writeAsString('');
-      print('GeminiConfigService: 创建默认 .env: $envPath');
       
       return true;
     } catch (e) {
@@ -267,7 +265,6 @@ class GeminiConfigService {
       
       return true;
     } catch (e) {
-      print('GeminiConfigService: 写入 .env 文件失败: $e');
       return false;
     }
   }
@@ -307,7 +304,6 @@ class GeminiConfigService {
       env.remove('GEMINI_BASE_URL');
       env.remove('GEMINI_MODEL');
       
-      print('GeminiConfigService: 设置 GEMINI_API_KEY（使用官方 API）');
       
       // 确保配置目录存在
       final configDir = await _getConfigDir();
@@ -322,11 +318,9 @@ class GeminiConfigService {
       await settingsFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(settings),
       );
-      print('GeminiConfigService: 写入 settings.json: $settingsPath');
       
       // 写入 .env 文件
       await writeEnv(env);
-      print('GeminiConfigService: 写入 .env: ${await _getEnvFilePath()}');
       
       return true;
     } catch (e) {
@@ -371,7 +365,6 @@ class GeminiConfigService {
       
       if (apiKey != null && apiKey.isNotEmpty) {
         apiKey = apiKey.trim();
-        print('GeminiConfigService: 从 .env 文件找到 API Key (长度: ${apiKey.length})');
         return apiKey;
       }
       
@@ -381,7 +374,6 @@ class GeminiConfigService {
         final settingsApiKey = settings['apiKey'] as String?;
         if (settingsApiKey != null && settingsApiKey.isNotEmpty && settingsApiKey != '') {
           final apiKeyFromSettings = settingsApiKey.trim();
-          print('GeminiConfigService: 从 settings.json 找到 API Key (长度: ${apiKeyFromSettings.length})');
           return apiKeyFromSettings;
         }
       }
@@ -495,10 +487,8 @@ class GeminiConfigService {
       if (officialApiKey != null && officialApiKey.isNotEmpty) {
         // 如果本地有存储的官方API Key，写入到 .env 文件
         env['GEMINI_API_KEY'] = officialApiKey;
-        print('GeminiConfigService: 使用本地存储的官方API Key');
       } else {
         // 如果本地没有存储官方API Key，确保清空（已经remove了）
-        print('GeminiConfigService: 本地未存储官方API Key，已清空 GEMINI_API_KEY');
       }
       
       // 读取或创建 settings.json
@@ -527,7 +517,6 @@ class GeminiConfigService {
       // 清除官方配置缓存
       _clearOfficialConfigCache();
       
-      print('GeminiConfigService: 切换官方配置成功，已清除第三方配置并应用官方API Key');
       return true;
     } catch (e) {
       print('GeminiConfigService: 切换官方配置失败: $e');

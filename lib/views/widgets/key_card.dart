@@ -3,12 +3,13 @@ import 'dart:ui' as ui;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:async';
 import '../../models/ai_key.dart';
 import '../../models/model_info.dart';
 import '../../models/platform_category.dart';
 import '../../models/platform_type.dart';
 import '../../utils/app_localizations.dart';
-import '../../utils/platform_icon_helper.dart';
+import '../../utils/platform_icon_service.dart';
 import '../../services/key_validation_service.dart';
 import '../../services/model_list_service.dart';
 import '../../services/balance_query_service.dart';
@@ -73,17 +74,20 @@ class _KeyCardState extends State<KeyCard> {
   bool? _supportsSync;
   Map<String, dynamic>? _cachedBalance;
   List<ModelInfo>? _cachedModels;
+  bool? _cachedValidationStatus; // 缓存的校验状态
   bool _isSyncing = false;
   bool _isHovering = false;
+  String? _lastCheckedPlatformTypeId; // 记录上次检查的平台类型ID
 
   @override
   void initState() {
     super.initState();
     // 只在首次初始化时检查配置，避免编辑模式切换时重复检查
     _checkValidationConfig();
-    // 加载缓存的余额和模型列表
+    // 加载缓存的余额、模型列表和校验状态
     _loadCachedBalance();
     _loadCachedModels();
+    _loadCachedValidationStatus();
   }
 
   @override
@@ -92,32 +96,45 @@ class _KeyCardState extends State<KeyCard> {
     // 仅当密钥ID或平台类型变化时才重新检查配置和重新加载缓存
     // 避免因为 notifyListeners() 导致所有 KeyCard 重新加载缓存
     // 注意：即使 widget.aiKey 对象引用不同，只要 id 和 platformType 相同，就不重新加载
-    if (oldWidget.aiKey.id != widget.aiKey.id ||
-        oldWidget.aiKey.platformType != widget.aiKey.platformType) {
+    final platformTypeChanged = oldWidget.aiKey.platformType != widget.aiKey.platformType;
+    if (oldWidget.aiKey.id != widget.aiKey.id || platformTypeChanged) {
+      // 如果平台类型变化了，清除之前的校验配置缓存，强制重新检查
+      if (platformTypeChanged) {
+        _hasValidationConfig = null;
+        _supportsModelList = null;
+        _supportsBalanceQuery = null;
+        _supportsSync = null;
+        _lastCheckedPlatformTypeId = null;
+      }
       _checkValidationConfig();
       _loadCachedBalance();
       _loadCachedModels();
+      _loadCachedValidationStatus();
     }
     // 如果只是其他字段（如 isValidated）变化，不重新加载缓存
   }
 
   /// 检查是否有校验配置和模型列表支持
+  /// 注意：使用密钥的 platform_type_id（即 platformType.id）从已加载的配置文件中匹配校验配置
+  /// 配置文件在应用启动时已加载到缓存，验证逻辑从缓存中读取配置
   Future<void> _checkValidationConfig() async {
-    // 避免重复检查：如果已经有值了，就不再检查
-    if (_hasValidationConfig != null && 
+    final currentPlatformTypeId = widget.aiKey.platformType.id;
+    
+    // 如果平台类型没有变化，且已经检查过，则跳过
+    if (_lastCheckedPlatformTypeId == currentPlatformTypeId &&
+        _hasValidationConfig != null && 
         _supportsModelList != null && 
         _supportsBalanceQuery != null &&
         _supportsSync != null) {
       return;
     }
     
-    print('KeyCard: 检查校验配置，平台类型: ${widget.aiKey.platformType.id}');
+    // 使用密钥的 platform_type_id（即 platformType.id）来匹配配置文件中的供应商配置
+    // platformType 是从数据库恢复的，优先使用 platform_type_id 字段
     final hasValidation = await _validationService.hasValidationConfig(widget.aiKey.platformType);
     final supportsModelList = await _validationService.supportsModelList(widget.aiKey.platformType);
     final supportsBalanceQuery = await _balanceQueryService.supportsBalanceQuery(widget.aiKey.platformType);
     final supportsSync = await _syncService.supportsSync(widget.aiKey.platformType);
-    
-    print('KeyCard: 校验配置结果 - hasValidation: $hasValidation, supportsModelList: $supportsModelList, supportsBalanceQuery: $supportsBalanceQuery, supportsSync: $supportsSync');
     
     if (mounted) {
       setState(() {
@@ -125,6 +142,7 @@ class _KeyCardState extends State<KeyCard> {
         _supportsModelList = supportsModelList;
         _supportsBalanceQuery = supportsBalanceQuery;
         _supportsSync = supportsSync;
+        _lastCheckedPlatformTypeId = currentPlatformTypeId; // 记录当前检查的平台类型ID
       });
     }
   }
@@ -145,6 +163,16 @@ class _KeyCardState extends State<KeyCard> {
     if (mounted) {
       setState(() {
         _cachedModels = models;
+      });
+    }
+  }
+
+  /// 加载缓存的校验状态
+  Future<void> _loadCachedValidationStatus() async {
+    final validationStatus = await _cacheService.getValidationStatus(widget.aiKey);
+    if (mounted) {
+      setState(() {
+        _cachedValidationStatus = validationStatus;
       });
     }
   }
@@ -220,11 +248,11 @@ class _KeyCardState extends State<KeyCard> {
       _isSyncing = true;
     });
     
-    // 创建取消标志
+    // 创建取消标志，确保通知与调用强相关
     bool cancelled = false;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     
     // 显示加载提示，带取消按钮
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     scaffoldMessenger.showSnackBar(
       SnackBar(
         content: Row(
@@ -256,7 +284,7 @@ class _KeyCardState extends State<KeyCard> {
             ),
           ],
         ),
-        duration: Duration(seconds: 60),
+        duration: Duration(seconds: 12), // 10秒超时 + 2秒缓冲
       ),
     );
 
@@ -266,7 +294,11 @@ class _KeyCardState extends State<KeyCard> {
       if (decryptedKey == null) {
         scaffoldMessenger.hideCurrentSnackBar();
         scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text(localizations?.cannotDecryptKey ?? '无法解密密钥'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('同步失败，检查密钥或者网络'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
         );
         return;
       }
@@ -276,7 +308,32 @@ class _KeyCardState extends State<KeyCard> {
         return;
       }
 
-      final result = await _syncService.syncKey(decryptedKey);
+      // 使用timeout确保超时后立即返回
+      SyncResult result;
+      try {
+        result = await _syncService.syncKey(decryptedKey).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            return SyncResult.failure(
+              error: '同步失败，检查密钥或者网络',
+              validationSuccess: false,
+            );
+          },
+        );
+      } catch (e) {
+        // 超时或其他异常，立即返回失败
+        if (!cancelled && mounted) {
+          scaffoldMessenger.hideCurrentSnackBar();
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text('同步失败，检查密钥或者网络'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
       
       // 再次检查是否已取消
       if (cancelled) {
@@ -285,21 +342,40 @@ class _KeyCardState extends State<KeyCard> {
 
       scaffoldMessenger.hideCurrentSnackBar();
       
-      // 更新缓存的余额和模型列表显示（同步服务已经保存到缓存，这里重新加载）
+      // 更新缓存的余额、模型列表和校验状态显示（同步服务已经保存到缓存，这里重新加载）
       await _loadCachedBalance();
       await _loadCachedModels();
+      await _loadCachedValidationStatus();
 
-      // 显示结果
-      if (!cancelled) {
+      // 显示结果 - 简化消息
+      if (!cancelled && mounted) {
+        String message;
+        if (result.success) {
+          // 成功时只显示：同步成功、加载模型x个、余额xx
+          final messageParts = <String>[];
+          if (result.modelCount != null) {
+            messageParts.add('加载模型 ${result.modelCount} 个');
+          }
+          if (result.balanceData != null) {
+            final balanceStr = _formatBalanceForDisplay(result.balanceData!);
+            if (balanceStr != null) {
+              messageParts.add('余额：$balanceStr');
+            }
+          }
+          if (messageParts.isEmpty) {
+            messageParts.add('同步成功');
+          }
+          message = messageParts.join('，');
+        } else {
+          // 失败时只显示简单消息
+          message = '同步失败，检查密钥或者网络';
+        }
+        
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text(
-              result.success
-                  ? (localizations?.syncSuccessMessage(result.message) ?? '同步成功：${result.message}')
-                  : (localizations?.syncFailedMessage(result.error ?? (localizations?.unknownError ?? '未知错误')) ?? '同步失败：${result.error ?? (localizations?.unknownError ?? '未知错误')}'),
-            ),
+            content: Text(message),
             backgroundColor: result.success ? Colors.green : Colors.red,
-            duration: Duration(seconds: 4),
+            duration: Duration(seconds: 3),
           ),
         );
 
@@ -309,16 +385,16 @@ class _KeyCardState extends State<KeyCard> {
         if (hasValidation) {
           // 有校验配置，根据校验结果更新状态
           await viewModel.updateValidationStatus(widget.aiKey.id!, result.validationSuccess);
-          print('KeyCard: 更新校验状态，密钥ID: ${widget.aiKey.id}, 校验成功: ${result.validationSuccess}');
         }
       }
     } catch (e) {
-      if (!cancelled) {
+      if (!cancelled && mounted) {
         scaffoldMessenger.hideCurrentSnackBar();
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text(localizations?.syncFailedWithError(e.toString()) ?? '同步失败：${e.toString()}'),
+            content: Text('同步失败，检查密钥或者网络'),
             backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -328,6 +404,68 @@ class _KeyCardState extends State<KeyCard> {
           _isSyncing = false;
         });
       }
+    }
+  }
+
+  /// 格式化余额显示
+  String? _formatBalanceForDisplay(Map<String, dynamic> balanceData) {
+    try {
+      // 尝试解析常见的余额字段
+      if (balanceData.containsKey('data')) {
+        final data = balanceData['data'] as Map<String, dynamic>?;
+        if (data != null) {
+          // OpenRouter 格式：limit_remaining
+          if (data.containsKey('limit_remaining')) {
+            final limitRemaining = data['limit_remaining'];
+            if (limitRemaining == null) {
+              return '\$0.00';
+            } else {
+              final remaining = limitRemaining as num?;
+              if (remaining != null) {
+                return '\$${remaining.toStringAsFixed(2)}';
+              } else {
+                return '\$0.00';
+              }
+            }
+          }
+          // Moonshot/Kimi 格式：available_balance, voucher_balance, cash_balance
+          if (data.containsKey('available_balance')) {
+            final available = data['available_balance'] as num?;
+            if (available != null) {
+              return '¥${available.toStringAsFixed(2)}';
+            }
+          }
+          // 其他可能的余额字段
+          if (data.containsKey('balance')) {
+            final balance = data['balance'] as num?;
+            // 余额为0时也要显示
+            if (balance != null) {
+              return '¥${balance.toStringAsFixed(2)}';
+            } else {
+              // 字段存在但值为null，显示0
+              return '¥0.00';
+            }
+          }
+        }
+      }
+      
+      // 直接查找余额字段
+      if (balanceData.containsKey('balance')) {
+        final balance = balanceData['balance'] as num?;
+        // 余额为0时也要显示
+        if (balance != null) {
+          return '¥${balance.toStringAsFixed(2)}';
+        } else {
+          // 字段存在但值为null，显示0
+          return '¥0.00';
+        }
+      }
+      
+      // 如果余额数据存在但没有任何余额字段，也显示0
+      // 这适用于某些API返回空对象但表示余额为0的情况
+      return '¥0.00';
+    } catch (e) {
+      return null;
     }
   }
 
@@ -442,11 +580,9 @@ class _KeyCardState extends State<KeyCard> {
   Widget _buildBalanceDisplay(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations) {
     final balanceData = _cachedBalance;
     if (balanceData == null) {
-      print('KeyCard: 余额数据为空，不显示余额');
       return SizedBox.shrink();
     }
 
-    print('KeyCard: 开始解析余额，数据: $balanceData');
 
     // 解析余额数据
     String? balanceText;
@@ -532,6 +668,7 @@ class _KeyCardState extends State<KeyCard> {
             final balanceValue = totalBalance ?? balance;
             if (balanceValue != null) {
               final balanceNum = double.tryParse(balanceValue.toString());
+              // 余额为0时也要显示
               if (balanceNum != null) {
                 balanceText = '¥${balanceNum.toStringAsFixed(2)}';
                 
@@ -557,16 +694,23 @@ class _KeyCardState extends State<KeyCard> {
                 if (details.isNotEmpty) {
                   tooltipText = details.join('\n');
                 }
+              } else {
+                // 值为null但字段存在，显示0
+                balanceText = '¥0.00';
               }
+            } else if (data.containsKey('totalBalance') || data.containsKey('balance')) {
+              // 字段存在但值为null，显示0
+              balanceText = '¥0.00';
             }
           }
           
           // Moonshot/Kimi 格式
-          if (balanceText == null) {
+          if (balanceText == null && data != null) {
             final availableBalance = data['available_balance'] as num?;
             final cashBalance = data['cash_balance'] as num?;
             final voucherBalance = data['voucher_balance'] as num?;
             
+            // 余额为0时也要显示
             if (availableBalance != null) {
               balanceText = '¥${availableBalance.toStringAsFixed(2)}';
               
@@ -578,9 +722,13 @@ class _KeyCardState extends State<KeyCard> {
               if (voucherBalance != null) {
                 details.add('${localizations?.voucherBalance ?? "代金券余额"}: ¥${voucherBalance.toStringAsFixed(2)}');
               }
+              
               if (details.isNotEmpty) {
                 tooltipText = details.join('\n');
               }
+            } else if (data.containsKey('available_balance')) {
+              // 字段存在但值为null，显示0
+              balanceText = '¥0.00';
             }
           }
         }
@@ -639,18 +787,28 @@ class _KeyCardState extends State<KeyCard> {
       // 如果没有解析到，尝试直接获取 balance 字段
       if (balanceText == null && balanceData.containsKey('balance')) {
         final balance = balanceData['balance'] as num?;
+        // 余额为0时也要显示
         if (balance != null) {
           balanceText = '¥${balance.toStringAsFixed(2)}';
+        } else {
+          // 字段存在但值为null，显示0
+          balanceText = '¥0.00';
         }
       }
     } catch (e) {
       print('KeyCard: 解析余额失败: $e');
     }
 
-    print('KeyCard: 解析后的余额文本: $balanceText');
+    // 如果余额数据存在但解析失败，显示默认值 ¥0.00
+    // 确保余额为0时也能显示
     if (balanceText == null) {
-      print('KeyCard: 余额文本为 null，不显示余额');
-      return SizedBox.shrink();
+      // 如果余额数据存在（不为null），说明有余额查询支持，应该显示0
+      // 如果余额数据为null，说明不支持余额查询，不显示
+      if (balanceData != null && balanceData.isNotEmpty) {
+        balanceText = '¥0.00';
+      } else {
+        return SizedBox.shrink();
+      }
     }
 
     // 解析余额文本，分离货币符号和金额
@@ -880,23 +1038,27 @@ class _KeyCardState extends State<KeyCard> {
                     ),
                     
               // 4. 悬浮在右上角的校验通过标签和"当前"标签
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 校验通过标签（绿色呼吸圆点）- 移回右上角
-                    // 仅在没有余额显示时展示，避免信息冗余
-                    if (widget.aiKey.isValidated && !widget.isEditMode && _cachedBalance == null) ...[
-                      _buildValidationSuccessLabel(context, shadTheme),
-                      if (widget.isCurrent) const SizedBox(height: 6),
-                    ],
-                    // "当前"标签
-                    if (widget.isCurrent) ...[
-                      if ((_cachedBalance != null || widget.aiKey.isValidated) && !widget.isEditMode)
-                        const SizedBox(height: 6),
+              // 优先使用缓存的校验状态，如果缓存中没有则使用数据库中的状态
+              Builder(
+                builder: (context) {
+                  final isValidated = _cachedValidationStatus ?? widget.aiKey.isValidated;
+                  return Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 校验通过标签（绿色呼吸圆点）- 移回右上角
+                        // 仅在没有余额显示时展示，避免信息冗余
+                        if (isValidated && !widget.isEditMode && _cachedBalance == null) ...[
+                          _buildValidationSuccessLabel(context, shadTheme),
+                          if (widget.isCurrent) const SizedBox(height: 6),
+                        ],
+                        // "当前"标签
+                        if (widget.isCurrent) ...[
+                          if ((_cachedBalance != null || isValidated) && !widget.isEditMode)
+                            const SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
@@ -921,6 +1083,8 @@ class _KeyCardState extends State<KeyCard> {
                     ],
                   ],
                 ),
+                  );
+                },
               ),
             ],
           ),
@@ -951,8 +1115,9 @@ class _KeyCardState extends State<KeyCard> {
                 color: shadTheme.colorScheme.muted,
               ),
               child: Center(
-                child: PlatformIconHelper.buildIcon(
+                child: PlatformIconService.buildIcon(
                   platform: widget.aiKey.platformType,
+                  customIconFileName: widget.aiKey.icon,
                   size: 28,
                 ),
               ),

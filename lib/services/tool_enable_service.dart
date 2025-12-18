@@ -21,10 +21,9 @@ class ToolEnableService {
     }
   }
 
-  /// 初始化默认状态：claudecode 默认开启，codex 默认关闭
+  /// 初始化默认状态：所有工具默认关闭，等待用户首次授权后选择
   Future<void> _initializeDefaults() async {
-    await _prefs?.setBool('${_keyPrefix}claudecode', true);
-    await _prefs?.setBool('${_keyPrefix}codex', false);
+    // 不再默认开启任何工具，由用户在首次授权时选择
     await _prefs?.setBool(_keyInitialized, true);
   }
 

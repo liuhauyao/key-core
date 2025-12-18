@@ -8,7 +8,7 @@ import '../../utils/app_localizations.dart';
 /// 支持灵活的标签展示，采用 key-value 格式，可以根据不同供应商的形式兼容适配
 class ModelCard extends StatelessWidget {
   final ModelInfo model;
-  final VoidCallback? onCopy;
+  final VoidCallback? onCopy; // 点击回调（用于选择模式或复制模式）
 
   const ModelCard({
     super.key,
@@ -33,6 +33,12 @@ class ModelCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: () async {
+          // 如果提供了 onCopy 回调，使用回调（选择模式）
+          if (onCopy != null) {
+            onCopy!();
+            return;
+          }
+          // 否则使用默认的复制行为（查看模式）
           await clipboardService.copyToClipboard(model.id);
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -72,9 +78,11 @@ class ModelCard extends StatelessWidget {
                         ),
                       ),
                       Icon(
-                        Icons.copy_outlined,
+                        onCopy != null ? Icons.check_circle_outline : Icons.copy_outlined,
                         size: 14,
-                        color: shadTheme.colorScheme.mutedForeground,
+                        color: onCopy != null 
+                            ? shadTheme.colorScheme.primary 
+                            : shadTheme.colorScheme.mutedForeground,
                       ),
                     ],
                   ),

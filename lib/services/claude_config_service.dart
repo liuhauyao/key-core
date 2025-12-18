@@ -239,7 +239,6 @@ class ClaudeConfigService {
       // 设置 ANTHROPIC_BASE_URL（如果提供了）
       if (key.claudeCodeBaseUrl != null && key.claudeCodeBaseUrl!.isNotEmpty) {
         env['ANTHROPIC_BASE_URL'] = key.claudeCodeBaseUrl;
-        print('ClaudeConfigService: 设置 BASE_URL = ${key.claudeCodeBaseUrl}');
       } else {
         // 如果没有提供 Base URL，使用默认的官方地址
         env.remove('ANTHROPIC_BASE_URL');
@@ -249,7 +248,6 @@ class ClaudeConfigService {
       // 设置 ANTHROPIC_MODEL（主模型，如果提供了）
       if (key.claudeCodeModel != null && key.claudeCodeModel!.isNotEmpty) {
         env['ANTHROPIC_MODEL'] = key.claudeCodeModel;
-        print('ClaudeConfigService: 设置 MODEL = ${key.claudeCodeModel}');
       } else {
         env.remove('ANTHROPIC_MODEL');
       }
@@ -286,7 +284,6 @@ class ClaudeConfigService {
       final dir = Directory(configDir);
       if (!await dir.exists()) {
         await dir.create(recursive: true);
-        print('ClaudeConfigService: 创建配置目录: $configDir');
       }
       
       // 写入 config.json
@@ -295,7 +292,6 @@ class ClaudeConfigService {
       await configFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(config),
       );
-      print('ClaudeConfigService: 写入 config.json: $configPath');
       
       // 写入 settings.json
       final settingsPath = await _getSettingsFilePath();
@@ -303,7 +299,6 @@ class ClaudeConfigService {
       await settingsFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(settings),
       );
-      print('ClaudeConfigService: 写入 settings.json: $settingsPath');
       
       // 清除官方配置缓存
       _clearOfficialConfigCache();
@@ -363,7 +358,6 @@ class ClaudeConfigService {
           if (apiKey != null && apiKey.isNotEmpty) {
             // 清理 API Key（去除首尾空白）
             apiKey = apiKey.trim();
-            print('ClaudeConfigService: 从 settings.json 找到 API Key (长度: ${apiKey.length})');
             return apiKey;
           }
         }
@@ -375,7 +369,6 @@ class ClaudeConfigService {
         final primaryApiKey = config['primaryApiKey'] as String?;
         if (primaryApiKey != null && primaryApiKey.isNotEmpty && primaryApiKey != 'any') {
           final apiKey = primaryApiKey.trim();
-          print('ClaudeConfigService: 从 config.json 找到 primaryApiKey (长度: ${apiKey.length})');
           return apiKey;
         }
       }
@@ -487,10 +480,8 @@ class ClaudeConfigService {
       if (officialApiKey != null && officialApiKey.isNotEmpty) {
         // 如果本地有存储的官方API Key，写入到settings.json
         env['ANTHROPIC_AUTH_TOKEN'] = officialApiKey;
-        print('ClaudeConfigService: 使用本地存储的官方API Key');
       } else {
         // 如果本地没有存储官方API Key，确保清空（已经remove了）
-        print('ClaudeConfigService: 本地未存储官方API Key，已清空 ANTHROPIC_AUTH_TOKEN');
       }
       
       // 读取或创建 config.json
@@ -528,7 +519,6 @@ class ClaudeConfigService {
       // 清除官方配置缓存
       _clearOfficialConfigCache();
       
-      print('ClaudeConfigService: 切换官方配置成功，已清除第三方配置并应用官方API Key');
       return true;
     } catch (e) {
       print('ClaudeConfigService: 切换官方配置失败: $e');

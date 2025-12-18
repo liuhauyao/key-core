@@ -41,8 +41,27 @@ class KeySyncService {
 
   /// 同步密钥信息（依次调用校验、模型列表、余额查询）
   Future<SyncResult> syncKey(AIKey key) async {
-    print('KeySyncService: 开始同步密钥，平台类型: ${key.platformType.id}');
-    
+    try {
+      // 整体超时控制：最多10秒（每个操作5秒，最多2个操作）
+      return await _syncKeyInternal(key).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          return SyncResult.failure(
+            error: '同步失败，检查密钥或者网络',
+            validationSuccess: false,
+          );
+        },
+      );
+    } catch (e) {
+      return SyncResult.failure(
+        error: '同步失败，检查密钥或者网络',
+        validationSuccess: false,
+      );
+    }
+  }
+
+  /// 内部同步实现
+  Future<SyncResult> _syncKeyInternal(AIKey key) async {
     final platformType = key.platformType;
     bool validationSuccess = false;
     int? modelCount;
@@ -50,100 +69,95 @@ class KeySyncService {
     List<String> successMessages = [];
     List<String> errorMessages = [];
 
-    // 1. 校验密钥有效性（如果支持）
+    // 1. 校验密钥有效性（如果支持）- 这是最重要的，如果校验失败，直接返回失败
     final hasValidation = await _validationService.hasValidationConfig(platformType);
     if (hasValidation) {
-      print('KeySyncService: 开始校验密钥有效性');
-      final validationResult = await _validationService.validateKey(
-        key: key,
-        timeout: const Duration(seconds: 10),
-      );
-      if (validationResult.isValid) {
-        validationSuccess = true;
-        successMessages.add('密钥校验成功');
-        print('KeySyncService: 密钥校验成功');
-      } else {
-        errorMessages.add('密钥校验失败：${validationResult.error ?? "未知错误"}');
-        print('KeySyncService: 密钥校验失败：${validationResult.error}');
-        // 如果校验失败，仍然继续尝试其他操作（因为可能是网络问题）
+      try {
+        final validationResult = await _validationService.validateKey(
+          key: key,
+          timeout: const Duration(seconds: 5),
+        );
+        if (validationResult.isValid) {
+          validationSuccess = true;
+        } else {
+          // 校验失败，清除缓存的校验状态，立即返回失败，不再尝试其他操作
+          await _cacheService.saveValidationStatus(key, false);
+          return SyncResult.failure(
+            error: '同步失败，检查密钥或者网络',
+            validationSuccess: false,
+          );
+        }
+      } catch (e) {
+        // 校验失败或超时，清除缓存的校验状态，立即返回失败
+        await _cacheService.saveValidationStatus(key, false);
+        return SyncResult.failure(
+          error: '同步失败，检查密钥或者网络',
+          validationSuccess: false,
+        );
       }
     }
 
     // 2. 加载模型列表（如果支持）
     final supportsModelList = await _validationService.supportsModelList(platformType);
     if (supportsModelList) {
-      print('KeySyncService: 开始加载模型列表');
-      final modelResult = await _modelListService.getModelList(
-        key: key,
-        timeout: const Duration(seconds: 10),
-      );
-      if (modelResult.success && modelResult.models != null) {
-        modelCount = modelResult.models!.length;
-        await _cacheService.saveModelList(key, modelResult.models!);
-        successMessages.add('加载模型 ${modelCount} 个');
-        print('KeySyncService: 模型列表加载成功，数量: $modelCount');
-      } else {
-        errorMessages.add('加载模型列表失败：${modelResult.error ?? "未知错误"}');
-        print('KeySyncService: 模型列表加载失败：${modelResult.error}');
+      try {
+        final modelResult = await _modelListService.getModelList(
+          key: key,
+          timeout: const Duration(seconds: 5),
+        );
+        if (modelResult.success && modelResult.models != null) {
+          modelCount = modelResult.models!.length;
+          await _cacheService.saveModelList(key, modelResult.models!);
+        }
+      } catch (e) {
+        // 加载模型列表失败，继续尝试余额查询
       }
     }
 
     // 3. 查询余额（如果支持）
     final supportsBalance = await _balanceQueryService.supportsBalanceQuery(platformType);
     if (supportsBalance) {
-      print('KeySyncService: 开始查询余额');
-      final balanceResult = await _balanceQueryService.queryBalance(
-        key: key,
-        timeout: const Duration(seconds: 10),
-      );
-      if (balanceResult.success && balanceResult.balanceData != null) {
-        balanceData = balanceResult.balanceData;
-        await _cacheService.saveBalance(key, balanceData!);
-        successMessages.add('余额查询成功');
-        print('KeySyncService: 余额查询成功');
-      } else {
-        errorMessages.add('查询余额失败：${balanceResult.error ?? "未知错误"}');
-        print('KeySyncService: 余额查询失败：${balanceResult.error}');
+      try {
+        final balanceResult = await _balanceQueryService.queryBalance(
+          key: key,
+          timeout: const Duration(seconds: 5),
+        );
+        if (balanceResult.success && balanceResult.balanceData != null) {
+          balanceData = balanceResult.balanceData;
+          await _cacheService.saveBalance(key, balanceData!);
+        }
+      } catch (e) {
+        // 查询余额失败，不影响最终结果
       }
     }
 
-    // 构建结果消息
-    if (successMessages.isNotEmpty || errorMessages.isEmpty) {
-      // 至少有一个成功，或者没有错误（可能是都不支持）
-      final messageParts = <String>[];
-      if (modelCount != null) {
-        messageParts.add('加载模型 $modelCount 个');
-      }
-      if (balanceData != null) {
-        // 格式化余额信息
-        print('KeySyncService: 格式化余额，原始数据: $balanceData');
-        final balanceStr = _formatBalance(balanceData);
-        print('KeySyncService: 格式化后的余额: $balanceStr');
-        if (balanceStr != null) {
-          messageParts.add('余额：$balanceStr');
-        } else {
-          print('KeySyncService: 余额格式化返回 null，无法显示');
-        }
-      }
-      if (messageParts.isEmpty && validationSuccess) {
-        messageParts.add('同步成功');
-      } else if (messageParts.isEmpty) {
-        messageParts.add('该平台不支持同步功能');
-      }
-      
-      return SyncResult.success(
-        message: messageParts.join('，'),
-        modelCount: modelCount,
-        balanceData: balanceData,
-        validationSuccess: validationSuccess,
-      );
-    } else {
-      // 全部失败
-      return SyncResult.failure(
-        error: errorMessages.join('；'),
-        validationSuccess: validationSuccess, // 传递校验状态，即使其他操作失败
-      );
+    // 构建结果消息 - 校验已成功，现在构建成功消息
+    final messageParts = <String>[];
+    if (modelCount != null) {
+      messageParts.add('加载模型 $modelCount 个');
     }
+    if (balanceData != null) {
+      // 格式化余额信息
+      final balanceStr = _formatBalance(balanceData);
+      if (balanceStr != null) {
+        messageParts.add('余额：$balanceStr');
+      }
+    }
+    if (messageParts.isEmpty) {
+      messageParts.add('同步成功');
+    }
+    
+    // 保存校验状态到缓存
+    if (validationSuccess) {
+      await _cacheService.saveValidationStatus(key, true);
+    }
+    
+    return SyncResult.success(
+      message: messageParts.join('，'),
+      modelCount: modelCount,
+      balanceData: balanceData,
+      validationSuccess: validationSuccess,
+    );
   }
 
   /// 格式化余额显示
@@ -195,7 +209,6 @@ class KeySyncService {
       
       return null;
     } catch (e) {
-      print('KeySyncService: 格式化余额失败: $e');
       return null;
     }
   }

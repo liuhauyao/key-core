@@ -449,7 +449,6 @@ class CodexConfigService {
       // 创建默认的 config.toml（空文件或最小配置）
       // Codex 的 config.toml 可以为空，官方配置不需要它
       await configFile.writeAsString('');
-      print('CodexConfigService: 创建默认 config.toml: $configPath');
       
       // 创建默认的 auth.json
       final defaultAuth = <String, dynamic>{
@@ -458,7 +457,6 @@ class CodexConfigService {
       await authFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(defaultAuth),
       );
-      print('CodexConfigService: 创建默认 auth.json: $authPath');
       
       return true;
     } catch (e) {
@@ -578,7 +576,6 @@ class CodexConfigService {
       if (providerConfig.supportsAuthJson && providerConfig.authJsonKey != null) {
         // 支持 auth.json 的供应商：更新对应的 key
         auth[providerConfig.authJsonKey!] = apiKey;
-        print('CodexConfigService: 使用 auth.json 配置，key: ${providerConfig.authJsonKey}');
       } else {
         // 必须使用环境变量的供应商：清除之前可能存在的相关 key
         // 清除常见的 API key 字段，避免冲突
@@ -594,7 +591,6 @@ class CodexConfigService {
         for (final keyToRemove in keysToRemove) {
           auth.remove(keyToRemove);
         }
-        print('CodexConfigService: 使用环境变量配置，env_key: ${providerConfig.envKeyName}');
         print('CodexConfigService: 提示：需要在系统环境变量中设置 ${providerConfig.envKeyName}');
       }
       
@@ -708,13 +704,11 @@ class CodexConfigService {
         if (apiKey != null && apiKey.isNotEmpty) {
           // 清理 API Key（去除首尾空白）
           final cleanedApiKey = apiKey.trim();
-          print('CodexConfigService: 从 auth.json 找到 API Key ($key, 长度: ${cleanedApiKey.length})');
           return cleanedApiKey;
         }
       }
       
       print('CodexConfigService: auth.json 中没有找到任何 API key');
-      print('CodexConfigService: 可能使用环境变量配置，无法从应用内读取');
       return null;
     } catch (e) {
       print('CodexConfigService: 获取 API Key 失败: $e');
@@ -1240,10 +1234,8 @@ class CodexConfigService {
       if (officialApiKey != null && officialApiKey.isNotEmpty) {
         // 如果本地有存储的官方 API Key，写入到 auth.json
         auth['OPENAI_API_KEY'] = officialApiKey;
-        print('CodexConfigService: 使用本地存储的官方 Codex API Key');
       } else {
         // 如果本地没有存储官方 API Key，确保清空（已经remove了）
-        print('CodexConfigService: 本地未存储官方 Codex API Key，已清空 OPENAI_API_KEY');
       }
       
       // 写入 auth.json
@@ -1256,13 +1248,11 @@ class CodexConfigService {
         await authFile.writeAsString(
           const JsonEncoder.withIndent('  ').convert(auth),
         );
-        print('CodexConfigService: 已更新 auth.json');
       }
       
       // 清除官方配置缓存
       _clearOfficialConfigCache();
       
-      print('CodexConfigService: 切换到官方配置成功');
       return true;
     } catch (e) {
       print('CodexConfigService: 切换到官方配置失败: $e');

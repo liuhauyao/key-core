@@ -12,7 +12,7 @@ import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/claude_config_service.dart';
 import '../../services/settings_service.dart';
-import '../../utils/platform_icon_helper.dart';
+import '../../utils/platform_icon_service.dart';
 import '../../models/platform_type.dart';
 import 'key_form_page.dart';
 

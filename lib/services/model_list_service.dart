@@ -27,21 +27,25 @@ class ModelListService {
   final CloudConfigService _cloudConfigService = CloudConfigService();
 
   /// 查询模型列表
+  /// 使用密钥的 platform_type_id（即 key.platformType.id）从已加载的配置文件中匹配配置
+  /// 配置文件在应用启动时已加载到缓存，这里从缓存中读取配置
   Future<ModelListResult> getModelList({
     required AIKey key,
     Duration? timeout,
   }) async {
     try {
-      // 获取供应商配置
+      // 使用密钥的 platform_type_id（即 platformType.id）来匹配配置文件中的供应商配置
+      final platformTypeId = key.platformType.id;
+      // 从缓存中获取供应商配置（配置文件在应用启动时已加载到缓存）
       final configData = await _cloudConfigService.getConfigData();
       if (configData == null) {
-        return ModelListResult.failure('无法加载配置');
+        return ModelListResult.failure('无法加载配置（缓存为空）');
       }
 
-      // 查找对应的供应商配置
+      // 根据 platform_type_id 查找对应的供应商配置
       final providerConfig = configData.providers.firstWhere(
-        (p) => p.platformType == key.platformType.id,
-        orElse: () => throw Exception('未找到供应商配置'),
+        (p) => p.platformType == platformTypeId,
+        orElse: () => throw Exception('未找到供应商配置: $platformTypeId'),
       );
 
       // 获取校验配置
@@ -63,7 +67,14 @@ class ModelListService {
           fallbackBaseUrl: validationConfig.modelsFallbackBaseUrl ?? validationConfig.fallbackBaseUrl,
           fallbackBaseUrls: validationConfig.modelsFallbackBaseUrls,
         );
-        final primaryUrl = ValidationHelper.getBaseUrl(key, tempConfig);
+        // 使用改进后的getBaseUrl，传递providerConfig以支持自动检测
+        final primaryUrl = ValidationHelper.getBaseUrl(key, tempConfig, providerConfig);
+        if (primaryUrl != null && primaryUrl.isNotEmpty) {
+          baseUrls.add(primaryUrl);
+        }
+      } else {
+        // 如果没有modelsBaseUrlSource，使用默认的baseUrlSource或自动检测
+        final primaryUrl = ValidationHelper.getBaseUrl(key, validationConfig, providerConfig);
         if (primaryUrl != null && primaryUrl.isNotEmpty) {
           baseUrls.add(primaryUrl);
         }
@@ -128,7 +139,7 @@ class ModelListService {
 
       // 获取所有模型（支持多个 baseUrl，不分页）
       final client = http.Client();
-      final requestTimeout = timeout ?? const Duration(seconds: 60);
+      final requestTimeout = timeout ?? const Duration(seconds: 5);
       
       try {
         // 尝试每个 baseUrl

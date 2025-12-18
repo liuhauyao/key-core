@@ -5,12 +5,13 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 import '../../models/ai_key.dart';
+import '../../models/model_info.dart';
 import '../../models/platform_type.dart';
 import '../../constants/app_constants.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/liquid_glass_decoration.dart';
-import '../../utils/platform_icon_helper.dart';
+import '../../utils/platform_icon_service.dart';
 import '../../config/provider_config.dart';
 import '../widgets/platform_category_tabs.dart';
 import '../widgets/icon_picker.dart';
@@ -20,6 +21,7 @@ import '../../services/clipboard_service.dart';
 import '../../services/url_launcher_service.dart';
 import '../../services/key_validation_service.dart';
 import '../../services/model_list_service.dart';
+import '../../services/key_cache_service.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../models/mcp_server.dart';
 import '../../models/validation_result.dart';
@@ -91,6 +93,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
   final UrlLauncherService _urlLauncherService = UrlLauncherService();
   final KeyValidationService _validationService = KeyValidationService();
   final ModelListService _modelListService = ModelListService();
+  final KeyCacheService _cacheService = KeyCacheService();
   
   // 校验状态
   ValidationState _validationState = ValidationState.idle;
@@ -98,6 +101,11 @@ class _KeyFormPageState extends State<KeyFormPage> {
   
   // 是否支持模型列表查询
   bool _supportsModelList = false;
+  // 缓存的模型列表
+  List<ModelInfo>? _cachedModels;
+  // 是否支持密钥校验
+  bool _supportsValidation = false;
+
   
   // 环境变量设置方式（永久）
   bool _envVarPermanent = true;
@@ -182,7 +190,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
     );
     
     _providerDisplayController = TextEditingController(
-      text: _selectedPlatform?.value ?? PlatformType.custom.value,
+      text: _selectedPlatform?.value ?? '自定义',
     );
 
     // 监听日期输入框变化，解析用户输入的日期
@@ -208,25 +216,103 @@ class _KeyFormPageState extends State<KeyFormPage> {
       }
     });
     
-    // 检查是否支持模型列表查询
-    _checkModelListSupport();
+    // 检查是否支持模型列表查询和密钥校验
+    _checkPlatformCapabilities();
+    // 加载缓存的模型列表（编辑模式下）
+    _loadCachedModels();
   }
   
-  /// 检查是否支持模型列表查询
-  Future<void> _checkModelListSupport() async {
-    if (_selectedPlatform != null) {
-      final supports = await _validationService.supportsModelList(_selectedPlatform!);
-      if (mounted) {
-        setState(() {
-          _supportsModelList = supports;
-        });
+  /// 检查是否支持模型列表查询和密钥校验
+  Future<void> _checkPlatformCapabilities() async {
+    // 保存当前选择的平台，避免异步执行时平台已切换
+    final currentPlatform = _selectedPlatform;
+    
+    if (currentPlatform != null) {
+      try {
+        final supportsModelList = await _validationService.supportsModelList(currentPlatform);
+        final supportsValidation = await _validationService.hasValidationConfig(currentPlatform);
+        
+        // 再次检查平台是否还是当前选择的平台（避免异步执行时平台已切换）
+        if (mounted && _selectedPlatform == currentPlatform) {
+          setState(() {
+            _supportsModelList = supportsModelList;
+            _supportsValidation = supportsValidation;
+          });
+          print('KeyFormPage: 平台 ${currentPlatform.value} - 支持校验: $supportsValidation, 支持模型列表: $supportsModelList');
+        }
+      } catch (e) {
+        print('KeyFormPage: 检查平台能力失败: $e');
+        // 如果检查失败，清空按钮状态
+        if (mounted && _selectedPlatform == currentPlatform) {
+          setState(() {
+            _supportsModelList = false;
+            _supportsValidation = false;
+          });
+        }
       }
     } else {
+      // 如果没有选择平台，清空按钮状态
       if (mounted) {
         setState(() {
           _supportsModelList = false;
+          _supportsValidation = false;
         });
       }
+    }
+  }
+  
+  /// 加载缓存的模型列表（复用密钥卡片的逻辑）
+  Future<void> _loadCachedModels() async {
+    // 编辑模式下，使用当前编辑的密钥
+    if (widget.editingKey != null && _selectedPlatform != null) {
+      final cachedModels = await _cacheService.getModelList(widget.editingKey!);
+      if (mounted) {
+        setState(() {
+          _cachedModels = cachedModels;
+        });
+      }
+    } else if (_selectedPlatform != null && _keyValueController.text.isNotEmpty) {
+      // 新建模式下，如果有密钥值，尝试从缓存加载（基于平台类型）
+      // 注意：新建模式下可能没有缓存的模型列表，这里主要是为了保持一致性
+      _cachedModels = null;
+    }
+  }
+  
+  /// 构建模型选择按钮（复用密钥卡片的逻辑）
+  Widget? _buildModelPickerButton(BuildContext context, TextEditingController controller) {
+    // 只有在有缓存的模型列表时才显示选择按钮
+    if (_cachedModels == null || _cachedModels!.isEmpty) {
+      return null;
+    }
+    
+    return IconButton(
+      icon: Icon(Icons.arrow_drop_down, size: 18, color: ShadTheme.of(context).colorScheme.mutedForeground),
+      onPressed: () => _showModelPickerDialog(context, controller),
+      padding: const EdgeInsets.all(0),
+      constraints: const BoxConstraints(),
+      tooltip: '选择模型',
+    );
+  }
+  
+  /// 显示模型选择对话框（复用 ModelListDialog）
+  Future<void> _showModelPickerDialog(BuildContext context, TextEditingController controller) async {
+    if (_cachedModels == null || _cachedModels!.isEmpty) return;
+    
+    final localizations = AppLocalizations.of(context);
+    final selectedModel = await showDialog<ModelInfo>(
+      context: context,
+      builder: (context) => ModelListDialog(
+        models: _cachedModels!,
+        platformName: (_selectedPlatform ?? PlatformType.custom).value,
+        onSelectModel: (model) {
+          // 选择模型后直接返回
+          Navigator.of(context).pop(model);
+        },
+      ),
+    );
+    
+    if (selectedModel != null && mounted) {
+      controller.text = selectedModel.id;
     }
   }
 
@@ -236,9 +322,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
 
     // ⚠️ 编辑模式下，确保平台设置正确但不覆盖用户配置
     if (_isEditMode && _selectedPlatform != null && !_initialized) {
-      // 再次设置平台（不会覆盖ClaudeCode/Codex配置，因为有 _isEditMode 保护）
-      // 这确保了编辑模式下平台相关的其他字段（如 _isCustomPlatform）正确设置
-      _selectPlatform(_selectedPlatform!);
+      // 编辑模式下只设置平台类型相关标志，不调用 _selectPlatform 避免覆盖用户数据
+      setState(() {
+        _isCustomPlatform = _selectedPlatform == PlatformType.custom;
+      });
       _initialized = true; // 标记初始化完成，防止重复初始化
     }
   }
@@ -362,7 +449,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
     final savedNotes = _notesController.text;
     final savedKeyValue = _keyValueController.text;
     
-    // 调用选择平台方法
+    // 调用选择平台方法（这会清空缓存的模型列表并更新按钮状态）
     _selectPlatform(platform, preserveFields: _isEditMode);
     
     // 恢复过期日期、标签、备注和密钥值，并更新供应商展示框
@@ -385,6 +472,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
     setState(() {
       _selectedPlatform = platform;
       _isCustomPlatform = platform == PlatformType.custom;
+      // 切换供应商时先重置按钮状态，等待异步检查完成后再更新
+      _cachedModels = null;
+      _supportsModelList = false;
+      _supportsValidation = false;
 
       // 如果不是自定义平台，自动填充预设信息
       if (platform != PlatformType.custom) {
@@ -395,65 +486,68 @@ class _KeyFormPageState extends State<KeyFormPage> {
             _nameController.text = preset.defaultName ?? '';
           }
           
-          // 管理URL：按照模板填充，如果没有则清空
-          if (preset.managementUrl != null) {
-            _managementUrlController.text = preset.managementUrl!;
-            _hasManagementUrl = true;
-          } else {
-            if (!preserveFields) {
+          // 管理URL：仅在新建模式或切换模板时从模板填充
+          if (!preserveFields) {
+            if (preset.managementUrl != null) {
+              _managementUrlController.text = preset.managementUrl!;
+              _hasManagementUrl = true;
+            } else {
               _managementUrlController.clear();
               _hasManagementUrl = false;
             }
           }
           
-          // API端点：按照模板填充，如果没有则清空
-          if (preset.apiEndpoint != null) {
-            _apiEndpointController.text = preset.apiEndpoint!;
-          } else {
-            if (!preserveFields) {
+          // API端点：仅在新建模式或切换模板时从模板填充
+          if (!preserveFields) {
+            if (preset.apiEndpoint != null) {
+              _apiEndpointController.text = preset.apiEndpoint!;
+            } else {
               _apiEndpointController.clear();
             }
           }
           
-          // 自动设置平台图标
-          final iconPath = PlatformIconHelper.getIconAssetPath(platform);
-          if (iconPath != null) {
-            final iconFileName = iconPath.replaceFirst('assets/icons/platforms/', '');
-            _selectedIcon = iconFileName;
-          } else {
-            _selectedIcon = null;
+          // 自动设置平台图标（仅在新建模式或用户明确切换模板时）
+          // 编辑模式下，如果已有自定义图标，保留自定义图标；否则从模板加载
+          if (!preserveFields || _selectedIcon == null) {
+            final iconPath = PlatformIconService.getIconAssetPath(platform);
+            if (iconPath != null) {
+              final iconFileName = iconPath.replaceFirst('assets/icons/platforms/', '');
+              _selectedIcon = iconFileName;
+            } else {
+              _selectedIcon = null;
+            }
           }
           
-          // 尝试获取平台的 ClaudeCode/Codex 配置
-          final claudeCodeProvider = ProviderConfig.getClaudeCodeProviderByPlatform(platform);
-          final codexProvider = ProviderConfig.getCodexProviderByPlatform(platform);
+          // 尝试获取平台的 ClaudeCode/Codex 配置（仅在新建模式或切换模板时）
+          if (!preserveFields) {
+            final claudeCodeProvider = ProviderConfig.getClaudeCodeProviderByPlatform(platform);
+            final codexProvider = ProviderConfig.getCodexProviderByPlatform(platform);
 
-          if (claudeCodeProvider != null) {
-            _enableClaudeCode = true;
-            _claudeCodeBaseUrlController.text = claudeCodeProvider.baseUrl;
+            if (claudeCodeProvider != null) {
+              _enableClaudeCode = true;
+              _claudeCodeBaseUrlController.text = claudeCodeProvider.baseUrl;
 
-            _claudeCodeModelController.clear();
-            _claudeCodeHaikuModelController.clear();
-            _claudeCodeSonnetModelController.clear();
-            _claudeCodeOpusModelController.clear();
+              _claudeCodeModelController.clear();
+              _claudeCodeHaikuModelController.clear();
+              _claudeCodeSonnetModelController.clear();
+              _claudeCodeOpusModelController.clear();
 
-            if (claudeCodeProvider.modelConfig.mainModel.isNotEmpty) {
-              _claudeCodeModelController.text = claudeCodeProvider.modelConfig.mainModel;
-            }
-            if (claudeCodeProvider.modelConfig.haikuModel != null &&
-                claudeCodeProvider.modelConfig.haikuModel!.isNotEmpty) {
-              _claudeCodeHaikuModelController.text = claudeCodeProvider.modelConfig.haikuModel!;
-            }
-            if (claudeCodeProvider.modelConfig.sonnetModel != null &&
-                claudeCodeProvider.modelConfig.sonnetModel!.isNotEmpty) {
-              _claudeCodeSonnetModelController.text = claudeCodeProvider.modelConfig.sonnetModel!;
-            }
-            if (claudeCodeProvider.modelConfig.opusModel != null &&
-                claudeCodeProvider.modelConfig.opusModel!.isNotEmpty) {
-              _claudeCodeOpusModelController.text = claudeCodeProvider.modelConfig.opusModel!;
-            }
-          } else {
-            if (!preserveFields) {
+              if (claudeCodeProvider.modelConfig.mainModel.isNotEmpty) {
+                _claudeCodeModelController.text = claudeCodeProvider.modelConfig.mainModel;
+              }
+              if (claudeCodeProvider.modelConfig.haikuModel != null &&
+                  claudeCodeProvider.modelConfig.haikuModel!.isNotEmpty) {
+                _claudeCodeHaikuModelController.text = claudeCodeProvider.modelConfig.haikuModel!;
+              }
+              if (claudeCodeProvider.modelConfig.sonnetModel != null &&
+                  claudeCodeProvider.modelConfig.sonnetModel!.isNotEmpty) {
+                _claudeCodeSonnetModelController.text = claudeCodeProvider.modelConfig.sonnetModel!;
+              }
+              if (claudeCodeProvider.modelConfig.opusModel != null &&
+                  claudeCodeProvider.modelConfig.opusModel!.isNotEmpty) {
+                _claudeCodeOpusModelController.text = claudeCodeProvider.modelConfig.opusModel!;
+              }
+            } else {
               _enableClaudeCode = false;
               _claudeCodeBaseUrlController.clear();
               _claudeCodeModelController.clear();
@@ -461,14 +555,12 @@ class _KeyFormPageState extends State<KeyFormPage> {
               _claudeCodeSonnetModelController.clear();
               _claudeCodeOpusModelController.clear();
             }
-          }
 
-          if (codexProvider != null) {
-            _enableCodex = true;
-            _codexBaseUrlController.text = codexProvider.baseUrl;
-            _codexModelController.text = codexProvider.model;
-          } else {
-            if (!preserveFields) {
+            if (codexProvider != null) {
+              _enableCodex = true;
+              _codexBaseUrlController.text = codexProvider.baseUrl;
+              _codexModelController.text = codexProvider.model;
+            } else {
               _enableCodex = false;
               _codexBaseUrlController.clear();
               _codexModelController.clear();
@@ -490,8 +582,11 @@ class _KeyFormPageState extends State<KeyFormPage> {
       }
     });
     
-    // 检查是否支持模型列表查询
-    _checkModelListSupport();
+    // 检查是否支持模型列表查询和密钥校验（切换供应商时实时更新）
+    // 注意：必须在 setState 之后调用，确保 _selectedPlatform 已更新
+    _checkPlatformCapabilities();
+    // 切换供应商时重新加载缓存的模型列表（编辑模式下）
+    _loadCachedModels();
   }
 
   @override
@@ -571,7 +666,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                                   await _urlLauncherService.openManagementUrl(url);
                                 }
                               },
-                              padding: EdgeInsets.zero,
+                              padding: const EdgeInsets.all(0),
                               constraints: const BoxConstraints(),
                             )
                           : null,
@@ -614,7 +709,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                       _obscureKeyValue = !_obscureKeyValue;
                     });
                   },
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.all(0),
                   constraints: const BoxConstraints(),
                 ),
                 isDark: Theme.of(context).brightness == Brightness.dark,
@@ -652,12 +747,12 @@ class _KeyFormPageState extends State<KeyFormPage> {
                                       _expiryDateController.text = '';
                                     });
                                   },
-                                  padding: EdgeInsets.zero,
+                                  padding: const EdgeInsets.all(0),
                                   constraints: const BoxConstraints(),
                                 ),
                                 ShadPopover(
                                   controller: _datePickerPopoverController,
-                                  padding: EdgeInsets.zero,
+                                  padding: const EdgeInsets.all(0),
                                   decoration: ShadDecoration(
                                     border: ShadBorder.all(width: 0),
                                   ),
@@ -688,7 +783,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                                   child: IconButton(
                                     icon: Icon(Icons.calendar_today, size: 18, color: iconColor),
                                     onPressed: () => _datePickerPopoverController.toggle(),
-                                    padding: EdgeInsets.zero,
+                                    padding: const EdgeInsets.all(0),
                                     constraints: const BoxConstraints(),
                                   ),
                                 ),
@@ -696,7 +791,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                             )
                           : ShadPopover(
                               controller: _datePickerPopoverController,
-                              padding: EdgeInsets.zero,
+                              padding: const EdgeInsets.all(0),
                               decoration: ShadDecoration(
                                 border: ShadBorder.all(width: 0),
                               ),
@@ -727,7 +822,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                               child: IconButton(
                                 icon: Icon(Icons.calendar_today, size: 18, color: iconColor),
                                 onPressed: () => _datePickerPopoverController.toggle(),
-                                padding: EdgeInsets.zero,
+                                padding: const EdgeInsets.all(0),
                                 constraints: const BoxConstraints(),
                               ),
                             ),
@@ -817,10 +912,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // 校验按钮（如果支持）
-                  if (_selectedPlatform != null && _keyValueController.text.isNotEmpty) ...[
+                  // 校验按钮（如果支持则显示，密钥值为空时禁用）
+                  if (_supportsValidation && _selectedPlatform != null) ...[
                     ShadButton.outline(
-                      onPressed: _handleValidate,
+                      onPressed: _keyValueController.text.isNotEmpty ? _handleValidate : null,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -850,22 +945,22 @@ class _KeyFormPageState extends State<KeyFormPage> {
                                       : null,
                             ),
                           const SizedBox(width: 6),
-                          Text('校验'),
+                          Text(localizations?.validateKey ?? '验证'),
                         ],
                       ),
                     ),
                     const SizedBox(width: 12),
                   ],
-                  // 查看模型按钮（仅模型平台）
-                  if (_supportsModelList && _keyValueController.text.isNotEmpty) ...[
+                  // 查看模型按钮（如果支持则显示，密钥值为空时禁用）
+                  if (_supportsModelList && _selectedPlatform != null) ...[
                     ShadButton.outline(
-                      onPressed: _handleViewModels,
+                      onPressed: _keyValueController.text.isNotEmpty ? _handleViewModels : null,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.list_outlined, size: 16),
                           const SizedBox(width: 6),
-                          Text('查看模型'),
+                          Text(localizations?.modelList ?? '模型列表'),
                         ],
                       ),
                     ),
@@ -955,7 +1050,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                   child: ShadButton.ghost(
                     width: 30,
                     height: 30,
-                    padding: EdgeInsets.zero,
+                    padding: const EdgeInsets.all(0),
                     child: Icon(
                       Icons.close,
                       size: 20,
@@ -1109,8 +1204,12 @@ class _KeyFormPageState extends State<KeyFormPage> {
     final borderColor = isDark ? Colors.grey[700]! : Colors.grey[400]!;
     final fillColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     
-    // 更新显示内容
-    _providerDisplayController.text = currentPlatform.value;
+    // 更新显示内容 - 对于自定义平台使用本地化文本
+    if (currentPlatform == PlatformType.custom) {
+      _providerDisplayController.text = localizations?.custom ?? '自定义';
+    } else {
+      _providerDisplayController.text = currentPlatform.value;
+    }
     
     // 使用 TextField 只读模式来展示供应商
     return TextField(
@@ -1128,8 +1227,9 @@ class _KeyFormPageState extends State<KeyFormPage> {
             child: SizedBox(
               width: 18,
               height: 18,
-              child: PlatformIconHelper.buildIcon(
+              child: PlatformIconService.buildIcon(
                 platform: currentPlatform,
+                customIconFileName: _selectedIcon,
                 size: 18,
               ),
             ),
@@ -1152,7 +1252,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
               _showProviderList = !_showProviderList;
             });
           },
-          padding: EdgeInsets.zero,
+          padding: const EdgeInsets.all(0),
           constraints: const BoxConstraints(),
         ),
         suffixIconConstraints: const BoxConstraints(
@@ -1209,7 +1309,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
     required ShadThemeData shadTheme,
     required bool isDark,
   }) {
-    final displayLabel = label ?? platform.value;
+    final localizations = AppLocalizations.of(context);
+    final displayLabel = label ?? (platform == PlatformType.custom
+        ? (localizations?.custom ?? '自定义')
+        : platform.value);
     
     return Material(
       color: Colors.transparent,
@@ -1264,7 +1367,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              PlatformIconHelper.buildIcon(
+              PlatformIconService.buildIcon(
                 platform: platform,
                 size: 16,
                 color: isSelected ? Colors.white : null,
@@ -1291,9 +1394,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
 
   /// 校验密钥
   Future<void> _handleValidate() async {
+    final localizations = AppLocalizations.of(context);
     if (_keyValueController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先输入密钥值')),
+        SnackBar(content: Text(localizations?.enterKeyValueFirst ?? '请先输入密钥值')),
       );
       return;
     }
@@ -1329,7 +1433,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
         enableCodex: _enableCodex,
       );
 
-      final result = await _validationService.validateKey(key: tempKey);
+      final result = await _validationService.validateKey(
+        key: tempKey,
+        timeout: const Duration(seconds: 5),
+      );
 
       if (mounted) {
         setState(() {
@@ -1341,6 +1448,35 @@ class _KeyFormPageState extends State<KeyFormPage> {
             _validationErrorMessage = result.message ?? '校验失败';
           }
         });
+        
+        // 校验成功后写入缓存（复用密钥卡片的逻辑）
+        if (result.isValid) {
+          // 创建临时密钥对象用于缓存
+          final tempKey = AIKey(
+            id: widget.editingKey?.id ?? 0,
+            name: _nameController.text.trim().isEmpty
+                ? '临时密钥'
+                : _nameController.text.trim(),
+            platform: (_selectedPlatform ?? PlatformType.custom).value,
+            platformType: _selectedPlatform ?? PlatformType.custom,
+            keyValue: _keyValueController.text.trim(),
+            apiEndpoint: _apiEndpointController.text.trim().isEmpty
+                ? null
+                : _apiEndpointController.text.trim(),
+            tags: const [],
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            claudeCodeBaseUrl: _claudeCodeBaseUrlController.text.trim().isEmpty
+                ? null
+                : _claudeCodeBaseUrlController.text.trim(),
+            codexBaseUrl: _codexBaseUrlController.text.trim().isEmpty
+                ? null
+                : _codexBaseUrlController.text.trim(),
+            enableClaudeCode: _enableClaudeCode,
+            enableCodex: _enableCodex,
+          );
+          await _cacheService.saveValidationStatus(tempKey, true);
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1360,9 +1496,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
           _validationErrorMessage = '校验失败：${e.toString()}';
         });
 
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('校验失败：${e.toString()}'),
+            content: Text(localizations?.validationFailedWithError(e.toString()) ?? '校验失败：${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1372,9 +1509,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
 
   /// 查看模型列表
   Future<void> _handleViewModels() async {
+    final localizations = AppLocalizations.of(context);
     if (_keyValueController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先输入密钥值')),
+        SnackBar(content: Text(localizations?.enterKeyValueFirst ?? '请先输入密钥值')),
       );
       return;
     }
@@ -1429,6 +1567,16 @@ class _KeyFormPageState extends State<KeyFormPage> {
       }
 
       if (result.success && result.models != null) {
+        // 获取模型列表成功后写入缓存（复用密钥卡片的逻辑）
+        await _cacheService.saveModelList(tempKey, result.models!);
+        
+        // 更新缓存的模型列表状态
+        if (mounted) {
+          setState(() {
+            _cachedModels = result.models!;
+          });
+        }
+        
         if (mounted) {
           showDialog(
             context: context,
@@ -1455,9 +1603,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
       }
 
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('查询失败：${e.toString()}'),
+            content: Text(localizations?.queryFailedWithError(e.toString()) ?? '查询失败：${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1485,13 +1634,13 @@ class _KeyFormPageState extends State<KeyFormPage> {
     // 手动验证长度（替代 maxLength 以避免 IME 冲突）
     if (_nameController.text.trim().length > AppConstants.maxNameLength) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('密钥名称不能超过 ${AppConstants.maxNameLength} 个字符')),
+        SnackBar(content: Text(localizations?.keyNameTooLong(AppConstants.maxNameLength) ?? '密钥名称不能超过 ${AppConstants.maxNameLength} 个字符')),
       );
       return;
     }
     if (_tagsController.text.trim().length > 200) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('标签不能超过 200 个字符')),
+        SnackBar(content: Text(localizations?.tagsTooLong ?? '标签不能超过 200 个字符')),
       );
       return;
     }
@@ -1578,7 +1727,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
         children: [
           Row(
             children: [
-              PlatformIconHelper.buildIcon(
+              PlatformIconService.buildIcon(
                 platform: PlatformType.anthropic,
                 size: 18,
                 color: shadTheme.colorScheme.primary,
@@ -1681,6 +1830,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                   labelText: localizations?.mainModel ?? '主模型',
                   hintText: localizations?.mainModelHint ?? '请输入主模型名称',
                   prefixIcon: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  suffixIcon: _buildModelPickerButton(context, _claudeCodeModelController),
                   isDark: Theme.of(context).brightness == Brightness.dark,
                   ),
                 ),
@@ -1691,6 +1841,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                   labelText: localizations?.haikuModel ?? 'Haiku 模型',
                   hintText: localizations?.haikuModelHint ?? '请输入 Haiku 模型名称',
                   prefixIcon: Icon(Icons.flash_on, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  suffixIcon: _buildModelPickerButton(context, _claudeCodeHaikuModelController),
                   isDark: Theme.of(context).brightness == Brightness.dark,
                   ),
                 ),
@@ -1706,6 +1857,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                   labelText: localizations?.sonnetModel ?? 'Sonnet 模型',
                   hintText: localizations?.sonnetModelHint ?? '请输入 Sonnet 模型名称',
                   prefixIcon: Icon(Icons.auto_awesome, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  suffixIcon: _buildModelPickerButton(context, _claudeCodeSonnetModelController),
                   isDark: Theme.of(context).brightness == Brightness.dark,
                   ),
                 ),
@@ -1715,6 +1867,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                     controller: _claudeCodeOpusModelController,
                   labelText: localizations?.opusModel ?? 'Opus 模型',
                   hintText: localizations?.opusModelHint ?? '请输入 Opus 模型名称',
+                  suffixIcon: _buildModelPickerButton(context, _claudeCodeOpusModelController),
                   prefixIcon: Icon(Icons.stars, size: 18, color: shadTheme.colorScheme.mutedForeground),
                   isDark: Theme.of(context).brightness == Brightness.dark,
                   ),
@@ -1741,7 +1894,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
         children: [
           Row(
             children: [
-              PlatformIconHelper.buildIcon(
+              PlatformIconService.buildIcon(
                 platform: PlatformType.openAI,
                 size: 18,
                 color: shadTheme.colorScheme.primary,
@@ -1818,6 +1971,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                     labelText: localizations?.modelName ?? '模型名称',
                     hintText: 'gpt-5-codex',
                     prefixIcon: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                    suffixIcon: _buildModelPickerButton(context, _codexModelController),
                     isDark: Theme.of(context).brightness == Brightness.dark,
                   ),
                 ),
@@ -1934,8 +2088,9 @@ class _KeyFormPageState extends State<KeyFormPage> {
                 : SizedBox(
                     width: 18,
                     height: 18,
-                    child: PlatformIconHelper.buildIcon(
+                    child: PlatformIconService.buildIcon(
                 platform: _selectedPlatform!,
+                customIconFileName: _selectedIcon,
                 size: 18,
                 color: shadTheme.colorScheme.mutedForeground,
                     ),
@@ -2097,7 +2252,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                         }
                       },
                       tooltip: localizations?.copy ?? '复制',
-                      padding: EdgeInsets.zero,
+                      padding: const EdgeInsets.all(0),
                       constraints: const BoxConstraints(),
                     ),
                   ],

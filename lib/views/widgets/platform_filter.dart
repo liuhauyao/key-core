@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/platform_type.dart';
 import '../../services/platform_registry.dart';
 import '../../utils/app_localizations.dart';
-import '../../utils/platform_icon_helper.dart';
+import '../../utils/platform_icon_service.dart';
 
 /// 平台过滤器组件
 class PlatformFilter extends StatelessWidget {
@@ -49,7 +49,7 @@ class PlatformFilter extends StatelessWidget {
                     value: platform,
                     child: Row(
                       children: [
-                        PlatformIconHelper.buildIcon(
+                        PlatformIconService.buildIcon(
                           platform: platform,
                           size: 20,
                         ),

@@ -11,6 +11,7 @@ class ModelListDialog extends StatefulWidget {
   final String platformName;
   final int? keyId;
   final VoidCallback? onUpdateModels;
+  final Function(ModelInfo)? onSelectModel; // 选择模型回调（用于选择模式）
 
   const ModelListDialog({
     super.key,
@@ -18,6 +19,7 @@ class ModelListDialog extends StatefulWidget {
     required this.platformName,
     this.keyId,
     this.onUpdateModels,
+    this.onSelectModel, // 如果提供了此回调，则进入选择模式
   });
 
   @override
@@ -142,7 +144,16 @@ class _ModelListDialogState extends State<ModelListDialog> {
                             children: _filteredModels.map((model) {
                               return SizedBox(
                                 width: columnWidth,
-                                child: ModelCard(model: model),
+                                child: ModelCard(
+                                  model: model,
+                                  onCopy: widget.onSelectModel != null
+                                      ? () {
+                                          // 选择模式下，点击卡片选择模型
+                                          // 调用回调，让调用者处理关闭对话框的逻辑
+                                          widget.onSelectModel!(model);
+                                        }
+                                      : null,
+                                ),
                               );
                             }).toList(),
                           ),

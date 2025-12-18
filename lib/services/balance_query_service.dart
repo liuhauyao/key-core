@@ -26,27 +26,29 @@ class BalanceQueryService {
   final CloudConfigService _cloudConfigService = CloudConfigService();
 
   /// 查询余额
+  /// 使用密钥的 platform_type_id（即 key.platformType.id）从已加载的配置文件中匹配配置
+  /// 配置文件在应用启动时已加载到缓存，这里从缓存中读取配置
   Future<BalanceQueryResult> queryBalance({
     required AIKey key,
     Duration? timeout,
   }) async {
     try {
-      print('BalanceQueryService: 开始查询余额，平台类型: ${key.platformType.id}');
+      // 使用密钥的 platform_type_id（即 platformType.id）来匹配配置文件中的供应商配置
+      final platformTypeId = key.platformType.id;
       
-      // 获取供应商配置
+      // 从缓存中获取供应商配置（配置文件在应用启动时已加载到缓存）
       final configData = await _cloudConfigService.getConfigData();
       if (configData == null) {
-        print('BalanceQueryService: 无法加载配置');
+        print('BalanceQueryService: 无法加载配置（缓存为空）');
         return BalanceQueryResult.failure('无法加载配置');
       }
 
-      // 查找对应的供应商配置
+      // 根据 platform_type_id 查找对应的供应商配置
       final providerConfig = configData.providers.firstWhere(
-        (p) => p.platformType == key.platformType.id,
-        orElse: () => throw Exception('未找到供应商配置'),
+        (p) => p.platformType == platformTypeId,
+        orElse: () => throw Exception('未找到供应商配置: $platformTypeId'),
       );
 
-      print('BalanceQueryService: 找到供应商配置: ${providerConfig.name}');
 
       // 获取校验配置
       final validationConfig = providerConfig.validation;
@@ -66,13 +68,14 @@ class BalanceQueryService {
           baseUrlSource: validationConfig.balanceBaseUrlSource,
           fallbackBaseUrl: validationConfig.balanceFallbackBaseUrl ?? validationConfig.fallbackBaseUrl,
         );
-        baseUrl = ValidationHelper.getBaseUrl(key, tempConfig);
+        // 使用改进后的getBaseUrl，传递providerConfig以支持自动检测
+        baseUrl = ValidationHelper.getBaseUrl(key, tempConfig, providerConfig);
       } else {
-        baseUrl = ValidationHelper.getBaseUrl(key, validationConfig);
+        // 使用改进后的getBaseUrl，传递providerConfig以支持自动检测
+        baseUrl = ValidationHelper.getBaseUrl(key, validationConfig, providerConfig);
       }
       
       if (baseUrl == null || baseUrl.isEmpty) {
-        print('BalanceQueryService: 缺少 API 端点配置');
         return BalanceQueryResult.failure('缺少 API 端点配置');
       }
 
@@ -80,9 +83,6 @@ class BalanceQueryService {
       final endpoint = validationConfig.balanceEndpoint!;
       final method = (validationConfig.balanceMethod ?? 'GET').toUpperCase();
       final apiKey = key.keyValue;
-
-      print('BalanceQueryService: endpoint: $endpoint, method: $method');
-      print('BalanceQueryService: baseUrl: $baseUrl');
 
       // 构建请求头
       final headers = <String, String>{
@@ -115,10 +115,9 @@ class BalanceQueryService {
 
       // 构建 URL
       final url = ValidationHelper.buildUrl(baseUrl, endpoint);
-      print('BalanceQueryService: 请求 URL: $url');
 
       // 发送请求
-      final requestTimeout = timeout ?? const Duration(seconds: 10);
+      final requestTimeout = timeout ?? const Duration(seconds: 5);
       http.Response response;
 
       if (method == 'POST') {
@@ -127,16 +126,13 @@ class BalanceQueryService {
                 ValidationHelper.replaceApiKeyInBody(validationConfig.balanceBody!, apiKey),
               )
             : null;
-        print('BalanceQueryService: 发送 POST 请求');
         response = await http
             .post(url, headers: headers, body: body)
             .timeout(requestTimeout);
       } else {
-        print('BalanceQueryService: 发送 GET 请求');
         response = await http.get(url, headers: headers).timeout(requestTimeout);
       }
 
-      print('BalanceQueryService: 响应状态码: ${response.statusCode}');
 
       // 解析响应
       if (response.statusCode == 200) {
@@ -147,12 +143,9 @@ class BalanceQueryService {
         final previewBody = responseBody.length > 500 
             ? '${responseBody.substring(0, 500)}...' 
             : responseBody;
-        print('BalanceQueryService: 余额查询成功，响应: $previewBody');
         
         return BalanceQueryResult.success(jsonData as Map<String, dynamic>);
       } else {
-        final errorBody = utf8.decode(response.bodyBytes);
-        print('BalanceQueryService: 余额查询失败，状态码: ${response.statusCode}, 响应: $errorBody');
         return BalanceQueryResult.failure(
           '查询失败：HTTP ${response.statusCode}',
         );
@@ -176,10 +169,8 @@ class BalanceQueryService {
   /// 检查平台是否支持余额查询
   Future<bool> supportsBalanceQuery(PlatformType platformType) async {
     try {
-      print('BalanceQueryService: 检查余额查询支持，平台类型: ${platformType.id}');
       final configData = await _cloudConfigService.getConfigData();
       if (configData == null) {
-        print('BalanceQueryService: 配置数据为空');
         return false;
       }
 
@@ -188,10 +179,8 @@ class BalanceQueryService {
         orElse: () => throw Exception('未找到供应商配置'),
       );
 
-      print('BalanceQueryService: 找到供应商配置: ${providerConfig.name}');
       final hasBalanceEndpoint = providerConfig.validation?.balanceEndpoint != null &&
           providerConfig.validation!.balanceEndpoint!.isNotEmpty;
-      print('BalanceQueryService: 余额查询端点: ${providerConfig.validation?.balanceEndpoint}, 支持: $hasBalanceEndpoint');
       
       return hasBalanceEndpoint;
     } catch (e) {

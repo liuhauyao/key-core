@@ -13,6 +13,7 @@ import '../../services/language_pack_service.dart';
 import '../../config/provider_config.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/mcp_server_presets.dart';
+import '../../utils/platform_icon_service.dart';
 import '../../services/platform_registry.dart';
 import '../../utils/app_localizations.dart';
 import '../../models/cloud_config.dart';
@@ -20,6 +21,8 @@ import '../../models/mcp_server.dart';
 import '../widgets/master_password_dialog.dart';
 import '../widgets/tool_config_card.dart';
 import '../widgets/export_password_dialog.dart';
+import '../../services/macos_bookmark_service.dart';
+import '../../services/settings_service.dart';
 
 /// 设置分组枚举
 enum SettingsCategory {
@@ -47,6 +50,10 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
   bool _isCheckingUpdate = false;
   String? _configDate;
   List<SupportedLanguage> _supportedLanguages = [];
+  
+  // 用户主目录授权状态
+  bool _isHomeDirAuthorized = false;
+  bool _isCheckingAuthorization = true;
 
   @override
   bool get wantKeepAlive => true; // 保持状态，防止重建时丢失选中分类
@@ -57,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     _checkPasswordStatus();
     _loadConfigDate();
     _loadSupportedLanguages();
+    _checkInitialAuthorization();
     
     // ⭐ 自动在后台检查配置更新（静默刷新）
     // App Store 版本：禁用自动检查（符合审核要求），用户可通过"检查更新"按钮手动触发
@@ -64,6 +72,42 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     _autoCheckForUpdates();
   }
   
+  /// 应用启动时检查授权状态
+  Future<void> _checkInitialAuthorization() async {
+    if (!Platform.isMacOS) {
+      setState(() {
+        _isHomeDirAuthorized = true;
+        _isCheckingAuthorization = false;
+      });
+      return;
+    }
+    
+    try {
+      final bookmarkService = MacOSBookmarkService();
+      final hasAuth = await bookmarkService.hasHomeDirAuthorization();
+      
+      // 如果有 bookmark，尝试恢复权限验证
+      if (hasAuth) {
+        final restored = await bookmarkService.restoreHomeDirAccess();
+        setState(() {
+          _isHomeDirAuthorized = restored;
+          _isCheckingAuthorization = false;
+        });
+      } else {
+        setState(() {
+          _isHomeDirAuthorized = false;
+          _isCheckingAuthorization = false;
+        });
+      }
+    } catch (e) {
+      print('检查授权状态失败: $e');
+      setState(() {
+        _isHomeDirAuthorized = false;
+        _isCheckingAuthorization = false;
+      });
+    }
+  }
+
   /// 检测是否为 App Store 版本
   Future<bool> _isAppStoreVersion() async {
     if (!Platform.isMacOS) return false;
@@ -109,28 +153,38 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
         print('SettingsScreen: CloudConfigService 已刷新，版本: ${freshConfig?.supportedLanguages?.length} 种语言');
         
         // 静默刷新所有配置模块
-        print('SettingsScreen: 1/7 刷新 ProviderConfig...');
+        print('SettingsScreen: 1/9 刷新 PlatformRegistry...');
+        await PlatformRegistry.reloadDynamicPlatforms(_cloudConfigService);
+        print('SettingsScreen: 2/9 刷新 ProviderConfig...');
         await ProviderConfig.init(forceRefresh: true);
-        print('SettingsScreen: 2/7 刷新 PlatformPresets...');
+        print('SettingsScreen: 3/9 刷新 PlatformPresets...');
         await PlatformPresets.init(forceRefresh: true);
-        print('SettingsScreen: 3/7 刷新 McpServerPresets...');
+        print('SettingsScreen: 4/9 刷新 McpServerPresets...');
         await McpServerPresets.init(forceRefresh: true);
+        print('SettingsScreen: 5/9 刷新 PlatformIconService...');
+        await PlatformIconService.init(forceRefresh: true);
+        
+        // 清除语言包缓存并重新加载
+        print('SettingsScreen: 6/9 清除语言包缓存...');
+        final currentLanguage = _supportedLanguages.isNotEmpty ? _supportedLanguages.first.code : 'zh';
+        await _languagePackService.clearLanguagePackCache(currentLanguage);
+        AppLocalizations.clearLoadedPacksCache();
         
         // 重新加载日期和语言列表
-        print('SettingsScreen: 4/7 重新加载配置日期...');
+        print('SettingsScreen: 7/9 重新加载配置日期...');
         await _loadConfigDate();
-        print('SettingsScreen: 5/7 重新加载支持的语言列表...');
+        print('SettingsScreen: 8/9 重新加载支持的语言列表...');
         await _loadSupportedLanguages(forceRefresh: true);
         print('SettingsScreen: 本地语言列表已更新: ${_supportedLanguages.map((l) => l.code).join(", ")} (共 ${_supportedLanguages.length} 种)');
         
         // ⭐ 刷新 SettingsViewModel 的配置，触发 MaterialApp 更新 supportedLocales
         if (!mounted) return;
-        print('SettingsScreen: 6/7 刷新 SettingsViewModel...');
+        print('SettingsScreen: 9/9 刷新 SettingsViewModel...');
         final settingsViewModel = Provider.of<SettingsViewModel>(context, listen: false);
         await settingsViewModel.refreshConfig();
         
-        // ⭐ 步骤7: 强制刷新 UI，确保语言选择下拉框更新
-        print('SettingsScreen: 7/7 强制刷新 UI...');
+        // ⭐ 步骤10: 强制刷新 UI，确保语言选择下拉框更新
+        print('SettingsScreen: 10/10 强制刷新 UI...');
         if (mounted) {
           setState(() {
             // 触发 UI 重建，包括语言选择下拉框
@@ -265,32 +319,40 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
         print('SettingsScreen: CloudConfigService 已刷新，版本: ${freshConfig?.supportedLanguages?.length} 种语言');
         
         // 重新加载所有配置模块（强制刷新）
-        print('SettingsScreen: 1/8 刷新 PlatformRegistry...');
+        print('SettingsScreen: 1/9 刷新 PlatformRegistry...');
         await PlatformRegistry.reloadDynamicPlatforms(_cloudConfigService);
         print('SettingsScreen: PlatformRegistry 已刷新，总平台数量: ${PlatformRegistry.count} (内置: ${PlatformRegistry.builtinCount}, 动态: ${PlatformRegistry.dynamicCount})');
         
-        print('SettingsScreen: 2/8 刷新 ProviderConfig...');
+        print('SettingsScreen: 2/9 刷新 ProviderConfig...');
         await ProviderConfig.init(forceRefresh: true);
-        print('SettingsScreen: 3/8 刷新 PlatformPresets...');
+        print('SettingsScreen: 3/9 刷新 PlatformPresets...');
         await PlatformPresets.init(forceRefresh: true);
-        print('SettingsScreen: 4/8 刷新 McpServerPresets...');
+        print('SettingsScreen: 4/9 刷新 McpServerPresets...');
         await McpServerPresets.init(forceRefresh: true);
+        print('SettingsScreen: 5/10 刷新 PlatformIconService...');
+        await PlatformIconService.init(forceRefresh: true);
+        
+        // 清除语言包缓存并重新加载
+        print('SettingsScreen: 6/10 清除语言包缓存...');
+        final currentLanguage = _supportedLanguages.isNotEmpty ? _supportedLanguages.first.code : 'zh';
+        await _languagePackService.clearLanguagePackCache(currentLanguage);
+        AppLocalizations.clearLoadedPacksCache();
         
         // 重新加载日期和语言列表（强制刷新）
-        print('SettingsScreen: 5/8 重新加载配置日期...');
+        print('SettingsScreen: 7/10 重新加载配置日期...');
         await _loadConfigDate();
-        print('SettingsScreen: 6/8 重新加载支持的语言列表...');
+        print('SettingsScreen: 8/10 重新加载支持的语言列表...');
         await _loadSupportedLanguages(forceRefresh: true);
         print('SettingsScreen: 本地语言列表已更新: ${_supportedLanguages.map((l) => l.code).join(", ")} (共 ${_supportedLanguages.length} 种)');
         
         // ⭐ 刷新 SettingsViewModel 的配置，触发 MaterialApp 更新 supportedLocales
         if (!mounted) return;
-        print('SettingsScreen: 7/8 刷新 SettingsViewModel...');
+        print('SettingsScreen: 8/9 刷新 SettingsViewModel...');
         final settingsViewModel = Provider.of<SettingsViewModel>(context, listen: false);
         await settingsViewModel.refreshConfig();
         
-        // ⭐ 步骤8: 强制刷新 UI，确保语言选择下拉框更新
-        print('SettingsScreen: 8/8 强制刷新 UI...');
+        // ⭐ 步骤9: 强制刷新 UI，确保语言选择下拉框更新
+        print('SettingsScreen: 9/9 强制刷新 UI...');
         if (mounted) {
           setState(() {
             // 触发 UI 重建，包括语言选择下拉框
@@ -612,8 +674,21 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     // 使用 Consumer 来监听工具状态变化，避免整个 SettingsScreen 重建
     return Consumer<SettingsViewModel>(
       builder: (context, viewModel, child) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 目录访问授权（仅在 macOS 上显示）
+            if (Platform.isMacOS) ...[
+              _buildSettingSection(
+                context,
+                '目录访问授权',
+                _buildHomeDirAuthorizationControl(context, viewModel, shadTheme),
+              ),
+              const SizedBox(height: 32),
+            ],
+            // 工具配置网格
+            LayoutBuilder(
+              builder: (context, constraints) {
             // 响应式布局：根据宽度动态计算每行显示的卡片数量（与密钥卡片列表一致）
             const double minCardWidth = 280; // 工具卡片最小宽度
             const double cardSpacing = 16.0; // 卡片间距
@@ -641,28 +716,155 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
               AiToolType.windsurf,
             ];
             
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                crossAxisSpacing: cardSpacing,
-                mainAxisSpacing: cardSpacing,
-                childAspectRatio: (cardWidth / 120), // 固定高度120，动态宽度
-              ),
-              itemCount: orderedTools.length,
-              itemBuilder: (context, index) {
-                final tool = orderedTools[index];
-                return ToolConfigCard(
-                  tool: tool,
-                  viewModel: viewModel,
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: cardSpacing,
+                    mainAxisSpacing: cardSpacing,
+                    childAspectRatio: (cardWidth / 120), // 固定高度120，动态宽度
+                  ),
+                  itemCount: orderedTools.length,
+                  itemBuilder: (context, index) {
+                    final tool = orderedTools[index];
+                    return ToolConfigCard(
+                      tool: tool,
+                      viewModel: viewModel,
+                    );
+                  },
                 );
               },
-            );
-          },
+            ),
+          ],
         );
       },
     );
+  }
+
+  /// 构建用户主目录授权控件
+  Widget _buildHomeDirAuthorizationControl(
+    BuildContext context,
+    SettingsViewModel viewModel,
+    ShadThemeData shadTheme,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: shadTheme.colorScheme.muted,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '用户主目录访问权限',
+                    style: shadTheme.textTheme.p.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: shadTheme.colorScheme.foreground,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _isCheckingAuthorization
+                        ? '正在检查授权状态...'
+                        : _isHomeDirAuthorized
+                            ? '已授权访问用户主目录，应用可以读取工具配置文件'
+                            : '未授权，需要授权才能访问工具配置文件',
+                    style: shadTheme.textTheme.small.copyWith(
+                      color: shadTheme.colorScheme.mutedForeground,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            ShadButton(
+              onPressed: _isCheckingAuthorization || _isHomeDirAuthorized
+                  ? null
+                  : () => _requestHomeDirAuthorization(context, viewModel),
+              child: Text(_isHomeDirAuthorized ? '已授权' : '授权'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 请求用户主目录授权
+  Future<void> _requestHomeDirAuthorization(
+    BuildContext context,
+    SettingsViewModel viewModel,
+  ) async {
+    if (!Platform.isMacOS) {
+      return;
+    }
+    
+    try {
+      final bookmarkService = MacOSBookmarkService();
+      final homeDir = await SettingsService.getUserHomeDir();
+      
+      // 使用 file_picker 选择目录（这会触发 macOS 权限请求）
+      final selectedDir = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: '请选择用户主目录以授予访问权限',
+        initialDirectory: homeDir,
+      );
+      
+      if (selectedDir != null && selectedDir.isNotEmpty) {
+        // 立即保存 Security-Scoped Bookmark（必须在权限有效时创建）
+        final success = await bookmarkService.saveHomeDirBookmark(selectedDir);
+        
+        if (success) {
+          // 等待一小段时间，确保 bookmark 已保存
+          await Future.delayed(const Duration(milliseconds: 100));
+          
+          // 验证权限是否已恢复
+          final restored = await bookmarkService.restoreHomeDirAccess();
+          
+          // 更新状态
+          setState(() {
+            _isHomeDirAuthorized = restored;
+          });
+          
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(restored 
+                  ? '授权成功，应用已获得用户主目录访问权限'
+                  : '授权已保存，但权限恢复失败，请重启应用'),
+                backgroundColor: restored ? Colors.green : Colors.orange,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        } else {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('授权失败，请重试'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('授权失败: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   /// 构建数据选项设置

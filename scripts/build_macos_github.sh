@@ -45,6 +45,10 @@ echo "清理 sqlite3 构建缓存..."
 rm -rf ~/.pub-cache/hosted/pub.flutter-io.cn/sqlite3-*/.dart_tool 2>/dev/null || true
 rm -rf .dart_tool/hooks_runner/sqlite3 2>/dev/null || true
 
+# 生成图标列表配置文件
+echo "生成图标列表配置文件..."
+dart scripts/generate_icon_list.dart
+
 # 获取依赖
 echo "获取依赖..."
 flutter pub get
@@ -140,6 +144,7 @@ echo "=========================================="
 echo "应用: ${APP_PATH}"
 echo "DMG: ${DMG_FILE}"
 echo "=========================================="
+
 
 
 

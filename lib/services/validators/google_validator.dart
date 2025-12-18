@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../models/ai_key.dart';
 import '../../models/validation_config.dart';
 import '../../models/validation_result.dart';
+import '../../models/unified_provider_config.dart';
 import 'base_validator.dart';
 
 /// Google AI/Gemini 校验器
@@ -11,10 +12,11 @@ class GoogleValidator extends BaseValidator {
   Future<KeyValidationResult> validate({
     required AIKey key,
     required ValidationConfig config,
+    UnifiedProviderConfig? providerConfig,
     Duration? timeout,
   }) async {
     // 获取所有需要尝试的 baseUrl
-    final baseUrls = getBaseUrlsToTry(key, config);
+    final baseUrls = getBaseUrlsToTry(key, config, providerConfig);
     
     if (baseUrls.isEmpty) {
       return KeyValidationResult.failure(
@@ -42,8 +44,7 @@ class GoogleValidator extends BaseValidator {
     }
 
     // 尝试每个 baseUrl
-    KeyValidationResult? lastError;
-    final requestTimeout = timeout ?? const Duration(seconds: 10);
+    final requestTimeout = timeout ?? const Duration(seconds: 5);
     
     for (int i = 0; i < baseUrls.length; i++) {
       final baseUrl = baseUrls[i];
@@ -78,55 +79,46 @@ class GoogleValidator extends BaseValidator {
           return KeyValidationResult.success(message: '验证通过');
         }
 
-        // 如果是密钥错误（401/403），不再尝试其他地址
-        if (response.statusCode == 401 || response.statusCode == 403) {
-          return KeyValidationResult.failure(
-            error: ValidationError.invalidKey,
-            message: '验证失败',
-          );
-        }
-
-        // 记录错误，继续尝试下一个地址
-        lastError = KeyValidationResult.failure(
-          error: response.statusCode >= 500
-              ? ValidationError.serverError
-              : ValidationError.unknown,
+        // 失败即自动取消，不再尝试其他地址
+        return KeyValidationResult.failure(
+          error: response.statusCode == 401 || response.statusCode == 403
+              ? ValidationError.invalidKey
+              : response.statusCode >= 500
+                  ? ValidationError.serverError
+                  : ValidationError.unknown,
           message: '验证失败',
         );
       } on http.ClientException catch (e) {
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.networkError,
           message: '网络错误：${e.message}',
         );
-        // 网络错误继续尝试下一个地址
-        continue;
       } on FormatException catch (e) {
-        lastError = KeyValidationResult.failure(
+        // 失败即自动取消
+        return KeyValidationResult.failure(
           error: ValidationError.unknown,
           message: '响应格式错误：${e.message}',
         );
-        // 格式错误继续尝试下一个地址
-        continue;
       } catch (e) {
+        // 失败即自动取消
         if (e.toString().contains('TimeoutException') ||
             e.toString().contains('timeout')) {
-          lastError = KeyValidationResult.failure(
+          return KeyValidationResult.failure(
             error: ValidationError.timeout,
             message: '请求超时，请检查网络连接',
           );
         } else {
-          lastError = KeyValidationResult.failure(
+          return KeyValidationResult.failure(
             error: ValidationError.unknown,
             message: '校验失败：${e.toString()}',
           );
         }
-        // 继续尝试下一个地址
-        continue;
       }
     }
 
-    // 所有地址都尝试失败
-    return lastError ?? KeyValidationResult.failure(
+    // 理论上不应该到达这里，因为失败时会立即返回
+    return KeyValidationResult.failure(
       error: ValidationError.unknown,
       message: '所有校验地址都失败',
     );

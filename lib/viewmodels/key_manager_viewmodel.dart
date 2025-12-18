@@ -1,5 +1,6 @@
 import '../models/ai_key.dart';
 import '../models/platform_type.dart';
+import '../models/platform_category.dart';
 import '../services/database_service.dart';
 import '../services/crypt_service.dart';
 import '../services/auth_service.dart';
@@ -30,8 +31,9 @@ class KeyManagerViewModel extends BaseViewModel {
   List<AIKey> _filteredKeys = [];
   String _searchQuery = '';
   PlatformType? _filterPlatform;
+  PlatformCategory? _filterPlatformCategory;
   KeyStatistics? _statistics;
-  
+
   // 当前使用的密钥ID
   int? _currentClaudeCodeKeyId;
   int? _currentCodexKeyId;
@@ -41,6 +43,7 @@ class KeyManagerViewModel extends BaseViewModel {
   List<AIKey> get allKeys => _allKeys; // 暴露所有密钥，用于获取已添加的平台
   String get searchQuery => _searchQuery;
   PlatformType? get filterPlatform => _filterPlatform;
+  PlatformCategory? get filterPlatformCategory => _filterPlatformCategory;
   KeyStatistics? get statistics => _statistics;
   
   /// 获取已添加的平台类型列表（去重）
@@ -48,6 +51,50 @@ class KeyManagerViewModel extends BaseViewModel {
     final platforms = _allKeys.map((key) => key.platformType).toSet().toList();
     platforms.sort((a, b) => a.value.compareTo(b.value));
     return platforms;
+  }
+
+  /// 获取已添加的平台分组列表（去重，根据已添加的平台筛选）
+  List<PlatformCategory> get addedPlatformCategories {
+    try {
+      final categories = <PlatformCategory>{};
+
+      // 遍历所有已添加的平台，收集它们所属的分类
+      for (final platform in addedPlatforms) {
+        final platformCategories = PlatformCategoryManager.getCategoriesForPlatform(platform);
+        categories.addAll(platformCategories);
+      }
+
+      // 排除自定义分类
+      categories.remove(PlatformCategory.custom);
+
+      // 转换为列表并按枚举值排序
+      final result = categories.toList();
+      result.sort((a, b) => a.index.compareTo(b.index));
+      return result;
+    } catch (e) {
+      // 如果获取失败，返回空列表
+      return [];
+    }
+  }
+
+  /// 根据当前分组筛选获取可用的平台列表
+  List<PlatformType> getAvailablePlatformsForCurrentCategory() {
+    if (_filterPlatformCategory == null) {
+      // 如果没有选择分组，返回所有已添加的平台
+      return addedPlatforms;
+    }
+
+    try {
+      // 获取当前分组下的所有平台
+      final platformsInCategory = PlatformCategoryManager.getPlatformsByCategory(_filterPlatformCategory!);
+
+      // 只返回已添加的平台中属于当前分组的平台
+      final addedPlatformsSet = addedPlatforms.toSet();
+      return platformsInCategory.where((platform) => addedPlatformsSet.contains(platform)).toList();
+    } catch (e) {
+      // 如果出错，返回所有已添加的平台
+      return addedPlatforms;
+    }
   }
   
   /// 重新加密所有明文存储的密钥
@@ -135,6 +182,30 @@ class KeyManagerViewModel extends BaseViewModel {
   /// 设置平台筛选
   void setPlatformFilter(PlatformType? platform) {
     _filterPlatform = platform;
+
+    // 如果选择了特定平台，需要检查是否与当前平台分组兼容
+    if (platform != null && _filterPlatformCategory != null) {
+      final platformsInCategory = PlatformCategoryManager.getPlatformsByCategory(_filterPlatformCategory!);
+      if (!platformsInCategory.contains(platform)) {
+        // 如果平台不属于当前选中的分组，则清除分组筛选
+        _filterPlatformCategory = null;
+      }
+    }
+
+    _updateFilteredKeys();
+    notifyListeners();
+  }
+
+  /// 设置平台分组筛选
+  void setPlatformCategoryFilter(PlatformCategory? category) {
+    _filterPlatformCategory = category;
+    // 当选择平台分组时，如果当前选中的平台不属于该分组，则清除平台筛选
+    if (category != null && _filterPlatform != null) {
+      final platformsInCategory = PlatformCategoryManager.getPlatformsByCategory(category);
+      if (!platformsInCategory.contains(_filterPlatform)) {
+        _filterPlatform = null; // 清除平台筛选
+      }
+    }
     _updateFilteredKeys();
     notifyListeners();
   }
@@ -152,6 +223,20 @@ class KeyManagerViewModel extends BaseViewModel {
             (key.notes?.toLowerCase().contains(query) ?? false) ||
             key.tags.any((tag) => tag.toLowerCase().contains(query));
       }).toList();
+    }
+
+    // 应用平台分组过滤
+    if (_filterPlatformCategory != null) {
+      try {
+        final platformsInCategory = PlatformCategoryManager.getPlatformsByCategory(_filterPlatformCategory!);
+        final categoryPlatformIds = platformsInCategory.map((p) => p.id).toSet();
+        filtered = filtered
+            .where((key) => categoryPlatformIds.contains(key.platformType.id))
+            .toList();
+      } catch (e) {
+        // 如果获取配置失败，跳过分组过滤
+        print('平台分组筛选失败: $e');
+      }
     }
 
     // 应用平台过滤
