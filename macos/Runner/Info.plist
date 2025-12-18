@@ -39,7 +39,9 @@
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
 	<key>NSDocumentsFolderUsageDescription</key>
-	<string>需要访问文档文件夹以选择配置目录</string>
+	<string>需要访问用户主目录以读取工具配置文件（.claude、.codex、.gemini 等）</string>
+	<key>NSHomeDirectoryUsageDescription</key>
+	<string>需要访问用户主目录以读取工具配置文件（.claude、.codex、.gemini 等）</string>
 		<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>

@@ -186,12 +186,6 @@ class ToolEnableService {
           'mcpServers': <String, dynamic>{},
         });
         
-      case AiToolType.cline:
-        // Cline 使用 cline_mcp_settings.json 格式
-        return const JsonEncoder.withIndent('  ').convert({
-          'mcpServers': <String, dynamic>{},
-        });
-        
       case AiToolType.gemini:
         // Gemini 使用 settings.json 格式，需要包含 apiKey 字段
         return const JsonEncoder.withIndent('  ').convert({

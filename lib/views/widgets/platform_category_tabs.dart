@@ -51,20 +51,21 @@ class _PlatformCategoryTabsState extends State<PlatformCategoryTabs> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 选项卡栏 - 使用 AppSwitcher 样式
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: shadTheme.colorScheme.muted,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: shadTheme.colorScheme.border,
-              width: 1,
+        // 选项卡栏 - 使用 AppSwitcher 样式，居中显示
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: shadTheme.colorScheme.muted,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: shadTheme.colorScheme.border,
+                width: 1,
+              ),
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: PlatformCategoryManager.allCategories.map((category) {
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: PlatformCategoryManager.allCategories.map((category) {
               final isActive = category == _selectedCategory;
               return GestureDetector(
                 onTap: () {
@@ -116,6 +117,7 @@ class _PlatformCategoryTabsState extends State<PlatformCategoryTabs> {
                 ),
               );
             }).toList(),
+            ),
           ),
         ),
         const SizedBox(height: 12),

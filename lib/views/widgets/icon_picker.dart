@@ -87,7 +87,6 @@ class _IconPickerState extends State<IconPicker> {
       'brave.svg',
       'bytedance-color.svg',
       'claude-color.svg',
-      'cline.svg',
       'codegeex-color.svg',
       'cohere-color.svg',
       'coze.svg',

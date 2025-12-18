@@ -160,7 +160,7 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
                           if (widget.aiKey.claudeCodeBaseUrl != null)
                             _buildActionRow(
                               context,
-                              '请求地址',
+                              localizations?.requestAddress ?? '请求地址',
                               widget.aiKey.claudeCodeBaseUrl!,
                               Icons.link,
                               localizations?.copy ?? '复制',
@@ -168,7 +168,7 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
                               isMonospace: true,
                             ),
                           if (widget.aiKey.claudeCodeModel != null)
-                            _buildDetailRow('主模型', widget.aiKey.claudeCodeModel!),
+                            _buildDetailRow(localizations?.mainModel ?? '主模型', widget.aiKey.claudeCodeModel!),
                           if (widget.aiKey.claudeCodeHaikuModel != null)
                             _buildDetailRow('Haiku模型', widget.aiKey.claudeCodeHaikuModel!),
                           if (widget.aiKey.claudeCodeSonnetModel != null)
@@ -188,7 +188,7 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
                           if (widget.aiKey.codexBaseUrl != null)
                             _buildActionRow(
                               context,
-                              '请求地址',
+                              localizations?.requestAddress ?? '请求地址',
                               widget.aiKey.codexBaseUrl!,
                               Icons.link,
                               localizations?.copy ?? '复制',
@@ -196,7 +196,7 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
                               isMonospace: true,
                             ),
                           if (widget.aiKey.codexModel != null)
-                            _buildDetailRow('模型', widget.aiKey.codexModel!),
+                            _buildDetailRow(localizations?.modelName ?? '模型', widget.aiKey.codexModel!),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -475,10 +475,12 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
 
   /// 复制文本并显示提示
   void _copyTextAndShowToast(BuildContext context, String text) {
+    final localizations = AppLocalizations.of(context);
     widget.onCopyText(text);
+    final displayText = text.length > 30 ? '${text.substring(0, 30)}...' : text;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('已复制: ${text.length > 30 ? '${text.substring(0, 30)}...' : text}'),
+        content: Text(localizations?.copiedText(displayText) ?? '已复制: $displayText'),
         duration: const Duration(seconds: 2),
       ),
     );

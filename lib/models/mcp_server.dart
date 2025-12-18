@@ -38,7 +38,6 @@ enum AiToolType {
   claudecode,
   codex,
   windsurf,
-  cline,
   gemini;
 
   String get value {
@@ -51,8 +50,6 @@ enum AiToolType {
         return 'codex';
       case AiToolType.windsurf:
         return 'windsurf';
-      case AiToolType.cline:
-        return 'cline';
       case AiToolType.gemini:
         return 'gemini';
     }
@@ -68,8 +65,6 @@ enum AiToolType {
         return 'Codex';
       case AiToolType.windsurf:
         return 'Windsurf';
-      case AiToolType.cline:
-        return 'Cline';
       case AiToolType.gemini:
         return 'Gemini';
     }
@@ -86,8 +81,6 @@ enum AiToolType {
         return 'assets/icons/platforms/openai.svg';
       case AiToolType.windsurf:
         return 'assets/icons/platforms/windsurf.svg';
-      case AiToolType.cline:
-        return 'assets/icons/platforms/cline.svg';
       case AiToolType.gemini:
         return 'assets/icons/platforms/gemini-color.svg';
     }
@@ -103,8 +96,6 @@ enum AiToolType {
         return AiToolType.codex;
       case 'windsurf':
         return AiToolType.windsurf;
-      case 'cline':
-        return AiToolType.cline;
       case 'gemini':
         return AiToolType.gemini;
       default:

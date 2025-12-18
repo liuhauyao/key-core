@@ -1,5 +1,6 @@
 import 'platform_type.dart';
 import 'cloud_config.dart' as cloud;
+import 'validation_config.dart';
 
 /// 供应商能力类型
 enum ProviderCapability {
@@ -138,6 +139,9 @@ class UnifiedProviderConfig {
   
   /// 平台预设配置（如果支持平台预设）
   final PlatformConfig? platform;
+  
+  /// 校验配置（可选）
+  final ValidationConfig? validation;
 
   UnifiedProviderConfig({
     required this.id,
@@ -152,6 +156,7 @@ class UnifiedProviderConfig {
     this.claudeCode,
     this.codex,
     this.platform,
+    this.validation,
   });
 
   factory UnifiedProviderConfig.fromJson(Map<String, dynamic> json) {
@@ -177,6 +182,9 @@ class UnifiedProviderConfig {
       platform: json['platform'] != null
           ? PlatformConfig.fromJson(json['platform'] as Map<String, dynamic>)
           : null,
+      validation: json['validation'] != null
+          ? ValidationConfig.fromJson(json['validation'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -194,6 +202,7 @@ class UnifiedProviderConfig {
       if (claudeCode != null) 'claudeCode': claudeCode!.toJson(),
       if (codex != null) 'codex': codex!.toJson(),
       if (platform != null) 'platform': platform!.toJson(),
+      if (validation != null) 'validation': validation!.toJson(),
     };
   }
 

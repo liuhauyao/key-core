@@ -23,17 +23,6 @@ class AiToolConfigService {
       case AiToolType.windsurf:
         // Windsurf 的配置文件在 ~/.codeium/windsurf 目录下
         return path.join(home, '.codeium', 'windsurf');
-      case AiToolType.cline:
-        // Cline 的配置文件在 VS Code 扩展的 globalStorage 目录下
-        if (Platform.isMacOS) {
-          return path.join(home, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings');
-        } else if (Platform.isWindows) {
-          final appData = Platform.environment['APPDATA'] ?? home;
-          return path.join(appData, 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings');
-        } else {
-          // Linux 或其他平台
-          return path.join(home, '.config', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings');
-        }
       case AiToolType.gemini:
         // Gemini 的配置文件在 ~/.gemini 目录下
         return path.join(home, '.gemini');
@@ -55,9 +44,6 @@ class AiToolConfigService {
       case AiToolType.windsurf:
         // Windsurf 使用 mcp_config.json 文件
         return path.join(configDir, 'mcp_config.json');
-      case AiToolType.cline:
-        // Cline 使用 cline_mcp_settings.json 文件
-        return path.join(configDir, 'cline_mcp_settings.json');
       case AiToolType.gemini:
         // Gemini 使用 settings.json 文件
         return path.join(configDir, 'settings.json');
@@ -101,6 +87,8 @@ class AiToolConfigService {
     await settingsService.init();
     final key = '$_configKeyPrefix${tool.value}';
     await settingsService.setSetting(key, configDir);
+    // 清除缓存，确保下次获取时使用最新路径
+    _cachedConfigDirs.remove(tool);
   }
 
   /// 重置工具的配置目录路径为默认值
@@ -109,6 +97,8 @@ class AiToolConfigService {
     await settingsService.init();
     final key = '$_configKeyPrefix${tool.value}';
     await settingsService.removeSetting(key);
+    // 清除缓存，确保下次获取时使用最新路径
+    _cachedConfigDirs.remove(tool);
   }
 
   /// 展开路径中的 ~ 符号

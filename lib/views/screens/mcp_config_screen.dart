@@ -316,7 +316,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
         const double minCardWidth = 240; // 减小最小宽度，让一列显示更多卡片
         const double cardSpacing = 10;
         const double padding = 16;
-        const double cardHeight = 160; // 固定卡片高度
+        const double cardHeight = 140; // 固定卡片高度
 
         final availableWidth = constraints.maxWidth - padding * 2;
         int crossAxisCount = (availableWidth / (minCardWidth + cardSpacing)).floor();

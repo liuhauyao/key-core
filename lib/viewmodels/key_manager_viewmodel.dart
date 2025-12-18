@@ -189,12 +189,14 @@ class KeyManagerViewModel extends BaseViewModel {
       notifyListeners();
       
       // 然后在后台更新数据库，不阻塞 UI
+      // 使用 DESC 排序，第一个密钥应该有最大的 updated_at
       final now = DateTime.now();
       for (int i = 0; i < reorderedKeys.length; i++) {
         final key = reorderedKeys[i];
         // 创建一个新的时间戳，确保顺序正确
         // 使用微秒来确保每个密钥有不同的时间戳
-        final updatedAt = now.add(Duration(microseconds: i));
+        // 第一个密钥（i=0）应该有最大的 updated_at，所以用减法
+        final updatedAt = now.subtract(Duration(microseconds: i));
         final updatedKey = key.copyWith(updatedAt: updatedAt);
         await _databaseService.updateKey(updatedKey);
       }
@@ -278,7 +280,7 @@ class KeyManagerViewModel extends BaseViewModel {
       }
       // 如果没有设置主密码，则明文存储
 
-      // 创建更新后的密钥对象，保持原有的 updatedAt（已在表单页面处理）
+      // 创建更新后的密钥对象，保持原有的 updatedAt，不改变排序位置
       // ⚠️ 重要：不要使用 copyWith，因为它会覆盖用户修改的字段！
       // 直接使用从表单返回的 key 对象，只更新加密后的 keyValue
       final updatedKey = AIKey(
@@ -295,7 +297,7 @@ class KeyManagerViewModel extends BaseViewModel {
         notes: key.notes,
         isActive: key.isActive,
         createdAt: key.createdAt,
-        updatedAt: DateTime.now(), // ⚠️ 重要：更新时修改时间戳，确保排序正确
+        updatedAt: key.updatedAt, // 保持原有的 updatedAt，不改变排序位置
         lastUsedAt: key.lastUsedAt,
         isFavorite: key.isFavorite,
         icon: key.icon,
@@ -315,6 +317,7 @@ class KeyManagerViewModel extends BaseViewModel {
         geminiApiEndpoint: key.geminiApiEndpoint,
         geminiModel: key.geminiModel,
         geminiBaseUrl: key.geminiBaseUrl,
+        isValidated: key.isValidated,
       );
 
       // 先更新内存中的列表，立即反映到 UI，实现无感更新
@@ -375,6 +378,43 @@ class KeyManagerViewModel extends BaseViewModel {
       return true;
     } catch (e) {
       // 如果更新失败，重新加载数据恢复状态
+      await loadKeys(showLoading: false);
+      return false;
+    }
+  }
+
+  /// 更新校验状态
+  Future<bool> updateValidationStatus(int id, bool isValidated) async {
+    try {
+      // 先检查是否需要更新（避免不必要的 notifyListeners）
+      final allIndex = _allKeys.indexWhere((k) => k.id == id);
+      if (allIndex == -1) {
+        return false;
+      }
+      
+      final currentKey = _allKeys[allIndex];
+      if (currentKey.isValidated == isValidated) {
+        // 状态没有变化，不需要更新
+        return true;
+      }
+      
+      // 更新内存中的列表
+      final updatedKey = currentKey.copyWith(isValidated: isValidated);
+      _allKeys[allIndex] = updatedKey;
+      
+      final filteredIndex = _filteredKeys.indexWhere((k) => k.id == id);
+      if (filteredIndex != -1) {
+        _filteredKeys[filteredIndex] = updatedKey;
+      }
+      
+      // 只在状态真正变化时通知监听者
+      notifyListeners();
+
+      // 然后在后台更新数据库
+      await _databaseService.updateKey(updatedKey);
+      
+      return true;
+    } catch (e) {
       await loadKeys(showLoading: false);
       return false;
     }
@@ -518,6 +558,7 @@ class KeyManagerViewModel extends BaseViewModel {
         geminiApiEndpoint: key.geminiApiEndpoint,
         geminiModel: key.geminiModel,
         geminiBaseUrl: key.geminiBaseUrl,
+        isValidated: key.isValidated,
       );
     } catch (e) {
       return null;

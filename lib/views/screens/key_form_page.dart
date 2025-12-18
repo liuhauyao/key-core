@@ -18,10 +18,15 @@ import '../../models/platform_category.dart';
 import '../../services/codex_config_service.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/url_launcher_service.dart';
+import '../../services/key_validation_service.dart';
+import '../../services/model_list_service.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../models/mcp_server.dart';
+import '../../models/validation_result.dart';
 import '../../utils/ime_friendly_formatter.dart';
 import '../widgets/ime_safe_text_field.dart';
+import '../widgets/key_validation_button.dart';
+import '../widgets/model_list_dialog.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 /// 密钥编辑表单页面
@@ -45,6 +50,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
   late TextEditingController _tagsController;
   late TextEditingController _notesController;
   late TextEditingController _expiryDateController;
+  late TextEditingController _providerDisplayController;
   final ShadPopoverController _datePickerPopoverController = ShadPopoverController();
   
   // ClaudeCode 配置控制器
@@ -69,6 +75,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
   bool _initialized = false; // 标记是否已完成初始化
   bool _obscureKeyValue = true;
   PlatformCategory _selectedCategory = PlatformCategory.popular;
+  bool _showProviderList = false; // 编辑模式下是否显示供应商列表
   
   // ClaudeCode/Codex/Gemini 启用状态
   bool _enableClaudeCode = false;
@@ -82,6 +89,15 @@ class _KeyFormPageState extends State<KeyFormPage> {
   final CodexConfigService _codexConfigService = CodexConfigService();
   final ClipboardService _clipboardService = ClipboardService();
   final UrlLauncherService _urlLauncherService = UrlLauncherService();
+  final KeyValidationService _validationService = KeyValidationService();
+  final ModelListService _modelListService = ModelListService();
+  
+  // 校验状态
+  ValidationState _validationState = ValidationState.idle;
+  String? _validationErrorMessage;
+  
+  // 是否支持模型列表查询
+  bool _supportsModelList = false;
   
   // 环境变量设置方式（永久）
   bool _envVarPermanent = true;
@@ -164,6 +180,10 @@ class _KeyFormPageState extends State<KeyFormPage> {
     _expiryDateController = TextEditingController(
       text: _expiryDate != null ? DateFormat('yyyy-MM-dd').format(_expiryDate!) : '',
     );
+    
+    _providerDisplayController = TextEditingController(
+      text: _selectedPlatform?.value ?? PlatformType.custom.value,
+    );
 
     // 监听日期输入框变化，解析用户输入的日期
     _expiryDateController.addListener(_parseDateInput);
@@ -177,6 +197,37 @@ class _KeyFormPageState extends State<KeyFormPage> {
         });
       }
     });
+    
+    // 监听密钥值变化，重置校验状态
+    _keyValueController.addListener(() {
+      if (_validationState != ValidationState.idle) {
+        setState(() {
+          _validationState = ValidationState.idle;
+          _validationErrorMessage = null;
+        });
+      }
+    });
+    
+    // 检查是否支持模型列表查询
+    _checkModelListSupport();
+  }
+  
+  /// 检查是否支持模型列表查询
+  Future<void> _checkModelListSupport() async {
+    if (_selectedPlatform != null) {
+      final supports = await _validationService.supportsModelList(_selectedPlatform!);
+      if (mounted) {
+        setState(() {
+          _supportsModelList = supports;
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _supportsModelList = false;
+        });
+      }
+    }
   }
 
   @override
@@ -289,6 +340,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
     _notesController.dispose();
     _expiryDateController.removeListener(_parseDateInput);
     _expiryDateController.dispose();
+    _providerDisplayController.dispose();
     _datePickerPopoverController.dispose();
     _claudeCodeApiEndpointController.dispose();
     _claudeCodeModelController.dispose();
@@ -302,38 +354,65 @@ class _KeyFormPageState extends State<KeyFormPage> {
     super.dispose();
   }
 
+  /// 切换供应商（编辑模式下也支持）
+  void _switchProvider(PlatformType platform) {
+    // 保存当前过期日期和标签（供应商没有的信息）
+    final savedExpiryDate = _expiryDate;
+    final savedTags = _tagsController.text;
+    final savedNotes = _notesController.text;
+    final savedKeyValue = _keyValueController.text;
+    
+    // 调用选择平台方法
+    _selectPlatform(platform, preserveFields: _isEditMode);
+    
+    // 恢复过期日期、标签、备注和密钥值，并更新供应商展示框
+    if (mounted) {
+      setState(() {
+        _expiryDate = savedExpiryDate;
+        if (savedExpiryDate != null) {
+          _expiryDateController.text = DateFormat('yyyy-MM-dd').format(savedExpiryDate);
+        }
+        _tagsController.text = savedTags;
+        _notesController.text = savedNotes;
+        _keyValueController.text = savedKeyValue;
+        _providerDisplayController.text = platform.value;
+      });
+    }
+  }
+
   /// 选择供应商并自动填充
-  void _selectPlatform(PlatformType platform) {
+  void _selectPlatform(PlatformType platform, {bool preserveFields = false}) {
     setState(() {
       _selectedPlatform = platform;
       _isCustomPlatform = platform == PlatformType.custom;
 
-      // 编辑模式下只更新平台选择状态，不覆盖已保存的字段
-      if (_isEditMode) {
-        return;
-      }
-
-      // 如果不是自定义平台，自动填充预设信息（仅新建）
+      // 如果不是自定义平台，自动填充预设信息
       if (platform != PlatformType.custom) {
         final preset = PlatformPresets.getPreset(platform);
         if (preset != null) {
-          // 名称：按照模板填充
-          _nameController.text = preset.defaultName ?? '';
+          // 名称：按照模板填充（如果当前名称为空或者是默认名称，则覆盖）
+          if (!preserveFields || _nameController.text.trim().isEmpty) {
+            _nameController.text = preset.defaultName ?? '';
+          }
           
           // 管理URL：按照模板填充，如果没有则清空
           if (preset.managementUrl != null) {
             _managementUrlController.text = preset.managementUrl!;
             _hasManagementUrl = true;
           } else {
-            _managementUrlController.clear();
-            _hasManagementUrl = false;
+            if (!preserveFields) {
+              _managementUrlController.clear();
+              _hasManagementUrl = false;
+            }
           }
           
           // API端点：按照模板填充，如果没有则清空
           if (preset.apiEndpoint != null) {
             _apiEndpointController.text = preset.apiEndpoint!;
           } else {
-            _apiEndpointController.clear();
+            if (!preserveFields) {
+              _apiEndpointController.clear();
+            }
           }
           
           // 自动设置平台图标
@@ -345,7 +424,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
             _selectedIcon = null;
           }
           
-          // 尝试获取平台的 ClaudeCode/Codex 配置（仅在新建模式下自动填充）
+          // 尝试获取平台的 ClaudeCode/Codex 配置
           final claudeCodeProvider = ProviderConfig.getClaudeCodeProviderByPlatform(platform);
           final codexProvider = ProviderConfig.getCodexProviderByPlatform(platform);
 
@@ -374,12 +453,14 @@ class _KeyFormPageState extends State<KeyFormPage> {
               _claudeCodeOpusModelController.text = claudeCodeProvider.modelConfig.opusModel!;
             }
           } else {
-            _enableClaudeCode = false;
-            _claudeCodeBaseUrlController.clear();
-            _claudeCodeModelController.clear();
-            _claudeCodeHaikuModelController.clear();
-            _claudeCodeSonnetModelController.clear();
-            _claudeCodeOpusModelController.clear();
+            if (!preserveFields) {
+              _enableClaudeCode = false;
+              _claudeCodeBaseUrlController.clear();
+              _claudeCodeModelController.clear();
+              _claudeCodeHaikuModelController.clear();
+              _claudeCodeSonnetModelController.clear();
+              _claudeCodeOpusModelController.clear();
+            }
           }
 
           if (codexProvider != null) {
@@ -387,23 +468,30 @@ class _KeyFormPageState extends State<KeyFormPage> {
             _codexBaseUrlController.text = codexProvider.baseUrl;
             _codexModelController.text = codexProvider.model;
           } else {
-            _enableCodex = false;
-            _codexBaseUrlController.clear();
-            _codexModelController.clear();
+            if (!preserveFields) {
+              _enableCodex = false;
+              _codexBaseUrlController.clear();
+              _codexModelController.clear();
+            }
           }
         }
       } else {
         // 选择自定义平台时，清空基本表单字段（仅新建）
-        _nameController.clear();
-        _managementUrlController.clear();
-        _hasManagementUrl = false;
-        _apiEndpointController.clear();
-        _keyValueController.clear();
-        _tagsController.clear();
-        _notesController.clear();
-        _expiryDate = null;
+        if (!preserveFields) {
+          _nameController.clear();
+          _managementUrlController.clear();
+          _hasManagementUrl = false;
+          _apiEndpointController.clear();
+          _keyValueController.clear();
+          _tagsController.clear();
+          _notesController.clear();
+          _expiryDate = null;
+        }
       }
     });
+    
+    // 检查是否支持模型列表查询
+    _checkModelListSupport();
   }
 
   @override
@@ -428,25 +516,8 @@ class _KeyFormPageState extends State<KeyFormPage> {
         child: Column(
           children: [
             // macOS 26 风格：沉浸式标题栏（与界面融为一体）
+            // 供应商分组位于标题栏内，高度与主页页面切换栏完全一致
             _buildImmersiveTitleBar(context),
-            // 供应商标签区域 - 仅在新建模式下显示
-            if (!_isEditMode)
-              Container(
-                padding: const EdgeInsets.only(top: 12, bottom: 12, left: 24, right: 24),
-                decoration: BoxDecoration(
-                  color: shadTheme.colorScheme.background,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: shadTheme.colorScheme.border,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: _buildPlatformChips(context, shadTheme),
-                ),
-              ),
             // 表单内容
             Expanded(
               child: SingleChildScrollView(
@@ -455,8 +526,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
 
-              // 密钥名称和标签（同一行）
-              // ⚠️ 使用 ImeSafeTextField 替代 ShadInputFormField，避免中文输入法问题
+              // 密钥名称和供应商（同一行）
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -471,13 +541,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: ImeSafeTextField(
-                      controller: _tagsController,
-                      labelText: localizations?.tagsLabel ?? '标签',
-                      hintText: localizations?.tagsHint ?? '多个标签用逗号分隔',
-                      prefixIcon: Icon(Icons.local_offer, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                      isDark: Theme.of(context).brightness == Brightness.dark,
-                    ),
+                    child: _buildProviderDropdown(context, shadTheme, localizations),
                   ),
                 ],
               ),
@@ -557,77 +621,120 @@ class _KeyFormPageState extends State<KeyFormPage> {
               ),
               const SizedBox(height: 16),
 
-              // 过期日期（单独一行）
-              ImeSafeTextField(
-                controller: _expiryDateController,
-                labelText: localizations?.expiryDateLabel ?? '过期日期',
-                hintText: localizations?.expiryDateHint ?? '选择日期（可选）',
-                suffixIcon: SizedBox(
-                  width: _expiryDate != null ? 56 : 32, // 有清除按钮时更宽
-                  child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (_expiryDate != null) ...[
-                        IconButton(
-                          icon: Icon(Icons.clear, size: 18, color: iconColor),
-                        onPressed: () {
-                          setState(() {
-                            _expiryDate = null;
-                            _expiryDateController.text = '';
-                          });
-                        },
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 24,
-                            minHeight: 24,
-                      ),
-                        ),
-                    ],
-                    ShadPopover(
-                      controller: _datePickerPopoverController,
-                      padding: EdgeInsets.zero,
-                      decoration: ShadDecoration(
-                        border: ShadBorder.all(width: 0),
-                      ),
-                      popover: (context) => ShadCalendar(
-                        selected: _expiryDate,
-                        fromMonth: DateTime.now(),
-                        toMonth: DateTime.now().add(const Duration(days: 3650)),
-                        onChanged: (date) {
-                          if (date != null) {
-                            _isUpdatingDateFromPicker = true;
-                            // 移除监听器避免循环调用
-                            _expiryDateController.removeListener(_parseDateInput);
-                            _expiryDateController.text = DateFormat('yyyy-MM-dd').format(date);
-                            _expiryDateController.addListener(_parseDateInput);
-                            
-                            SchedulerBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) {
-                                setState(() {
-                                  _expiryDate = date;
-                                });
-                                _isUpdatingDateFromPicker = false;
-                                _datePickerPopoverController.hide();
-                              }
-                            });
-                          }
-                        },
-                      ),
-                        child: IconButton(
-                          icon: Icon(Icons.calendar_today, size: 18, color: iconColor),
-                        onPressed: () => _datePickerPopoverController.toggle(),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 24,
-                            minHeight: 24,
-                          ),
-                      ),
+              // 标签和过期日期（同一行）
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: ImeSafeTextField(
+                      controller: _tagsController,
+                      labelText: localizations?.tagsLabel ?? '标签',
+                      hintText: localizations?.tagsHint ?? '多个标签用逗号分隔',
+                      prefixIcon: Icon(Icons.local_offer, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                      isDark: Theme.of(context).brightness == Brightness.dark,
                     ),
-                  ],
-                ),
-                ),
-                isDark: Theme.of(context).brightness == Brightness.dark,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ImeSafeTextField(
+                      controller: _expiryDateController,
+                      labelText: localizations?.expiryDateLabel ?? '过期日期',
+                      hintText: localizations?.expiryDateHint ?? '选择日期（可选）',
+                      suffixIcon: _expiryDate != null
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.clear, size: 18, color: iconColor),
+                                  onPressed: () {
+                                    setState(() {
+                                      _expiryDate = null;
+                                      _expiryDateController.text = '';
+                                    });
+                                  },
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                                ShadPopover(
+                                  controller: _datePickerPopoverController,
+                                  padding: EdgeInsets.zero,
+                                  decoration: ShadDecoration(
+                                    border: ShadBorder.all(width: 0),
+                                  ),
+                                  popover: (context) => ShadCalendar(
+                                    selected: _expiryDate,
+                                    fromMonth: DateTime.now(),
+                                    toMonth: DateTime.now().add(const Duration(days: 3650)),
+                                    onChanged: (date) {
+                                      if (date != null) {
+                                        _isUpdatingDateFromPicker = true;
+                                        // 移除监听器避免循环调用
+                                        _expiryDateController.removeListener(_parseDateInput);
+                                        _expiryDateController.text = DateFormat('yyyy-MM-dd').format(date);
+                                        _expiryDateController.addListener(_parseDateInput);
+                                        
+                                        SchedulerBinding.instance.addPostFrameCallback((_) {
+                                          if (mounted) {
+                                            setState(() {
+                                              _expiryDate = date;
+                                            });
+                                            _isUpdatingDateFromPicker = false;
+                                            _datePickerPopoverController.hide();
+                                          }
+                                        });
+                                      }
+                                    },
+                                  ),
+                                  child: IconButton(
+                                    icon: Icon(Icons.calendar_today, size: 18, color: iconColor),
+                                    onPressed: () => _datePickerPopoverController.toggle(),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : ShadPopover(
+                              controller: _datePickerPopoverController,
+                              padding: EdgeInsets.zero,
+                              decoration: ShadDecoration(
+                                border: ShadBorder.all(width: 0),
+                              ),
+                              popover: (context) => ShadCalendar(
+                                selected: _expiryDate,
+                                fromMonth: DateTime.now(),
+                                toMonth: DateTime.now().add(const Duration(days: 3650)),
+                                onChanged: (date) {
+                                  if (date != null) {
+                                    _isUpdatingDateFromPicker = true;
+                                    // 移除监听器避免循环调用
+                                    _expiryDateController.removeListener(_parseDateInput);
+                                    _expiryDateController.text = DateFormat('yyyy-MM-dd').format(date);
+                                    _expiryDateController.addListener(_parseDateInput);
+                                    
+                                    SchedulerBinding.instance.addPostFrameCallback((_) {
+                                      if (mounted) {
+                                        setState(() {
+                                          _expiryDate = date;
+                                        });
+                                        _isUpdatingDateFromPicker = false;
+                                        _datePickerPopoverController.hide();
+                                      }
+                                    });
+                                  }
+                                },
+                              ),
+                              child: IconButton(
+                                icon: Icon(Icons.calendar_today, size: 18, color: iconColor),
+                                onPressed: () => _datePickerPopoverController.toggle(),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                            ),
+                      isDark: Theme.of(context).brightness == Brightness.dark,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
 
@@ -710,6 +817,60 @@ class _KeyFormPageState extends State<KeyFormPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  // 校验按钮（如果支持）
+                  if (_selectedPlatform != null && _keyValueController.text.isNotEmpty) ...[
+                    ShadButton.outline(
+                      onPressed: _handleValidate,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_validationState == ValidationState.validating)
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  shadTheme.colorScheme.primary,
+                                ),
+                              ),
+                            )
+                          else
+                            Icon(
+                              _validationState == ValidationState.success
+                                  ? Icons.check_circle
+                                  : _validationState == ValidationState.failure
+                                      ? Icons.error
+                                      : Icons.verified_outlined,
+                              size: 16,
+                              color: _validationState == ValidationState.success
+                                  ? Colors.green
+                                  : _validationState == ValidationState.failure
+                                      ? Colors.red
+                                      : null,
+                            ),
+                          const SizedBox(width: 6),
+                          Text('校验'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  // 查看模型按钮（仅模型平台）
+                  if (_supportsModelList && _keyValueController.text.isNotEmpty) ...[
+                    ShadButton.outline(
+                      onPressed: _handleViewModels,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.list_outlined, size: 16),
+                          const SizedBox(width: 6),
+                          Text('查看模型'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   ShadButton.outline(
                     onPressed: () {
                       Navigator.of(context).popUntil((route) => route.isFirst);
@@ -739,65 +900,105 @@ class _KeyFormPageState extends State<KeyFormPage> {
   }
 
   /// macOS 26 风格：沉浸式标题栏（与界面融为一体）
+  /// 供应商分组位于标题栏内，高度与主页页面切换栏完全一致
   Widget _buildImmersiveTitleBar(BuildContext context) {
     final shadTheme = ShadTheme.of(context);
     final localizations = AppLocalizations.of(context);
     
-    return Container(
-      height: 56, // 与主页标题栏高度一致
-      padding: const EdgeInsets.only(top: 20, left: 20), // 与主页 padding top 一致
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.background,
-        // 移除底部边框
-      ),
-      child: Stack(
-        children: [
-          // 新建模式：分组切换滑块居中显示，与主页位置一致
-          // 编辑模式：显示"编辑密钥"标题
-          Center(
-            child: _isEditMode
-                ? Text(
-                    localizations?.editKey ?? '编辑密钥',
-                    style: shadTheme.textTheme.p.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: shadTheme.colorScheme.foreground,
-                    ),
-                  )
-                : _buildCategorySwitcher(context, shadTheme),
+    return Column(
+      children: [
+        Container(
+          height: 56, // 与主页标题栏高度完全一致
+          padding: const EdgeInsets.only(top: 20, left: 20), // 与主页 padding top 一致
+          decoration: BoxDecoration(
+            color: shadTheme.colorScheme.background,
+            // 移除底部边框
           ),
-          // 右侧：关闭按钮，与分组切换滑块同一高度（垂直居中）
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: ShadButton.ghost(
-                width: 30,
-                height: 30,
-                padding: EdgeInsets.zero,
-                child: Icon(
-                  Icons.close,
-                  size: 20,
-                  color: shadTheme.colorScheme.mutedForeground,
+          child: Stack(
+            children: [
+              // 新建模式：显示供应商分组切换滑块（居中，与主页AppSwitcher一致）
+              // 编辑模式：点击切换供应商按钮后显示供应商分组切换滑块，否则显示"编辑密钥"标题
+              Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (Widget child, Animation<double> animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeInOutCubic,
+                          ),
+                        ),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: (!_isEditMode || _showProviderList)
+                      ? _buildCategorySwitcher(context, shadTheme)
+                      : Text(
+                          localizations?.editKey ?? '编辑密钥',
+                          key: const ValueKey('edit_title'),
+                          style: shadTheme.textTheme.p.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: shadTheme.colorScheme.foreground,
+                          ),
+                        ),
                 ),
-                onPressed: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
               ),
-            ),
+              // 右侧：关闭按钮，垂直居中
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: ShadButton.ghost(
+                    width: 30,
+                    height: 30,
+                    padding: EdgeInsets.zero,
+                    child: Icon(
+                      Icons.close,
+                      size: 20,
+                      color: shadTheme.colorScheme.mutedForeground,
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        // 供应商选择标签区域 - 仅在显示供应商分组时显示，带丝滑动画
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutCubic,
+          child: (!_isEditMode || _showProviderList)
+              ? Container(
+                  padding: const EdgeInsets.only(top: 12, bottom: 12, left: 24, right: 24),
+                  decoration: BoxDecoration(
+                    color: shadTheme.colorScheme.background,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: shadTheme.colorScheme.border,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  alignment: Alignment.centerLeft,
+                  child: _buildPlatformChips(context, shadTheme),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
     );
   }
 
-  /// 构建分类切换滑块（仅在新建模式下显示）
+  /// 构建分类切换滑块（与主页AppSwitcher样式一致）
   Widget _buildCategorySwitcher(BuildContext context, ShadThemeData shadTheme) {
-    // 编辑模式下不显示分类切换滑块
-    if (_isEditMode) {
-      return const SizedBox.shrink();
-    }
-    
     return Container(
+      key: const ValueKey('category_switcher'),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: shadTheme.colorScheme.muted,
@@ -865,18 +1066,15 @@ class _KeyFormPageState extends State<KeyFormPage> {
     );
   }
 
-  /// 构建供应商标签（仅在新建模式下显示）
+  /// 构建供应商选择标签区域
   Widget _buildPlatformChips(BuildContext context, ShadThemeData shadTheme) {
-    // 编辑模式下不显示供应商标签
-    if (_isEditMode) {
-      return const SizedBox.shrink();
-    }
-    
     final displayPlatforms = PlatformCategoryManager.getPlatformsByCategory(_selectedCategory);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final localizations = AppLocalizations.of(context);
     
     return Wrap(
+      alignment: WrapAlignment.start,
+      crossAxisAlignment: WrapCrossAlignment.start,
       spacing: 10,
       runSpacing: 10,
       children: [
@@ -903,6 +1101,105 @@ class _KeyFormPageState extends State<KeyFormPage> {
     );
   }
 
+  /// 构建供应商展示框（样式与 ImeSafeTextField 一致）
+  Widget _buildProviderDropdown(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations) {
+    final currentPlatform = _selectedPlatform ?? PlatformType.custom;
+    final iconColor = shadTheme.colorScheme.foreground;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.grey[700]! : Colors.grey[400]!;
+    final fillColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    
+    // 更新显示内容
+    _providerDisplayController.text = currentPlatform.value;
+    
+    // 使用 TextField 只读模式来展示供应商
+    return TextField(
+      controller: _providerDisplayController,
+      readOnly: true,
+      style: const TextStyle(
+        fontSize: 14,
+        height: 1.2,
+      ),
+      decoration: InputDecoration(
+        labelText: localizations?.providerLabel ?? '密钥供应商',
+        prefixIcon: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          child: Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: PlatformIconHelper.buildIcon(
+                platform: currentPlatform,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 32,
+          maxWidth: 32,
+          minHeight: 32,
+          maxHeight: 32,
+        ),
+        suffixIcon: IconButton(
+          icon: Icon(
+            Icons.swap_horiz,
+            size: 18,
+            color: iconColor,
+          ),
+          onPressed: () {
+            setState(() {
+              _showProviderList = !_showProviderList;
+            });
+          },
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 52,
+          minHeight: 32,
+        ),
+        filled: true,
+        fillColor: fillColor,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
+        floatingLabelAlignment: FloatingLabelAlignment.start,
+        floatingLabelStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: isDark ? Colors.grey[300] : Colors.grey[700],
+        ),
+        labelStyle: TextStyle(
+          fontSize: 13,
+          color: isDark ? Colors.grey[400] : Colors.grey[600],
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: BorderSide(
+            color: borderColor,
+            width: 0.5,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: BorderSide(
+            color: borderColor,
+            width: 0.5,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: BorderSide(
+            color: borderColor,
+            width: 0.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+
   /// 构建单个供应商标签
   Widget _buildPlatformChip(
     BuildContext context,
@@ -921,9 +1218,19 @@ class _KeyFormPageState extends State<KeyFormPage> {
           if (isSelected) {
             setState(() {
               _selectedPlatform = null;
+              if (_isEditMode) {
+                _showProviderList = false; // 编辑模式下选择后隐藏列表
+              }
             });
           } else {
-            _selectPlatform(platform);
+            if (_isEditMode) {
+              _switchProvider(platform);
+              setState(() {
+                _showProviderList = false; // 编辑模式下选择后隐藏列表
+              });
+            } else {
+              _selectPlatform(platform);
+            }
           }
         },
         borderRadius: BorderRadius.circular(8),
@@ -982,8 +1289,181 @@ class _KeyFormPageState extends State<KeyFormPage> {
     );
   }
 
+  /// 校验密钥
+  Future<void> _handleValidate() async {
+    if (_keyValueController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先输入密钥值')),
+      );
+      return;
+    }
 
+    setState(() {
+      _validationState = ValidationState.validating;
+      _validationErrorMessage = null;
+    });
 
+    try {
+      // 创建临时 AIKey 对象
+      final tempKey = AIKey(
+        id: widget.editingKey?.id ?? 0,
+        name: _nameController.text.trim().isEmpty
+            ? '临时密钥'
+            : _nameController.text.trim(),
+        platform: (_selectedPlatform ?? PlatformType.custom).value,
+        platformType: _selectedPlatform ?? PlatformType.custom,
+        keyValue: _keyValueController.text.trim(),
+        apiEndpoint: _apiEndpointController.text.trim().isEmpty
+            ? null
+            : _apiEndpointController.text.trim(),
+        tags: const [],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        claudeCodeBaseUrl: _claudeCodeBaseUrlController.text.trim().isEmpty
+            ? null
+            : _claudeCodeBaseUrlController.text.trim(),
+        codexBaseUrl: _codexBaseUrlController.text.trim().isEmpty
+            ? null
+            : _codexBaseUrlController.text.trim(),
+        enableClaudeCode: _enableClaudeCode,
+        enableCodex: _enableCodex,
+      );
+
+      final result = await _validationService.validateKey(key: tempKey);
+
+      if (mounted) {
+        setState(() {
+          if (result.isValid) {
+            _validationState = ValidationState.success;
+            _validationErrorMessage = null;
+          } else {
+            _validationState = ValidationState.failure;
+            _validationErrorMessage = result.message ?? '校验失败';
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.isValid
+                  ? (result.message ?? '密钥有效')
+                  : (result.message ?? '密钥无效'),
+            ),
+            backgroundColor: result.isValid ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _validationState = ValidationState.failure;
+          _validationErrorMessage = '校验失败：${e.toString()}';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('校验失败：${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 查看模型列表
+  Future<void> _handleViewModels() async {
+    if (_keyValueController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先输入密钥值')),
+      );
+      return;
+    }
+
+    // 显示加载对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: ShadTheme.of(context).colorScheme.background,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const CircularProgressIndicator(),
+        ),
+      ),
+    );
+
+    try {
+      // 创建临时 AIKey 对象
+      final tempKey = AIKey(
+        id: widget.editingKey?.id ?? 0,
+        name: _nameController.text.trim().isEmpty
+            ? '临时密钥'
+            : _nameController.text.trim(),
+        platform: (_selectedPlatform ?? PlatformType.custom).value,
+        platformType: _selectedPlatform ?? PlatformType.custom,
+        keyValue: _keyValueController.text.trim(),
+        apiEndpoint: _apiEndpointController.text.trim().isEmpty
+            ? null
+            : _apiEndpointController.text.trim(),
+        tags: const [],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        claudeCodeBaseUrl: _claudeCodeBaseUrlController.text.trim().isEmpty
+            ? null
+            : _claudeCodeBaseUrlController.text.trim(),
+        codexBaseUrl: _codexBaseUrlController.text.trim().isEmpty
+            ? null
+            : _codexBaseUrlController.text.trim(),
+        enableClaudeCode: _enableClaudeCode,
+        enableCodex: _enableCodex,
+      );
+
+      final result = await _modelListService.getModelList(key: tempKey);
+
+      // 关闭加载对话框
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (result.success && result.models != null) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => ModelListDialog(
+              models: result.models!,
+              platformName: (_selectedPlatform ?? PlatformType.custom).value,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.error ?? '查询模型列表失败'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // 关闭加载对话框
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('查询失败：${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   void _handleSubmit() {
     final localizations = AppLocalizations.of(context);
@@ -1318,21 +1798,30 @@ class _KeyFormPageState extends State<KeyFormPage> {
           ),
           if (_enableCodex) ...[
             const SizedBox(height: 16),
-          ImeSafeTextField(
-              controller: _codexBaseUrlController,
-            labelText: localizations?.requestUrl ?? '请求地址',
-            hintText: 'https://api.openai.com/v1',
-            prefixIcon: Icon(Icons.link, size: 18, color: shadTheme.colorScheme.mutedForeground),
-              keyboardType: TextInputType.url,
-            isDark: Theme.of(context).brightness == Brightness.dark,
-            ),
-            const SizedBox(height: 12),
-          ImeSafeTextField(
-              controller: _codexModelController,
-            labelText: localizations?.modelName ?? '模型名称',
-            hintText: 'gpt-5-codex',
-            prefixIcon: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
-            isDark: Theme.of(context).brightness == Brightness.dark,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: ImeSafeTextField(
+                    controller: _codexBaseUrlController,
+                    labelText: localizations?.requestUrl ?? '请求地址',
+                    hintText: 'https://api.openai.com/v1',
+                    prefixIcon: Icon(Icons.link, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                    keyboardType: TextInputType.url,
+                    isDark: Theme.of(context).brightness == Brightness.dark,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ImeSafeTextField(
+                    controller: _codexModelController,
+                    labelText: localizations?.modelName ?? '模型名称',
+                    hintText: 'gpt-5-codex',
+                    prefixIcon: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                    isDark: Theme.of(context).brightness == Brightness.dark,
+                  ),
+                ),
+              ],
             ),
             // 环境变量提示（如果不支持 auth.json）
             FutureBuilder<bool>(

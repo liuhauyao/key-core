@@ -1,6 +1,6 @@
 name: key_core
 description: A secure cross-platform application for managing AI API keys (Key Core / 密枢)
-version: 1.0.3
+version: 1.0.4+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

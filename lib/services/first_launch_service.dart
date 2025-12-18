@@ -15,6 +15,7 @@ class FirstLaunchService {
   static const String _keyHasPromptedClaude = 'has_prompted_claude_dir';
   static const String _keyHasPromptedCodex = 'has_prompted_codex_dir';
   static const String _keyHasPromptedGemini = 'has_prompted_gemini_dir';
+  static const String _keyHasPromptedHomeDir = 'has_prompted_home_dir';
 
   SharedPreferences? _prefs;
 
@@ -209,6 +210,124 @@ class FirstLaunchService {
     final homeDir = await SettingsService.getUserHomeDir();
     return '$homeDir/.gemini';
   }
+
+  /// 检查是否需要统一目录授权（首次启动时）
+  /// 如果用户主目录无法访问，返回 true，表示需要授权
+  Future<bool> needsHomeDirAuthorization() async {
+    // 如果已经提示过，不再提示
+    if (hasPromptedForTool(_keyHasPromptedHomeDir)) {
+      return false;
+    }
+
+    try {
+      final homeDir = await SettingsService.getUserHomeDir();
+      // 尝试访问用户主目录
+      return !await canAccessConfigDir(homeDir);
+    } catch (e) {
+      // 如果出现异常，说明需要授权
+      return true;
+    }
+  }
+
+  /// 标记已提示过用户主目录授权
+  Future<void> markHomeDirPrompted() async {
+    await markToolPrompted(_keyHasPromptedHomeDir);
+  }
+
+  /// 检测用户主目录下的所有工具配置目录
+  /// 返回检测到的工具配置目录信息
+  Future<List<ToolConfigDetected>> detectToolConfigsInHomeDir(String homeDir) async {
+    final detected = <ToolConfigDetected>[];
+
+    // 定义所有工具的配置目录
+    final toolConfigs = [
+      _ToolConfigInfo(
+        toolType: null, // Claude 使用特殊处理
+        toolName: 'Claude',
+        configDir: '$homeDir/.claude',
+        configFile: '$homeDir/.claude/config.json',
+      ),
+      _ToolConfigInfo(
+        toolType: null, // Codex 使用特殊处理
+        toolName: 'Codex',
+        configDir: '$homeDir/.codex',
+        configFile: '$homeDir/.codex/config.toml',
+      ),
+      _ToolConfigInfo(
+        toolType: AiToolType.gemini,
+        toolName: 'Gemini',
+        configDir: '$homeDir/.gemini',
+        configFile: '$homeDir/.gemini/settings.json',
+      ),
+      _ToolConfigInfo(
+        toolType: AiToolType.cursor,
+        toolName: 'Cursor',
+        configDir: '$homeDir/.cursor',
+        configFile: '$homeDir/.cursor/mcp.json',
+      ),
+      _ToolConfigInfo(
+        toolType: AiToolType.windsurf,
+        toolName: 'Windsurf',
+        configDir: '$homeDir/.codeium/windsurf',
+        configFile: '$homeDir/.codeium/windsurf/mcp_config.json',
+      ),
+    ];
+
+    for (final config in toolConfigs) {
+      try {
+        final dir = Directory(config.configDir);
+        final dirExists = await dir.exists();
+        
+        if (dirExists) {
+          // 检查目录是否可访问
+          final canAccess = await canAccessConfigDir(config.configDir);
+          if (canAccess) {
+            detected.add(ToolConfigDetected(
+              toolName: config.toolName,
+              toolType: config.toolType,
+              configDir: config.configDir,
+              configFile: config.configFile,
+            ));
+          }
+        }
+      } catch (e) {
+        // 忽略错误，继续检测下一个
+        print('FirstLaunchService: 检测工具配置失败 ${config.toolName}: $e');
+      }
+    }
+
+    return detected;
+  }
+}
+
+/// 工具配置信息（内部使用）
+class _ToolConfigInfo {
+  final AiToolType? toolType;
+  final String toolName;
+  final String configDir;
+  final String configFile;
+
+  _ToolConfigInfo({
+    this.toolType,
+    required this.toolName,
+    required this.configDir,
+    required this.configFile,
+  });
+}
+
+/// 检测到的工具配置信息
+class ToolConfigDetected {
+  final String toolName;
+  final AiToolType? toolType;
+  final String configDir;
+  final String configFile;
+
+  ToolConfigDetected({
+    required this.toolName,
+    this.toolType,
+    required this.configDir,
+    required this.configFile,
+  });
 }
 
 /// 配置目录检查结果

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "schemaVersion": 2,
   "lastUpdated": "2025-12-02T08:00:00.000000",
   "config": {
@@ -98,6 +98,36 @@
           "managementUrl": "https://console.anthropic.com/settings/keys",
           "apiEndpoint": "https://api.anthropic.com/v1",
           "defaultName": "Anthropic API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "x-api-key": "{apiKey}",
+            "anthropic-version": "2023-06-01"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": null,
+          "fallbackBaseUrl": "https://api.anthropic.com",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "display_name",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.anthropic.com",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -125,6 +155,37 @@
           "managementUrl": "https://platform.deepseek.com",
           "apiEndpoint": "https://api.deepseek.com/v1",
           "defaultName": "DeepSeek API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": null,
+          "fallbackBaseUrl": "https://api.deepseek.com",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.deepseek.com",
+          "balanceEndpoint": "/v1/user/balance",
+          "balanceMethod": "GET",
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": "https://api.deepseek.com"
         }
       },
       {
@@ -153,6 +214,37 @@
           "managementUrl": "https://open.bigmodel.cn",
           "apiEndpoint": "https://open.bigmodel.cn/api/paas/v4",
           "defaultName": "智谱AI API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或账户余额不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://open.bigmodel.cn/api/paas/v4",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://open.bigmodel.cn/api/paas/v4",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -180,39 +272,51 @@
           "managementUrl": "https://z.ai",
           "apiEndpoint": "https://api.z.ai/api/anthropic",
           "defaultName": "Z.ai GLM API Key"
-        }
-      },
-      {
-        "id": "qwen",
-        "name": "Qwen Coder",
-        "platformType": "qwen",
-        "categories": [
-          "claudeCode",
-          "popular"
-        ],
-        "providerCategory": "cnOfficial",
-        "websiteUrl": "https://bailian.console.aliyun.com",
-        "isOfficial": false,
-        "isPartner": false,
-        "claudeCode": {
-          "baseUrl": "https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy",
-          "modelConfig": {
-            "mainModel": "qwen3-max",
-            "haikuModel": "qwen3-max",
-            "sonnetModel": "qwen3-max",
-            "opusModel": "qwen3-max"
-          }
         },
-        "platform": {
-          "managementUrl": "https://dashscope.console.aliyun.com",
-          "apiEndpoint": "https://dashscope.aliyuncs.com/api/v1",
-          "defaultName": "通义千问 API Key"
+        "validation": {
+          "type": "anthropic-compatible",
+          "endpoint": "/v1/messages",
+          "method": "POST",
+          "headers": {
+            "x-api-key": "{apiKey}",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+          },
+          "body": {
+            "model": "glm-4.6",
+            "max_tokens": 1,
+            "messages": [
+              {
+                "role": "user",
+                "content": "test"
+              }
+            ]
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "密钥无效或已过期",
+            "403": "密钥权限不足"
+          },
+          "baseUrlSource": "claudeCode.baseUrl",
+          "fallbackBaseUrl": "https://api.z.ai/api/anthropic",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
         "id": "kimi",
         "name": "Kimi k2",
-        "platformType": "kimi",
+        "platformType": "moonshot",
         "categories": [
           "claudeCode",
           "popular"
@@ -234,6 +338,45 @@
           "managementUrl": "https://platform.moonshot.cn/console/api-keys",
           "apiEndpoint": "https://api.moonshot.cn/v1",
           "defaultName": "Kimi API Key"
+        },
+        "validation": {
+          "type": "anthropic-compatible",
+          "endpoint": "/v1/messages",
+          "method": "POST",
+          "headers": {
+            "x-api-key": "{apiKey}",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+          },
+          "body": {
+            "model": "moonshot-v1-8k",
+            "max_tokens": 1,
+            "messages": [
+              {
+                "role": "user",
+                "content": "test"
+              }
+            ]
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "密钥无效或已过期",
+            "403": "密钥权限不足"
+          },
+          "baseUrlSource": "claudeCode.baseUrl",
+          "fallbackBaseUrl": "https://api.moonshot.cn/anthropic",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": "platform.apiEndpoint",
+          "modelsFallbackBaseUrl": "https://api.moonshot.cn/v1",
+          "balanceEndpoint": "/users/me/balance",
+          "balanceMethod": "GET",
+          "balanceBaseUrlSource": "platform.apiEndpoint",
+          "balanceFallbackBaseUrl": "https://api.moonshot.cn/v1"
         }
       },
       {
@@ -313,8 +456,38 @@
         },
         "platform": {
           "managementUrl": "https://platform.minimaxi.com/",
-          "apiEndpoint": "https://api.minimax.chat/v1",
+          "apiEndpoint": "https://api.minimaxi.com/v1",
           "defaultName": "MiniMax API Key"
+        },
+        "validation": {
+          "type": "anthropic-compatible",
+          "endpoint": "/v1/messages",
+          "method": "POST",
+          "headers": {
+            "x-api-key": "{apiKey}",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+          },
+          "body": {
+            "model": "MiniMax-M2",
+            "max_tokens": 1,
+            "messages": [
+              {
+                "role": "user",
+                "content": "test"
+              }
+            ]
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "密钥无效或已过期",
+            "403": "密钥权限不足"
+          },
+          "baseUrlSource": "claudeCode.baseUrl",
+          "fallbackBaseUrl": "https://api.minimaxi.com/anthropic",
+          "fallbackBaseUrls": [
+            "https://api.minimax.io/anthropic"
+          ]
         }
       },
       {
@@ -397,6 +570,35 @@
           "managementUrl": "https://openrouter.ai/keys",
           "apiEndpoint": "https://openrouter.ai/api/v1",
           "defaultName": "OpenRouter API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/key",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "API Key 不正确或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://openrouter.ai/api/v1",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "name",
+          "modelDescriptionField": "description",
+          "modelsBaseUrlSource": "platform.apiEndpoint",
+          "modelsFallbackBaseUrl": "https://openrouter.ai/api/v1",
+          "balanceEndpoint": "/key",
+          "balanceMethod": "GET",
+          "balanceBaseUrlSource": "platform.apiEndpoint",
+          "balanceFallbackBaseUrl": "https://openrouter.ai/api/v1"
         }
       },
       {
@@ -426,6 +628,35 @@
           "managementUrl": "https://huggingface.co/settings/tokens",
           "apiEndpoint": "https://api-inference.huggingface.co",
           "defaultName": "Hugging Face API Token"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/api/whoami-v2",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "API Token 无效或已过期",
+            "403": "API Token 权限不足",
+            "429": "请求频率超限",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": null,
+          "fallbackBaseUrl": "https://huggingface.co",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -463,6 +694,43 @@
           "managementUrl": "https://aihubmix.com",
           "apiEndpoint": "https://aihubmix.com",
           "defaultName": "AiHubMix API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrls": [
+            "https://aihubmix.com",
+            "https://api.aihubmix.com"
+          ],
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrls": [
+            "https://aihubmix.com",
+            "https://api.aihubmix.com"
+          ],
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -498,6 +766,37 @@
           "managementUrl": "https://www.dmxapi.cn",
           "apiEndpoint": "https://www.dmxapi.cn",
           "defaultName": "DMXAPI API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://www.dmxapi.cn",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://www.dmxapi.cn",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -535,6 +834,43 @@
           "managementUrl": "https://www.packyapi.com",
           "apiEndpoint": "https://www.packyapi.com",
           "defaultName": "PackyCode API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrls": [
+            "https://www.packyapi.com",
+            "https://api-slb.packyapi.com"
+          ],
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrls": [
+            "https://www.packyapi.com",
+            "https://api-slb.packyapi.com"
+          ],
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -571,9 +907,40 @@
           ]
         },
         "platform": {
-          "managementUrl": "https://anyrouter.top",
-          "apiEndpoint": "https://anyrouter.top",
+          "managementUrl": "https://anyrouter.top/console",
+          "apiEndpoint": "https://anyrouter.top/v1",
           "defaultName": "AnyRouter API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": null,
+          "fallbackBaseUrl": "https://anyrouter.top/v1",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://anyrouter.top/v1",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -596,6 +963,35 @@
           "managementUrl": "https://platform.openai.com/api-keys",
           "apiEndpoint": "https://api.openai.com/v1",
           "defaultName": "OpenAI API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/v1/me",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": null,
+          "fallbackBaseUrl": "https://api.openai.com",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.openai.com",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -687,6 +1083,39 @@
           "managementUrl": "https://cloud.siliconflow.cn/account/ak",
           "apiEndpoint": "https://api.siliconflow.cn/v1",
           "defaultName": "SiliconFlow API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "404": "资源不存在",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试",
+            "504": "网关超时"
+          },
+          "baseUrlSource": null,
+          "fallbackBaseUrl": "https://api.siliconflow.cn",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.siliconflow.cn",
+          "balanceEndpoint": "/v1/user/info",
+          "balanceMethod": "GET",
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": "https://api.siliconflow.cn"
         }
       },
       {
@@ -702,6 +1131,40 @@
           "managementUrl": "https://dashscope.console.aliyun.com",
           "apiEndpoint": "https://dashscope.aliyuncs.com/api/v1",
           "defaultName": "百炼云 API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 不正确或已过期",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrls": [
+            "https://dashscope.aliyuncs.com/api/v1",
+            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+          ],
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrls": [
+            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            "https://dashscope.aliyuncs.com/api/v1"
+          ]
         }
       },
       {
@@ -717,6 +1180,34 @@
           "managementUrl": "https://console.bce.baidu.com/qianfan",
           "apiEndpoint": "https://aip.baidubce.com",
           "defaultName": "百度千帆 API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/oauth/2.0/token?grant_type=client_credentials&client_id={apiKey}&client_secret={apiKey}",
+          "method": "GET",
+          "headers": {},
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误，请确保提供了完整的 API Key 和 Secret Key（格式：API_KEY:SECRET_KEY）",
+            "401": "API Key 或 Secret Key 无效",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": null,
+          "fallbackBaseUrl": "https://aip.baidubce.com",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -777,6 +1268,33 @@
           "managementUrl": "https://console.volcengine.com/ark/keymanage",
           "apiEndpoint": "https://ark.cn-beijing.volces.com/api/v3",
           "defaultName": "火山引擎 API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "密钥无效或已过期",
+            "403": "密钥权限不足"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "name",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -794,6 +1312,37 @@
           "managementUrl": "https://console.mistral.ai/api-keys",
           "apiEndpoint": "https://api.mistral.ai",
           "defaultName": "Mistral AI API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://api.mistral.ai",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.mistral.ai",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -809,6 +1358,36 @@
           "managementUrl": "https://dashboard.cohere.com/api-keys",
           "apiEndpoint": "https://api.cohere.ai/v1",
           "defaultName": "Cohere API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://api.cohere.ai/v1",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "models",
+          "modelIdField": "name",
+          "modelNameField": "name",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.cohere.ai/v1",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -824,6 +1403,36 @@
           "managementUrl": "https://www.perplexity.ai/settings/api",
           "apiEndpoint": "https://api.perplexity.ai",
           "defaultName": "Perplexity API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://api.perplexity.ai",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.perplexity.ai",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -841,6 +1450,34 @@
           "managementUrl": "https://makersuite.google.com/app/apikey",
           "apiEndpoint": "https://generativelanguage.googleapis.com/v1",
           "defaultName": "Gemini API Key"
+        },
+        "validation": {
+          "type": "custom",
+          "endpoint": "/v1/models?key={apiKey}",
+          "method": "GET",
+          "headers": {},
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "API Key 格式错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": null,
+          "fallbackBaseUrl": "https://generativelanguage.googleapis.com",
+          "modelsEndpoint": "/v1/models?key={apiKey}",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "models",
+          "modelIdField": "name",
+          "modelNameField": "displayName",
+          "modelDescriptionField": "description",
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://generativelanguage.googleapis.com",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -856,6 +1493,36 @@
           "managementUrl": "https://console.x.ai/",
           "apiEndpoint": "https://api.x.ai/v1",
           "defaultName": "xAI API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://api.x.ai/v1",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.x.ai/v1",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -874,21 +1541,6 @@
         }
       },
       {
-        "id": "moonshot",
-        "name": "月之暗面 API Key",
-        "platformType": "moonshot",
-        "categories": [],
-        "providerCategory": "thirdParty",
-        "websiteUrl": "https://platform.moonshot.cn/console/api-keys",
-        "isOfficial": false,
-        "isPartner": false,
-        "platform": {
-          "managementUrl": "https://platform.moonshot.cn/console/api-keys",
-          "apiEndpoint": "https://api.moonshot.cn/v1",
-          "defaultName": "月之暗面 API Key"
-        }
-      },
-      {
         "id": "zeroOne",
         "name": "零一万物 API Key",
         "platformType": "zeroOne",
@@ -903,6 +1555,37 @@
           "managementUrl": "https://platform.01.ai/console/api-keys",
           "apiEndpoint": "https://api.01.ai/v1",
           "defaultName": "零一万物 API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://api.01.ai/v1",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.01.ai/v1",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {
@@ -918,21 +1601,36 @@
           "managementUrl": "https://platform.baichuan-ai.com/console/api-keys",
           "apiEndpoint": "https://api.baichuan-ai.com/v1",
           "defaultName": "百川智能 API Key"
-        }
-      },
-      {
-        "id": "wenxin",
-        "name": "文心一言 API Key",
-        "platformType": "wenxin",
-        "categories": [],
-        "providerCategory": "thirdParty",
-        "websiteUrl": "https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application",
-        "isOfficial": false,
-        "isPartner": false,
-        "platform": {
-          "managementUrl": "https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application",
-          "apiEndpoint": "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop",
-          "defaultName": "文心一言 API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/v1/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://api.baichuan-ai.com/v1",
+          "modelsEndpoint": "/v1/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": "https://api.baichuan-ai.com/v1",
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
         }
       },
       {

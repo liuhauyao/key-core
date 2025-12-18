@@ -21,6 +21,10 @@ import '../../services/database_service.dart';
 import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/first_launch_service.dart';
+import '../../services/settings_service.dart';
+import '../../services/key_validation_service.dart';
+import '../../services/model_list_service.dart';
+import '../widgets/model_list_dialog.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/platform_icon_helper.dart';
@@ -84,45 +88,31 @@ class _MainScreenState extends State<MainScreen> {
       
       if (!mounted) return;
       
-      // 检查所有配置目录
-      final results = await firstLaunchService.checkAllConfigDirs();
+      // 检查是否需要用户主目录授权
+      final needsAuth = await firstLaunchService.needsHomeDirAuthorization();
       
-      if (results.isEmpty) {
-        // 所有目录都可以访问，标记为已检查
+      if (!needsAuth) {
+        // 用户主目录可以访问，标记为已检查
         await firstLaunchService.markPermissionsChecked();
         return;
       }
       
-      // 依次提示用户选择目录
-      for (final result in results) {
-        if (!mounted) break;
-        
-        // 等待前一个对话框关闭
-        await Future.delayed(const Duration(milliseconds: 300));
-        
-        if (!mounted) break;
-        
-        // 显示目录选择对话框
-        final selected = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => FirstLaunchDialog(
-            configResult: result,
-            onComplete: () {
-              // 对话框关闭后的回调
-            },
-          ),
-        );
-        
-        // 如果用户选择了目录，继续下一个
-        // 如果用户跳过了，也继续下一个（避免阻塞）
-        if (selected == null || selected == false) {
-          // 用户跳过了，继续下一个
-          continue;
-        }
-      }
+      // 获取默认用户主目录路径
+      final homeDir = await SettingsService.getUserHomeDir();
       
-      // 所有检查完成，标记为已检查
+      // 显示统一的用户主目录选择对话框
+      final selected = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => FirstLaunchDialog(
+          defaultHomeDir: homeDir,
+          onComplete: () {
+            // 对话框关闭后的回调
+          },
+        ),
+      );
+      
+      // 无论用户是否选择，都标记为已检查，避免重复提示
       await firstLaunchService.markPermissionsChecked();
     } catch (e) {
       // 静默处理错误，不影响应用启动
@@ -861,7 +851,7 @@ class _MainScreenState extends State<MainScreen> {
         const double minCardWidth = 240;
         const double cardSpacing = 10;
         const double padding = 16;
-        const double cardHeight = 160; // 固定卡片高度，与 MCP 卡片一致
+        const double cardHeight = 140; // 固定卡片高度，减小高度以优化空间利用
         
         final availableWidth = constraints.maxWidth - padding * 2;
         int crossAxisCount = (availableWidth / (minCardWidth + cardSpacing)).floor();
@@ -883,7 +873,8 @@ class _MainScreenState extends State<MainScreen> {
             key: ValueKey(key.id),
             aiKey: key,
             isEditMode: isEditMode,
-            onTap: () => _showKeyDetails(context, key),
+            cardMode: KeyCardMode.view, // 密钥管理界面使用查看模式
+            onView: () => _showKeyDetails(context, key),
             onEdit: () => _showEditKeyPage(context, key, viewModel),
             onDelete: () => _deleteKey(context, key, viewModel),
             onOpenManagementUrl: () {
@@ -999,7 +990,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  
   Future<void> _showAddKeyPage(BuildContext context) async {
     final viewModel = context.read<KeyManagerViewModel>();
     final localizations = AppLocalizations.of(context);

@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/key_card.dart';
+import '../widgets/official_key_card.dart';
 import '../widgets/key_details_dialog.dart';
 import '../../models/ai_key.dart';
 import '../../utils/app_localizations.dart';
@@ -508,7 +509,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
         const double minCardWidth = 240;
         const double cardSpacing = 10;
         const double padding = 16;
-        const double cardHeight = 160; // 固定卡片高度，与 MCP 卡片一致
+        const double cardHeight = 140; // 固定卡片高度，与 main_screen 一致
         
         final availableWidth = constraints.maxWidth - padding * 2;
         int crossAxisCount = (availableWidth / (minCardWidth + cardSpacing)).floor();
@@ -550,6 +551,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
               aiKey: key,
               isEditMode: false,
               isCurrent: isCurrent,
+              cardMode: KeyCardMode.switchKey, // 工具切换页面使用切换模式
               onTap: () => _switchProvider(key),
               onView: () => _showKeyDetails(context, key),
               onEdit: () => _showEditKeyPage(context, key),
@@ -589,177 +591,67 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
     // Google Gemini 官方后台管理地址
     const String officialManagementUrl = 'https://aistudio.google.com/app/apikey';
     
-    return Container(
+    return OfficialKeyCard(
       key: ValueKey('official_${_isOfficial ? 'current' : 'inactive'}'),
-      decoration: BoxDecoration(
-        color: _isOfficial
-            ? shadTheme.colorScheme.primary.withOpacity(0.1)
-            : shadTheme.colorScheme.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _isOfficial
-              ? shadTheme.colorScheme.primary
-              : shadTheme.colorScheme.border,
-          width: _isOfficial ? 2 : 1,
-        ),
+      isCurrent: _isOfficial,
+      icon: SvgPicture.asset(
+        'assets/icons/platforms/gemini-color.svg',
+        width: 28,
+        height: 28,
+        allowDrawingOutsideViewBox: true,
       ),
-      child: Stack(
-        children: [
-          InkWell(
-            onTap: _switchToOfficial,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 顶部：Logo + 标题区域
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Logo
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          color: shadTheme.colorScheme.muted,
-                        ),
-                        child: Center(
-                          child: PlatformIconHelper.buildIcon(
-                            platform: PlatformType.gemini,
-                            size: 28,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // 标题和副标题
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Gemini Official',
-                              style: shadTheme.textTheme.p.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: shadTheme.colorScheme.foreground,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              localizations?.officialConfig ?? '官方配置',
-                              style: shadTheme.textTheme.small.copyWith(
-                                color: shadTheme.colorScheme.mutedForeground,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // 中间：描述信息
-                  SizedBox(
-                    height: 24,
-                    child: Text(
-                      localizations?.useOfficialApi ?? '使用官方 API 地址',
-                      style: shadTheme.textTheme.small.copyWith(
-                        color: shadTheme.colorScheme.mutedForeground,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const Spacer(),
-                  // 底部：操作按钮组
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildActionButton(
-                              context,
-                              icon: Icons.visibility_outlined,
-                              tooltip: localizations?.details ?? '查看',
-                              onPressed: () {
-                                _showOfficialConfigDetails(context);
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _buildActionButton(
-                              context,
-                              icon: Icons.language,
-                              tooltip: localizations?.openManagementUrl ?? '管理地址',
-                              onPressed: () {
-                                UrlLauncherService().openUrl(officialManagementUrl);
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _buildActionButton(
-                              context,
-                              icon: Icons.copy_outlined,
-                              tooltip: localizations?.copyKey ?? '复制',
-                              onPressed: () {
-                                _copyOfficialApiKey(context);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildActionButton(
-                            context,
-                            icon: Icons.edit_outlined,
-                            tooltip: localizations?.editOfficialConfig ?? '编辑官方配置',
-                            onPressed: () {
-                              _showEditOfficialConfigDialog(context);
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
+      title: 'Gemini Official',
+      subtitle: localizations?.officialConfig ?? '官方配置',
+      description: localizations?.useOfficialApi ?? '使用官方 API 地址',
+      onTap: _switchToOfficial,
+      actions: [
+        Expanded(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildActionButton(
+                context,
+                icon: Icons.visibility_outlined,
+                tooltip: localizations?.details ?? '查看',
+                onPressed: () {
+                  _showOfficialConfigDetails(context);
+                },
               ),
-            ),
+              const SizedBox(width: 8),
+              _buildActionButton(
+                context,
+                icon: Icons.language,
+                tooltip: localizations?.openManagementUrl ?? '管理地址',
+                onPressed: () {
+                  UrlLauncherService().openUrl(officialManagementUrl);
+                },
+              ),
+              const SizedBox(width: 8),
+              _buildActionButton(
+                context,
+                icon: Icons.copy_outlined,
+                tooltip: localizations?.copyKey ?? '复制',
+                onPressed: () {
+                  _copyOfficialApiKey(context);
+                },
+              ),
+            ],
           ),
-          // 悬浮在右上角的"当前"标签
-          if (_isOfficial)
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: shadTheme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  localizations?.current ?? '当前',
-                  style: shadTheme.textTheme.small.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildActionButton(
+              context,
+              icon: Icons.edit_outlined,
+              tooltip: localizations?.editOfficialConfig ?? '编辑官方配置',
+              onPressed: () {
+                _showEditOfficialConfigDialog(context);
+              },
             ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 

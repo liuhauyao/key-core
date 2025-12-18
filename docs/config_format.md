@@ -119,6 +119,112 @@
 - **apiEndpoint**: API 端点地址（可选字符串，必须使用 HTTPS）
 - **defaultName**: 默认密钥名称（可选字符串）
 
+#### 密钥同步配置（可选）
+
+如果供应商支持密钥同步功能（校验有效性、查询模型列表、查询余额），需要包含 `validation` 字段：
+
+```json
+{
+  "validation": {
+    "type": "anthropic-compatible",
+    "endpoint": "/v1/messages",
+    "method": "POST",
+    "headers": {
+      "x-api-key": "{apiKey}",
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json"
+    },
+    "body": {
+      "model": "moonshot-v1-8k",
+      "max_tokens": 1,
+      "messages": [
+        {
+          "role": "user",
+          "content": "test"
+        }
+      ]
+    },
+    "successStatus": [200],
+    "errorStatus": {
+      "401": "密钥无效或已过期",
+      "403": "密钥权限不足"
+    },
+    "baseUrlSource": "claudeCode.baseUrl",
+    "fallbackBaseUrl": "https://api.moonshot.cn/anthropic",
+    "modelsEndpoint": "/models",
+    "modelsMethod": "GET",
+    "modelsResponsePath": "data",
+    "modelIdField": "id",
+    "modelNameField": "id",
+    "modelDescriptionField": null,
+    "modelsBaseUrlSource": "platform.apiEndpoint",
+    "modelsFallbackBaseUrl": "https://api.moonshot.cn/v1",
+    "balanceEndpoint": "/users/me/balance",
+    "balanceMethod": "GET",
+    "balanceBaseUrlSource": "platform.apiEndpoint",
+    "balanceFallbackBaseUrl": "https://api.moonshot.cn/v1"
+  }
+}
+```
+
+##### 基础校验配置字段
+
+- **type**: 校验器类型（必需字符串枚举）
+  - `openai`: OpenAI 官方 API
+  - `openai-compatible`: OpenAI 兼容 API
+  - `anthropic`: Anthropic 官方 API
+  - `anthropic-compatible`: Anthropic 兼容 API
+  - `google`: Google API
+  - `custom`: 自定义配置
+- **endpoint**: 校验端点路径（可选字符串，相对于 baseUrl，如 `/v1/messages`）
+- **method**: HTTP 方法（可选字符串，默认 `GET`，支持 `GET`/`POST`/`PUT`/`DELETE`）
+- **headers**: 请求头映射（可选对象，键值对为字符串）
+  - 支持 `{apiKey}` 占位符，会被替换为实际密钥值
+- **body**: 请求体（可选对象，仅 POST/PUT 使用）
+  - 支持 `{apiKey}` 占位符，会被替换为实际密钥值
+- **successStatus**: 成功状态码列表（可选整数数组，如 `[200, 201]`）
+- **errorStatus**: 错误状态码映射（可选对象，状态码字符串 -> 错误消息）
+- **baseUrlSource**: baseUrl 来源字段（可选字符串）
+  - 支持路径：`claudeCode.baseUrl`、`codex.baseUrl`、`platform.apiEndpoint`
+- **fallbackBaseUrl**: 备用 baseUrl（可选字符串，如果 baseUrlSource 为空时使用）
+
+##### 模型列表查询配置字段
+
+- **modelsEndpoint**: 模型列表查询端点（可选字符串，如 `/v1/models`）
+  - 如果为空，则不显示"查看模型列表"功能
+- **modelsMethod**: 模型列表查询方法（可选字符串，默认 `GET`）
+- **modelsResponsePath**: JSON 响应中模型列表的路径（可选字符串）
+  - 如 `"data"` 表示从 `response.data` 中获取模型列表
+  - 如为空，则从响应根级别获取
+- **modelIdField**: 模型 ID 字段名（可选字符串，默认 `"id"`）
+- **modelNameField**: 模型名称字段名（可选字符串，默认 `"name"`）
+- **modelDescriptionField**: 模型描述字段名（可选字符串，默认 `null`）
+- **modelsBaseUrlSource**: 模型列表查询的 baseUrl 来源（可选字符串）
+  - 如果为空，则使用 `baseUrlSource`
+- **modelsFallbackBaseUrl**: 模型列表查询的备用 baseUrl（可选字符串）
+  - 如果为空，则使用 `fallbackBaseUrl`
+
+##### 余额查询配置字段
+
+- **balanceEndpoint**: 余额查询端点（可选字符串，如 `/users/me/balance`）
+  - 如果为空，则不显示"查询余额"功能
+- **balanceMethod**: 余额查询方法（可选字符串，默认 `GET`）
+- **balanceBody**: 余额查询请求体（可选对象，仅 POST 使用）
+  - 支持 `{apiKey}` 占位符
+- **balanceBaseUrlSource**: 余额查询的 baseUrl 来源（可选字符串）
+  - 如果为空，则使用 `baseUrlSource`
+- **balanceFallbackBaseUrl**: 余额查询的备用 baseUrl（可选字符串）
+  - 如果为空，则使用 `fallbackBaseUrl`
+
+##### 密钥同步功能说明
+
+密钥同步功能整合了三个操作：
+1. **校验有效性**：使用 `endpoint`、`method`、`headers`、`body` 配置进行密钥校验
+2. **查询模型列表**：使用 `modelsEndpoint` 等配置查询可用模型
+3. **查询余额**：使用 `balanceEndpoint` 等配置查询账户余额
+
+同步功能会依次调用这三个接口，统一返回结果。同步成功后，模型列表和余额数据会被缓存到本地，下次显示时直接使用缓存数据。
+
 ## MCP 服务器模板（mcpServerTemplates）
 
 MCP 服务器模板定义了可用的 MCP 服务器配置模板。

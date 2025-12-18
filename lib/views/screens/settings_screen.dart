@@ -632,14 +632,13 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
               crossAxisCount -= 1;
             }
             
-            // 定义工具显示顺序：cursor, claudecode, codex, gemini, windsurf, cline
+            // 定义工具显示顺序：cursor, claudecode, codex, gemini, windsurf
             final orderedTools = [
               AiToolType.cursor,
               AiToolType.claudecode,
               AiToolType.codex,
               AiToolType.gemini,
               AiToolType.windsurf,
-              AiToolType.cline,
             ];
             
             return GridView.builder(

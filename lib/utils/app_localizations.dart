@@ -62,6 +62,8 @@ class AppLocalizations {
       'notes': '备注',
       'select_supplier': '选择供应商（可选）',
       'select_supplier_hint': '选择后自动填充信息',
+      'provider_label': '密钥供应商',
+      'select_provider': '选择供应商',
       'custom': '自定义',
       'required': '必填',
       'optional': '可选',
@@ -257,7 +259,13 @@ class AppLocalizations {
       'browse_directory_failed': '选择目录失败: {error}',
       'first_launch_title': '首次启动设置',
       'first_launch_message': '为了访问 {toolName} 的配置文件，请选择配置目录。',
+      'first_launch_home_dir_message': '应用需要访问您的用户主目录以读取工具配置文件。',
+      'first_launch_instruction': '点击"授权"按钮后，macOS 将弹出系统权限请求对话框，请选择"允许"以授予访问权限。',
+      'first_launch_feature': '应用将自动检测并加载该目录下的所有工具配置',
+      'first_launch_home_dir_label': '用户主目录',
       'first_launch_hint': '默认路径：{path}',
+      'select_home_directory': '选择用户主目录',
+      'authorize': '授权',
       'select_directory': '选择目录',
       'skip': '跳过',
       'select_config_dir': '选择 {toolName} 配置目录',
@@ -525,6 +533,8 @@ class AppLocalizations {
       'notes': 'Notes',
       'select_supplier': 'Select Supplier (Optional)',
       'select_supplier_hint': 'Auto-fill information after selection',
+      'provider_label': 'Key Provider',
+      'select_provider': 'Select Provider',
       'custom': 'Custom',
       'required': 'Required',
       'optional': 'Optional',
@@ -678,7 +688,13 @@ class AppLocalizations {
       'browse_directory_failed': 'Failed to browse directory: {error}',
       'first_launch_title': 'First Launch Setup',
       'first_launch_message': 'To access {toolName} configuration files, please select the config directory.',
+      'first_launch_home_dir_message': 'The app needs to access your home directory to read tool configuration files.',
+      'first_launch_instruction': 'After clicking the "Authorize" button, macOS will display a system permission request dialog. Please select "Allow" to grant access.',
+      'first_launch_feature': 'The app will automatically detect and load all tool configurations in that directory',
+      'first_launch_home_dir_label': 'Home Directory',
       'first_launch_hint': 'Default path: {path}',
+      'select_home_directory': 'Select Home Directory',
+      'authorize': 'Authorize',
       'select_directory': 'Select Directory',
       'skip': 'Skip',
       'select_config_dir': 'Select {toolName} Config Directory',
@@ -931,6 +947,7 @@ class AppLocalizations {
       .replaceAll('{success}', success.toString())
       .replaceAll('{failed}', failed.toString());
   String exportResult(String path) => translate('export_result').replaceAll('{path}', path);
+  String copiedText(String text) => translate('copied_text').replaceAll('{text}', text);
   String get fileNotFound => translate('file_not_found');
   String get invalidFileFormat => translate('invalid_file_format');
   String get decryptFailed => translate('decrypt_failed');
@@ -956,6 +973,8 @@ class AppLocalizations {
   String get notes => translate('notes');
   String get selectSupplier => translate('select_supplier');
   String get selectSupplierHint => translate('select_supplier_hint');
+  String get providerLabel => translate('provider_label');
+  String get selectProvider => translate('select_provider');
   String get custom => translate('custom');
   String get required => translate('required');
   String get optional => translate('optional');
@@ -1062,6 +1081,7 @@ class AppLocalizations {
   String get sonnetModel => translate('sonnet_model');
   String get opusModel => translate('opus_model');
   String get modelName => translate('model_name');
+  String get requestAddress => translate('request_address');
   String get mainModelHint => translate('main_model_hint');
   String get haikuModelHint => translate('haiku_model_hint');
   String get sonnetModelHint => translate('sonnet_model_hint');
@@ -1132,6 +1152,12 @@ class AppLocalizations {
   String browseDirectoryFailed(String error) => translate('browse_directory_failed').replaceAll('{error}', error);
   String get firstLaunchTitle => translate('first_launch_title');
   String firstLaunchMessage(String toolName) => translate('first_launch_message').replaceAll('{toolName}', toolName);
+  String get firstLaunchHomeDirMessage => translate('first_launch_home_dir_message');
+  String get firstLaunchInstruction => translate('first_launch_instruction');
+  String get firstLaunchFeature => translate('first_launch_feature');
+  String get firstLaunchHomeDirLabel => translate('first_launch_home_dir_label');
+  String get selectHomeDirectory => translate('select_home_directory');
+  String get authorize => translate('authorize');
   String firstLaunchHint(String path) => translate('first_launch_hint').replaceAll('{path}', path);
   String get selectDirectory => translate('select_directory');
   String get skip => translate('skip');
@@ -1257,6 +1283,16 @@ class AppLocalizations {
   String get mcpStatus => translate('mcp_status');
   String get mcpActive => translate('mcp_active');
   String get mcpInactive => translate('mcp_inactive');
+  String get mcpSearchTools => translate('mcp_search_tools');
+  String get mcpNoTools => translate('mcp_no_tools');
+  String get mcpNoToolsFound => translate('mcp_no_tools_found');
+  String get mcpChecking => translate('mcp_checking');
+  String get mcpError => translate('mcp_error');
+  String get mcpCheckStatus => translate('mcp_check_status');
+  String get mcpTools => translate('mcp_tools');
+  String get mcpToolInputSchema => translate('mcp_tool_input_schema');
+  String mcpToolsListTitle(String name, int count) => translate('mcp_tools_list_title').replaceAll('{name}', name).replaceAll('{count}', count.toString());
+  String mcpTotalTools(int count, String unit) => translate('mcp_total_tools').replaceAll('{count}', count.toString()).replaceAll('{unit}', unit);
   String get mcpCopyJson => translate('mcp_copy_json');
   String get mcpJsonCopied => translate('mcp_json_copied');
   String get mcpJsonConfigLabel => translate('mcp_json_config_label');
@@ -1314,6 +1350,97 @@ class AppLocalizations {
   String get mcpStatusIdentical => translate('mcp_status_identical');
   String get mcpStatusOnlyLocal => translate('mcp_status_only_local');
   String get mcpStatusOnlyTool => translate('mcp_status_only_tool');
+  // Validation related
+  String get validateKey => translate('validate_key');
+  String get validating => translate('validating');
+  String get validationSuccess => translate('validation_success');
+  String get validationFailed => translate('validation_failed');
+  String get validationError => translate('validation_error');
+  String get validationTimeout => translate('validation_timeout');
+  String get validationNetworkError => translate('validation_network_error');
+  String get validationInvalidKey => translate('validation_invalid_key');
+  String get validationPermissionDenied => translate('validation_permission_denied');
+  String get validationRateLimit => translate('validation_rate_limit');
+  String get validationServerError => translate('validation_server_error');
+  
+  // Model list related
+  String get viewModels => translate('view_models');
+  String get modelList => translate('model_list');
+  String get modelId => translate('model_id');
+  // modelName is already defined above (line 1064)
+  String get modelDescription => translate('model_description');
+  String get copyModelId => translate('copy_model_id');
+  String get modelIdCopied => translate('model_id_copied');
+  String get noModels => translate('no_models');
+  String get noMatchingModels => translate('no_matching_models');
+  String modelsCount(int count) => translate('models_count').replaceAll('{count}', count.toString());
+  String get searchModels => translate('search_models');
+  String get modelListQueryFailed => translate('model_list_query_failed');
+  String get platformNotSupportModelList => translate('platform_not_support_model_list');
+  
+  // Sync related
+  String get sync => translate('sync');
+  String get syncKey => translate('sync_key');
+  String get syncing => translate('syncing');
+  String get syncSuccess => translate('sync_success');
+  String get syncFailed => translate('sync_failed');
+  String syncSuccessMessage(String message) => translate('sync_success_message').replaceAll('{message}', message);
+  String syncFailedMessage(String error) => translate('sync_failed_message').replaceAll('{error}', error);
+  String get unknownError => translate('unknown_error');
+  
+  // Balance related
+  String get balance => translate('balance');
+  String get availableBalance => translate('available_balance');
+  String get cashBalance => translate('cash_balance');
+  String get voucherBalance => translate('voucher_balance');
+  String get totalBalance => translate('total_balance');
+  String get accountBalance => translate('account_balance');
+  String get updateModelListFailed => translate('update_model_list_failed');
+  String get syncCancelled => translate('sync_cancelled');
+  String get copyEnvVarCommand => translate('copy_env_var_command');
+  String get queryBalanceFailed => translate('query_balance_failed');
+
+  // Balance detail methods with parameters
+  String syncFailedWithError(String error) => translate('sync_failed').replaceAll('{error}', error);
+  String queryBalanceFailedWithError(String error) => translate('query_balance_failed_with_error').replaceAll('{error}', error);
+  String remainingBalance(String amount) => translate('remaining_balance').replaceAll('{amount}', amount);
+  String usedAmount(String amount) => translate('used_amount').replaceAll('{amount}', amount);
+  String totalQuota(String amount) => translate('total_quota').replaceAll('{amount}', amount);
+  String get totalQuotaUnlimited => translate('total_quota_unlimited');
+  String dailyUsage(String amount) => translate('daily_usage').replaceAll('{amount}', amount);
+  String weeklyUsage(String amount) => translate('weekly_usage').replaceAll('{amount}', amount);
+  String monthlyUsage(String amount) => translate('monthly_usage').replaceAll('{amount}', amount);
+  String totalBalanceDetail(String amount) => translate('total_balance_detail').replaceAll('{amount}', amount);
+  String rechargeBalance(String amount) => translate('recharge_balance').replaceAll('{amount}', amount);
+  String availableBalanceDetail(String amount) => translate('available_balance_detail').replaceAll('{amount}', amount);
+  String grantedBalance(String amount) => translate('granted_balance').replaceAll('{amount}', amount);
+  String toppedUpBalance(String amount) => translate('topped_up_balance').replaceAll('{amount}', amount);
+  String modelsLabel(int count) => translate('models_label').replaceAll('{count}', count.toString());
+  String modelIdCopiedWithId(String id) => translate('model_id_copied_with_id').replaceAll('{id}', id);
+  String get contextLength => translate('context_length');
+  String get inputModalities => translate('input_modalities');
+  String get outputModalities => translate('output_modalities');
+  String get maxOutputTokens => translate('max_output_tokens');
+  String get parameters => translate('parameters');
+  String get yes => translate('yes');
+  String get no => translate('no');
+  String get identifier => translate('identifier');
+  String get maxTokens => translate('max_tokens');
+  String get temperature => translate('temperature');
+  String get topP => translate('top_p');
+  String get frequencyPenalty => translate('frequency_penalty');
+  String get presencePenalty => translate('presence_penalty');
+  String get stop => translate('stop');
+  String get stream => translate('stream');
+  String get n => translate('n');
+  String get logprobs => translate('logprobs');
+  String get echo => translate('echo');
+  String get bestOf => translate('best_of');
+  
+  // Model list related
+  String get updateModelList => translate('update_model_list');
+  String get viewCachedModels => translate('view_cached_models');
+  String get noCachedModelsPleaseSync => translate('no_cached_models_please_sync');
 }
 
 class _AppLocalizationsDelegate
@@ -1327,6 +1454,9 @@ class _AppLocalizationsDelegate
     return true; // 允许所有语言代码，由 LanguagePackService 处理
   }
 
+  // 缓存已加载的语言包，避免重复加载
+  static final Map<String, Map<String, String>?> _loadedPacks = {};
+
   @override
   Future<AppLocalizations> load(Locale locale) async {
     // 构建完整的 locale 代码：如果有国家代码，使用 languageCode_countryCode 格式
@@ -1337,12 +1467,30 @@ class _AppLocalizationsDelegate
     // 初始化语言包服务
     await AppLocalizations._languagePackService.init();
     
-    // 尝试加载语言包（优先使用完整的 locale 代码）
-    var jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(fullLocaleCode, forceRefresh: true);
+    // 检查缓存，避免重复加载
+    Map<String, String>? jsonTranslations;
+    if (_loadedPacks.containsKey(fullLocaleCode)) {
+      jsonTranslations = _loadedPacks[fullLocaleCode];
+    } else {
+      // 尝试加载语言包（优先使用完整的 locale 代码，不使用 forceRefresh）
+      jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(fullLocaleCode, forceRefresh: false);
     
     // 如果完整的 locale 代码加载失败，尝试只使用语言代码
     if (jsonTranslations == null && fullLocaleCode != locale.languageCode) {
-      jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(locale.languageCode, forceRefresh: true);
+        if (_loadedPacks.containsKey(locale.languageCode)) {
+          jsonTranslations = _loadedPacks[locale.languageCode];
+        } else {
+          jsonTranslations = await AppLocalizations._languagePackService.loadLanguagePack(locale.languageCode, forceRefresh: false);
+          if (jsonTranslations != null) {
+            _loadedPacks[locale.languageCode] = jsonTranslations;
+          }
+        }
+      }
+      
+      // 缓存加载结果
+      if (jsonTranslations != null) {
+        _loadedPacks[fullLocaleCode] = jsonTranslations;
+      }
     }
     
     // 只在加载失败时打印错误日志

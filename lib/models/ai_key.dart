@@ -47,6 +47,9 @@ class AIKey extends Equatable {
   final String? geminiModel;
   final String? geminiBaseUrl;
 
+  // 校验状态
+  final bool isValidated; // 是否校验通过
+
   const AIKey({
     this.id,
     required this.name,
@@ -81,6 +84,7 @@ class AIKey extends Equatable {
     this.geminiApiEndpoint,
     this.geminiModel,
     this.geminiBaseUrl,
+    this.isValidated = false,
   });
 
   AIKey copyWith({
@@ -117,6 +121,7 @@ class AIKey extends Equatable {
     String? geminiApiEndpoint,
     String? geminiModel,
     String? geminiBaseUrl,
+    bool? isValidated,
   }) {
     return AIKey(
       id: id ?? this.id,
@@ -152,6 +157,7 @@ class AIKey extends Equatable {
       geminiApiEndpoint: geminiApiEndpoint ?? this.geminiApiEndpoint,
       geminiModel: geminiModel ?? this.geminiModel,
       geminiBaseUrl: geminiBaseUrl ?? this.geminiBaseUrl,
+      isValidated: isValidated ?? this.isValidated,
     );
   }
 
@@ -190,6 +196,7 @@ class AIKey extends Equatable {
       'gemini_api_endpoint': geminiApiEndpoint,
       'gemini_model': geminiModel,
       'gemini_base_url': geminiBaseUrl,
+      'is_validated': isValidated ? 1 : 0,
     };
   }
 
@@ -241,6 +248,7 @@ class AIKey extends Equatable {
       geminiApiEndpoint: map['gemini_api_endpoint'],
       geminiModel: map['gemini_model'],
       geminiBaseUrl: map['gemini_base_url'],
+      isValidated: (map['is_validated']?.toInt() ?? 0) == 1,
     );
   }
 
@@ -321,5 +329,6 @@ class AIKey extends Equatable {
         geminiApiEndpoint,
         geminiModel,
         geminiBaseUrl,
+        isValidated,
       ];
 }

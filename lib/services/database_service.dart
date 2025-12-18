@@ -42,7 +42,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -84,7 +84,8 @@ class DatabaseService {
         enable_gemini INTEGER DEFAULT 0,
         gemini_api_endpoint TEXT,
         gemini_model TEXT,
-        gemini_base_url TEXT
+        gemini_base_url TEXT,
+        is_validated INTEGER DEFAULT 0
       )
     ''');
 
@@ -295,6 +296,13 @@ class DatabaseService {
       // 创建新索引
       await db.execute('CREATE INDEX idx_ai_keys_gemini ON ai_keys(enable_gemini)');
     }
+
+    if (oldVersion < 8) {
+      // 添加校验状态字段
+      await db.execute('''
+        ALTER TABLE ai_keys ADD COLUMN is_validated INTEGER DEFAULT 0
+      ''');
+    }
   }
 
   /// 插入密钥
@@ -388,7 +396,7 @@ class DatabaseService {
     final db = await database;
     final maps = await db.query(
       'ai_keys',
-      orderBy: 'is_favorite DESC, updated_at ASC', // 改为 ASC，确保拖动排序正确
+      orderBy: 'is_favorite DESC, updated_at DESC', // 改为 DESC，新增密钥排在最前面
     );
     return maps.map((map) => AIKey.fromMap(map)).toList();
   }
@@ -413,7 +421,7 @@ class DatabaseService {
       'ai_keys',
       where: 'enable_claude_code = ?',
       whereArgs: [1],
-      orderBy: 'is_favorite DESC, updated_at ASC', // 改为 ASC，与密钥页面排序逻辑一致
+      orderBy: 'is_favorite DESC, updated_at DESC', // 改为 DESC，新增密钥排在最前面
     );
     return maps.map((map) => AIKey.fromMap(map)).toList();
   }
@@ -426,7 +434,7 @@ class DatabaseService {
       'ai_keys',
       where: 'enable_codex = ?',
       whereArgs: [1],
-      orderBy: 'is_favorite DESC, updated_at ASC', // 改为 ASC，与密钥页面排序逻辑一致
+      orderBy: 'is_favorite DESC, updated_at DESC', // 改为 DESC，新增密钥排在最前面
     );
     return maps.map((map) => AIKey.fromMap(map)).toList();
   }
@@ -438,7 +446,7 @@ class DatabaseService {
       'ai_keys',
       where: 'enable_gemini = ?',
       whereArgs: [1],
-      orderBy: 'is_favorite DESC, updated_at ASC',
+      orderBy: 'is_favorite DESC, updated_at DESC',
     );
     return maps.map((map) => AIKey.fromMap(map)).toList();
   }
