@@ -299,13 +299,18 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
   Future<void> _checkForUpdates() async {
     if (!mounted) return;
     
+    print('SettingsScreen: ========== 手动检查配置更新 ==========');
+    
     setState(() {
       _isCheckingUpdate = true;
     });
 
     try {
       await _cloudConfigService.init();
+      print('SettingsScreen: CloudConfigService 已初始化');
+      print('SettingsScreen: 开始检查更新（force=true）...');
       final hasUpdate = await _cloudConfigService.checkForUpdates(force: true);
+      print('SettingsScreen: 检查更新结果: hasUpdate=$hasUpdate');
       
       if (!mounted) return;
       
