@@ -14,9 +14,14 @@ class CloudConfigService {
   static const String _keyLastUpdateCheck = 'cloud_config_last_update_check';
   static const String _defaultVersion = '1.0.0';
   
-  // 默认配置URL（GitHub Raw）- key-core 主仓库
-  // 格式: https://raw.githubusercontent.com/{owner}/{repo}/{branch}/assets/config/app_config.json
+  // 默认配置URL（GitHub API）- key-core 主仓库
+  // ⭐ 使用 GitHub API 而不是 raw URL，可以绕过 CDN 缓存
+  // 格式: https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={branch}
   static const String _defaultConfigUrl = 
+      'https://api.github.com/repos/liuhauyao/key-core/contents/assets/config/app_config.json?ref=main';
+  
+  // GitHub Raw URL（备选）- 如果 API 失败时使用
+  static const String _githubRawUrl = 
       'https://raw.githubusercontent.com/liuhauyao/key-core/main/assets/config/app_config.json';
   
   // Gitee备选URL（国内用户）- key-core 镜像仓库
@@ -141,14 +146,45 @@ class CloudConfigService {
     }
     
     try {
+      final uri = Uri.parse(url);
+      
+      // ⭐ 策略：优先使用 GitHub API（绕过 CDN 缓存），失败时回退到 raw URL
+      CloudConfig? config;
+      
+      // 如果是默认 URL，先尝试使用 GitHub API
+      if (url == _defaultConfigUrl || url == _githubRawUrl) {
+        config = await _fetchFromGitHubApi();
+        if (config != null) {
+          return config;
+        }
+        // API 失败，回退到 raw URL
+        print('CloudConfigService: GitHub API 失败，回退到 raw URL...');
+      }
+      
+      // ⭐ 使用 raw URL 或自定义 URL，添加时间戳参数绕过缓存
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final uriWithTimestamp = uri.replace(queryParameters: {
+        ...uri.queryParameters,
+        '_t': timestamp.toString(),
+        't': timestamp.toString(),
+        'nocache': timestamp.toString(),
+        'v': timestamp.toString(),
+        'r': DateTime.now().microsecondsSinceEpoch.toString(), // 随机参数
+      });
+      
+      print('CloudConfigService: 从云端获取配置: $uriWithTimestamp');
+      
       final response = await http.get(
-        Uri.parse(url),
+        uriWithTimestamp,
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'AI-Key-Manager/1.0',
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
         },
       ).timeout(
-        const Duration(seconds: 10),
+        const Duration(seconds: 15),
         onTimeout: () {
           throw Exception('请求超时');
         },
@@ -156,8 +192,13 @@ class CloudConfigService {
       
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-        final config = CloudConfig.fromJson(jsonData);
+        config = CloudConfig.fromJson(jsonData);
+        print('CloudConfigService: 成功获取云端配置 - 版本: ${config.version}, 时间: ${config.lastUpdated}');
         return config;
+      } else if (response.statusCode == 304) {
+        // 304 响应，强制重新请求
+        print('CloudConfigService: 收到 304 响应，强制重新请求...');
+        return await _forceFetchFromUrl(uri);
       } else {
         print('CloudConfigService: 获取配置失败，状态码: ${response.statusCode}');
         return null;
@@ -166,6 +207,100 @@ class CloudConfigService {
       print('CloudConfigService: 获取云端配置异常: $e');
       return null;
     }
+  }
+  
+  /// 使用 GitHub API 获取配置（绕过 CDN 缓存）
+  Future<CloudConfig?> _fetchFromGitHubApi() async {
+    try {
+      final apiUrl = 'https://api.github.com/repos/liuhauyao/key-core/contents/assets/config/app_config.json?ref=main';
+      print('CloudConfigService: 使用 GitHub API 获取配置: $apiUrl');
+      
+      final response = await http.get(
+        Uri.parse(apiUrl),
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'AI-Key-Manager/1.0',
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+        },
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw Exception('GitHub API 请求超时');
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        // GitHub API 返回的是 base64 编码的内容
+        final jsonData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        final content = jsonData['content'] as String?;
+        final encoding = jsonData['encoding'] as String?;
+        
+        if (content != null && encoding == 'base64') {
+          // 解码 base64 内容
+          final decodedBytes = base64Decode(content.replaceAll(RegExp(r'\s'), ''));
+          final jsonString = utf8.decode(decodedBytes);
+          final configJson = jsonDecode(jsonString) as Map<String, dynamic>;
+          final config = CloudConfig.fromJson(configJson);
+          print('CloudConfigService: GitHub API 成功获取配置 - 版本: ${config.version}, 时间: ${config.lastUpdated}');
+          return config;
+        } else {
+          print('CloudConfigService: GitHub API 返回格式异常');
+          return null;
+        }
+      } else {
+        print('CloudConfigService: GitHub API 请求失败，状态码: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('CloudConfigService: GitHub API 请求异常: $e');
+      return null;
+    }
+  }
+  
+  /// 强制从 URL 获取配置（多次重试）
+  Future<CloudConfig?> _forceFetchFromUrl(Uri uri) async {
+    // 尝试多次，每次使用不同的时间戳
+    for (int i = 0; i < 3; i++) {
+      try {
+        final timestamp = DateTime.now().millisecondsSinceEpoch + i;
+        final retryUri = uri.replace(queryParameters: {
+          ...uri.queryParameters,
+          '_t': timestamp.toString(),
+          'force': i.toString(),
+          'attempt': i.toString(),
+        });
+        
+        print('CloudConfigService: 强制重试 $i/3: $retryUri');
+        
+        final response = await http.get(
+          retryUri,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'AI-Key-Manager/1.0',
+            'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        ).timeout(
+          const Duration(seconds: 10),
+        );
+        
+        if (response.statusCode == 200) {
+          final jsonData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+          final config = CloudConfig.fromJson(jsonData);
+          print('CloudConfigService: 强制重试成功 - 版本: ${config.version}');
+          return config;
+        }
+        
+        // 等待一下再重试
+        await Future.delayed(Duration(milliseconds: 500 * (i + 1)));
+      } catch (e) {
+        print('CloudConfigService: 强制重试 $i 失败: $e');
+      }
+    }
+    
+    return null;
   }
 
   /// 从本地文件加载配置（assets）
@@ -235,15 +370,16 @@ class CloudConfigService {
     // 记录检查时间
     await _recordUpdateCheck();
     
-    // 获取本地配置的时间戳
+    // 获取本地配置
     final localConfig = await loadLocalCachedConfig();
-    final localLastUpdated = localConfig?.lastUpdated;
     
     // 尝试从云端获取配置
     CloudConfig? cloudConfig = await fetchConfigFromCloud();
     
     // 如果失败，尝试使用Gitee备选URL（仅当使用默认URL时）
-    if (cloudConfig == null && getConfigUrl() == _defaultConfigUrl) {
+    final currentUrl = getConfigUrl();
+    if (cloudConfig == null && (currentUrl == _defaultConfigUrl || currentUrl == _githubRawUrl)) {
+      print('CloudConfigService: GitHub 获取失败，尝试使用 Gitee 备选源...');
       cloudConfig = await fetchConfigFromCloud(customUrl: _giteeConfigUrl);
     }
     
@@ -252,56 +388,57 @@ class CloudConfigService {
       return false;
     }
     
-    final cloudLastUpdated = cloudConfig.lastUpdated;
-    
     // 如果没有本地配置，直接更新
-    if (localLastUpdated == null) {
+    if (localConfig == null) {
       final saved = await saveConfigToCache(cloudConfig);
       if (saved) {
-        print('CloudConfigService: 配置已更新');
+        print('CloudConfigService: 配置已更新（首次安装）');
         _cachedConfig = null;
         return true;
       }
       return false;
     }
     
+    // ⭐ 关键修复：优先使用缓存文件中的实际版本号和时间戳
+    // 而不是 SharedPreferences 中的版本号（可能不同步）
+    final localVersion = localConfig.version; // 从缓存文件读取实际版本号
+    final localLastUpdated = localConfig.lastUpdated; // 从缓存文件读取实际时间戳
+    final cloudVersion = cloudConfig.version;
+    final cloudLastUpdated = cloudConfig.lastUpdated;
+    
+    // 比较版本号
+    final versionCompare = compareVersions(localVersion, cloudVersion);
+    final hasVersionUpdate = versionCompare < 0;
+    
     // 比较时间戳
+    bool hasTimestampUpdate = false;
     try {
       final localDate = DateTime.parse(localLastUpdated);
       final cloudDate = DateTime.parse(cloudLastUpdated);
-      
-      if (cloudDate.isAfter(localDate)) {
-        // 云端时间戳更新，需要更新
-        final saved = await saveConfigToCache(cloudConfig);
-        if (saved) {
-          print('CloudConfigService: 配置已更新');
-        _cachedConfig = null;
-          return true;
-        } else {
-          print('CloudConfigService: 配置更新失败');
-          return false;
-        }
-      } else {
-        return false;
-      }
+      hasTimestampUpdate = cloudDate.isAfter(localDate);
     } catch (e) {
-      print('CloudConfigService: 时间戳解析失败: $e，使用版本号比较');
-      // 回退到版本号比较
-      final localVersion = await getLocalConfigVersion();
-      final cloudVersion = cloudConfig.version;
-      final versionCompare = compareVersions(localVersion, cloudVersion);
+      print('CloudConfigService: 时间戳解析失败: $e，仅使用版本号比较');
+      // 如果时间戳解析失败，仅依赖版本号比较
+    }
+    
+    // 只要版本号或时间戳任一更新，就需要更新
+    if (hasVersionUpdate || hasTimestampUpdate) {
+      print('CloudConfigService: 检测到配置更新 - 版本号: ${hasVersionUpdate ? "是" : "否"}, 时间戳: ${hasTimestampUpdate ? "是" : "否"}');
+      print('CloudConfigService: 本地版本: $localVersion, 云端版本: $cloudVersion');
+      print('CloudConfigService: 本地时间: $localLastUpdated, 云端时间: $cloudLastUpdated');
       
-      if (versionCompare < 0) {
-        final saved = await saveConfigToCache(cloudConfig);
-        if (saved) {
-          print('CloudConfigService: 配置已更新');
+      final saved = await saveConfigToCache(cloudConfig);
+      if (saved) {
+        print('CloudConfigService: 配置已更新');
         _cachedConfig = null;
-          return true;
-        }
-        return false;
+        return true;
       } else {
+        print('CloudConfigService: 配置更新失败');
         return false;
       }
+    } else {
+      print('CloudConfigService: 配置已是最新版本 - 本地版本: $localVersion, 云端版本: $cloudVersion');
+      return false;
     }
   }
 
