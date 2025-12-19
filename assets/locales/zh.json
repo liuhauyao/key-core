@@ -99,6 +99,8 @@
   "copy_api_endpoint": "复制API地址",
   "copy_key": "复制密钥",
   "delete_tooltip": "删除",
+  "move_to_top": "置顶",
+  "moved_to_top": "已置顶",
   "platform_label": "平台",
   "provider_label": "密钥供应商",
   "open": "打开",

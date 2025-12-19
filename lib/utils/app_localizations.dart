@@ -1025,6 +1025,8 @@ class AppLocalizations {
   String get copyApiEndpoint => translate('copy_api_endpoint');
   String get copyKey => translate('copy_key');
   String get deleteTooltip => translate('delete_tooltip');
+  String get moveToTop => translate('move_to_top');
+  String get movedToTop => translate('moved_to_top');
   String get platformLabel => translate('platform_label');
   String get open => translate('open');
   String get createdTime => translate('created_time');

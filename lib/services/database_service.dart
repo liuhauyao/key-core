@@ -132,63 +132,64 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_mcp_servers_type ON mcp_servers(server_type)');
   }
 
+  /// 检查表中是否存在指定列
+  Future<bool> _columnExists(Database db, String tableName, String columnName) async {
+    try {
+      final result = await db.rawQuery(
+        "PRAGMA table_info($tableName)",
+      );
+      return result.any((row) => row['name'] == columnName);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 安全地添加列（如果列不存在）
+  Future<void> _addColumnIfNotExists(
+    Database db,
+    String tableName,
+    String columnName,
+    String columnDefinition,
+  ) async {
+    final exists = await _columnExists(db, tableName, columnName);
+    if (!exists) {
+      await db.execute('''
+        ALTER TABLE $tableName ADD COLUMN $columnName $columnDefinition
+      ''');
+    }
+  }
+
   /// 数据库升级
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // 添加 ClaudeCode 和 Codex 相关字段
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN enable_claude_code INTEGER DEFAULT 0
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN claude_code_api_endpoint TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN claude_code_model TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN claude_code_haiku_model TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN claude_code_sonnet_model TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN claude_code_opus_model TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN claude_code_base_url TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN enable_codex INTEGER DEFAULT 0
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN codex_api_endpoint TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN codex_model TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN codex_base_url TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN codex_config TEXT
-      ''');
+      await _addColumnIfNotExists(db, 'ai_keys', 'enable_claude_code', 'INTEGER DEFAULT 0');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_api_endpoint', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_model', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_haiku_model', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_sonnet_model', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_opus_model', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_base_url', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'enable_codex', 'INTEGER DEFAULT 0');
+      await _addColumnIfNotExists(db, 'ai_keys', 'codex_api_endpoint', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'codex_model', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'codex_base_url', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'codex_config', 'TEXT');
       
-      // 创建新索引
-      await db.execute('CREATE INDEX idx_ai_keys_claude_code ON ai_keys(enable_claude_code)');
-      await db.execute('CREATE INDEX idx_ai_keys_codex ON ai_keys(enable_codex)');
+      // 创建新索引（如果不存在）
+      try {
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_ai_keys_claude_code ON ai_keys(enable_claude_code)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_ai_keys_codex ON ai_keys(enable_codex)');
+      } catch (e) {
+        // 索引可能已存在，忽略错误
+      }
     }
     
     if (oldVersion < 3) {
       // 添加新的模型字段
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN claude_code_haiku_model TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN claude_code_sonnet_model TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN claude_code_opus_model TEXT
-      ''');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_haiku_model', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_sonnet_model', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_opus_model', 'TEXT');
     }
 
     if (oldVersion < 4) {
@@ -218,9 +219,13 @@ class DatabaseService {
       ''');
 
       // 创建 MCP 服务器索引
-      await db.execute('CREATE INDEX idx_mcp_servers_server_id ON mcp_servers(server_id)');
-      await db.execute('CREATE INDEX idx_mcp_servers_active ON mcp_servers(is_active)');
-      await db.execute('CREATE INDEX idx_mcp_servers_type ON mcp_servers(server_type)');
+      try {
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_mcp_servers_server_id ON mcp_servers(server_id)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_mcp_servers_active ON mcp_servers(is_active)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_mcp_servers_type ON mcp_servers(server_type)');
+      } catch (e) {
+        // 索引可能已存在，忽略错误
+      }
     }
 
     if (oldVersion < 5) {
@@ -270,49 +275,43 @@ class DatabaseService {
       await db.execute('ALTER TABLE mcp_servers_new RENAME TO mcp_servers');
 
       // 重新创建索引
-      await db.execute('CREATE INDEX idx_mcp_servers_server_id ON mcp_servers(server_id)');
-      await db.execute('CREATE INDEX idx_mcp_servers_active ON mcp_servers(is_active)');
-      await db.execute('CREATE INDEX idx_mcp_servers_type ON mcp_servers(server_type)');
+      try {
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_mcp_servers_server_id ON mcp_servers(server_id)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_mcp_servers_active ON mcp_servers(is_active)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_mcp_servers_type ON mcp_servers(server_type)');
+      } catch (e) {
+        // 索引可能已存在，忽略错误
+      }
     }
 
     if (oldVersion < 6) {
       // 添加 icon 字段到 ai_keys 表
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN icon TEXT
-      ''');
+      await _addColumnIfNotExists(db, 'ai_keys', 'icon', 'TEXT');
     }
 
     if (oldVersion < 7) {
       // 添加 Gemini 相关字段
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN enable_gemini INTEGER DEFAULT 0
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN gemini_api_endpoint TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN gemini_model TEXT
-      ''');
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN gemini_base_url TEXT
-      ''');
+      await _addColumnIfNotExists(db, 'ai_keys', 'enable_gemini', 'INTEGER DEFAULT 0');
+      await _addColumnIfNotExists(db, 'ai_keys', 'gemini_api_endpoint', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'gemini_model', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'gemini_base_url', 'TEXT');
       
-      // 创建新索引
-      await db.execute('CREATE INDEX idx_ai_keys_gemini ON ai_keys(enable_gemini)');
+      // 创建新索引（如果不存在）
+      try {
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_ai_keys_gemini ON ai_keys(enable_gemini)');
+      } catch (e) {
+        // 索引可能已存在，忽略错误
+      }
     }
 
     if (oldVersion < 8) {
       // 添加校验状态字段
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN is_validated INTEGER DEFAULT 0
-      ''');
+      await _addColumnIfNotExists(db, 'ai_keys', 'is_validated', 'INTEGER DEFAULT 0');
     }
 
     if (oldVersion < 9) {
       // 添加 platform_type_id 字段，用于存储平台ID（字符串）而不是索引
-      await db.execute('''
-        ALTER TABLE ai_keys ADD COLUMN platform_type_id TEXT
-      ''');
+      await _addColumnIfNotExists(db, 'ai_keys', 'platform_type_id', 'TEXT');
     }
   }
 

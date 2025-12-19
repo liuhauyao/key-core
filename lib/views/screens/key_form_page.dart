@@ -1229,7 +1229,6 @@ class _KeyFormPageState extends State<KeyFormPage> {
               height: 18,
               child: PlatformIconService.buildIcon(
                 platform: currentPlatform,
-                customIconFileName: _selectedIcon,
                 size: 18,
               ),
             ),

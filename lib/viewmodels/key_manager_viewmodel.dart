@@ -294,6 +294,27 @@ class KeyManagerViewModel extends BaseViewModel {
     }
   }
 
+  /// 将密钥移动到顶部（置顶）
+  Future<bool> moveKeyToTop(int keyId) async {
+    try {
+      final keyIndex = _filteredKeys.indexWhere((k) => k.id == keyId);
+      if (keyIndex == -1) return false;
+      
+      // 如果已经在第一位，不需要操作
+      if (keyIndex == 0) return true;
+      
+      // 创建新的排序列表，将目标密钥移到第一位
+      final reorderedKeys = List<AIKey>.from(_filteredKeys);
+      final key = reorderedKeys.removeAt(keyIndex);
+      reorderedKeys.insert(0, key);
+      
+      // 使用现有的 reorderKeys 方法处理排序
+      return await reorderKeys(reorderedKeys);
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// 更新统计信息
   Future<void> _updateStatistics() async {
     _statistics = await _databaseService.getStatistics();

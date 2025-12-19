@@ -125,19 +125,35 @@ class ImportService {
           }
 
           // 解析平台类型
-          PlatformType platformType;
-          if (keyMap['platform_type'] != null) {
-            final typeIndex = keyMap['platform_type'] as int;
-            final allPlatforms = PlatformRegistry.values;
-            if (typeIndex >= 0 && typeIndex < allPlatforms.length) {
-              platformType = allPlatforms[typeIndex];
-            } else {
-              platformType = PlatformRegistry.fromString(
-                  keyMap['platform'] as String? ?? 'Custom');
+          // 优先使用 platform 字段（平台名称）来恢复，因为它更可靠
+          // 如果 platform 字段无法匹配，再尝试使用 platform_type 索引
+          PlatformType platformType = PlatformType.custom;
+          
+          // 方法1：优先使用 platform 字段（平台名称）恢复
+          if (keyMap['platform'] != null) {
+            final platformName = keyMap['platform'] as String;
+            if (platformName.isNotEmpty) {
+              final platformTypeByName = PlatformRegistry.fromString(platformName);
+              if (platformTypeByName != PlatformType.custom) {
+                platformType = platformTypeByName;
+              }
             }
-          } else {
-            platformType = PlatformRegistry.fromString(
-                keyMap['platform'] as String? ?? 'Custom');
+          }
+          
+          // 方法2：如果 platform 字段无法匹配，尝试使用 platform_type 索引
+          if (platformType == PlatformType.custom && keyMap['platform_type'] != null) {
+            final typeIndex = keyMap['platform_type'] as int;
+            if (typeIndex >= 0) {
+              final allPlatforms = PlatformRegistry.values;
+              if (typeIndex < allPlatforms.length) {
+                platformType = allPlatforms[typeIndex];
+              }
+            }
+          }
+          
+          // 如果都失败，使用 Custom
+          if (platformType == PlatformType.custom) {
+            platformType = PlatformType.custom;
           }
 
           // 解析标签
@@ -278,14 +294,24 @@ class ImportService {
             Map<String, String>? env;
             if (serverMap['env'] != null) {
               if (serverMap['env'] is Map) {
-                env = Map<String, String>.from(serverMap['env']);
+                final envMap = serverMap['env'] as Map;
+                if (envMap.isNotEmpty) {
+                  env = Map<String, String>.from(envMap.map((key, value) => MapEntry(key.toString(), value.toString())));
+                } else {
+                  env = null; // 空Map视为null
+                }
               }
             }
 
             Map<String, String>? headers;
             if (serverMap['headers'] != null) {
               if (serverMap['headers'] is Map) {
-                headers = Map<String, String>.from(serverMap['headers']);
+                final headersMap = serverMap['headers'] as Map;
+                if (headersMap.isNotEmpty) {
+                  headers = Map<String, String>.from(headersMap.map((key, value) => MapEntry(key.toString(), value.toString())));
+                } else {
+                  headers = null; // 空Map视为null
+                }
               }
             }
 

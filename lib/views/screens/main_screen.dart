@@ -30,6 +30,7 @@ import '../../viewmodels/settings_viewmodel.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/platform_icon_service.dart';
 import 'dart:io';
+import 'dart:async';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -51,6 +52,11 @@ class _MainScreenState extends State<MainScreen> {
   bool _previousLoadingState = false;
   int? _lastRefreshedPageIndex; // 记录上次刷新的页面索引，避免重复刷新
   int? _targetPageIndex; // 记录目标页面索引，用于区分中间页面和目标页面
+  final ScrollController _keyListScrollController = ScrollController();
+  final GlobalKey _keyListKey = GlobalKey();
+  Timer? _edgeScrollTimer;
+  bool _isDragging = false;
+  Offset? _lastDragPosition;
 
   @override
   void initState() {
@@ -125,6 +131,8 @@ class _MainScreenState extends State<MainScreen> {
   void dispose() {
     _searchController.dispose();
     _pageController.dispose();
+    _keyListScrollController.dispose();
+    _edgeScrollTimer?.cancel();
     super.dispose();
   }
   
@@ -935,46 +943,80 @@ class _MainScreenState extends State<MainScreen> {
               final loc = AppLocalizations.of(context);
               _showSnackBar(context, loc?.keyCopied ?? '密钥已复制');
             },
+            onMoveToTop: () async {
+              final success = await viewModel.moveKeyToTop(key.id!);
+              if (success) {
+                final loc = AppLocalizations.of(context);
+                _showSnackBar(context, loc?.movedToTop ?? '已置顶');
+              }
+            },
           );
         }).toList();
 
         // 编辑模式下使用 ReorderableWrap
         if (isEditMode) {
-          return Padding(
-            padding: const EdgeInsets.all(padding),
-            child: ReorderableWrap(
-              spacing: cardSpacing,
-              runSpacing: cardSpacing,
-              needsLongPressDraggable: false, // 禁用长按拖动，允许直接拖动
-              onReorder: (oldIndex, newIndex) {
-                // ReorderableWrap 的索引计算
-                // 根据官方示例，ReorderableWrap 的 newIndex 已经是正确的插入位置
-                // 不需要再调整
-                final reorderedKeys = List<AIKey>.from(viewModel.keys);
-                
-                // 先移除拖动项
-                final draggedKey = reorderedKeys.removeAt(oldIndex);
-                
-                // 直接使用 newIndex 作为插入位置
-                // ReorderableWrap 已经处理了索引调整
-                final insertIndex = newIndex.clamp(0, reorderedKeys.length);
-                
-                reorderedKeys.insert(insertIndex, draggedKey);
-                viewModel.reorderKeys(reorderedKeys);
-              },
-              onNoReorder: (index) {
-                // 拖动取消时的回调
-              },
-              children: cardWidgets.asMap().entries.map((entry) {
-                final index = entry.key;
-                final card = entry.value;
-                return SizedBox(
-                  key: ValueKey(keys[index].id),
-                  width: cardWidth,
-                  height: cardHeight,
-                  child: card,
-                );
-              }).toList(),
+          return Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerMove: (event) {
+              if (_isDragging) {
+                _lastDragPosition = event.position;
+                _checkEdgeScroll();
+              }
+            },
+            onPointerUp: (_) {
+              _isDragging = false;
+              _lastDragPosition = null;
+              _stopEdgeScrolling();
+            },
+            child: SingleChildScrollView(
+              key: _keyListKey,
+              controller: _keyListScrollController,
+              child: Padding(
+                padding: const EdgeInsets.all(padding),
+                child: ReorderableWrap(
+                  spacing: cardSpacing,
+                  runSpacing: cardSpacing,
+                  needsLongPressDraggable: false, // 禁用长按拖动，允许直接拖动
+                  onReorder: (oldIndex, newIndex) {
+                    // ReorderableWrap 的索引计算
+                    // 根据官方示例，ReorderableWrap 的 newIndex 已经是正确的插入位置
+                    // 不需要再调整
+                    final reorderedKeys = List<AIKey>.from(viewModel.keys);
+                    
+                    // 先移除拖动项
+                    final draggedKey = reorderedKeys.removeAt(oldIndex);
+                    
+                    // 直接使用 newIndex 作为插入位置
+                    // ReorderableWrap 已经处理了索引调整
+                    final insertIndex = newIndex.clamp(0, reorderedKeys.length);
+                    
+                    reorderedKeys.insert(insertIndex, draggedKey);
+                    viewModel.reorderKeys(reorderedKeys);
+                  },
+                  onNoReorder: (index) {
+                    // 拖动取消时的回调
+                    _isDragging = false;
+                    _lastDragPosition = null;
+                    _stopEdgeScrolling();
+                  },
+                  children: cardWidgets.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final card = entry.value;
+                    return Listener(
+                      onPointerDown: (_) {
+                        // 拖动开始
+                        _isDragging = true;
+                      },
+                      child: SizedBox(
+                        key: ValueKey(keys[index].id),
+                        width: cardWidth,
+                        height: cardHeight,
+                        child: card,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
             ),
           );
         }
@@ -1141,6 +1183,93 @@ class _MainScreenState extends State<MainScreen> {
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  /// 检查边缘滚动
+  void _checkEdgeScroll() {
+    if (!_isDragging || _lastDragPosition == null) {
+      _stopEdgeScrolling();
+      return;
+    }
+    
+    // 获取列表的 RenderBox
+    final renderBox = _keyListKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) {
+      _stopEdgeScrolling();
+      return;
+    }
+    
+    // 获取列表在屏幕上的位置
+    final listPosition = renderBox.localToGlobal(Offset.zero);
+    final listSize = renderBox.size;
+    
+    // 计算鼠标相对于列表的位置
+    final mouseY = _lastDragPosition!.dy;
+    final relativeY = mouseY - listPosition.dy;
+    
+    // 边缘区域阈值（像素）
+    const edgeThreshold = 80.0;
+    const scrollSpeed = 8.0; // 滚动速度（像素/帧）
+    
+    // 检查是否在上边缘
+    if (relativeY < edgeThreshold && relativeY >= 0) {
+      // 向上滚动
+      _startEdgeScrolling(-scrollSpeed);
+    }
+    // 检查是否在下边缘
+    else if (relativeY > listSize.height - edgeThreshold && relativeY <= listSize.height) {
+      // 向下滚动
+      _startEdgeScrolling(scrollSpeed);
+    } else {
+      // 不在边缘区域，停止滚动
+      _stopEdgeScrolling();
+    }
+  }
+
+  /// 开始边缘滚动
+  void _startEdgeScrolling(double speed) {
+    // 如果已经在滚动且速度相同，不需要重新启动
+    if (_edgeScrollTimer != null && _edgeScrollTimer!.isActive) {
+      return;
+    }
+    
+    _edgeScrollTimer?.cancel();
+    _edgeScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (!_keyListScrollController.hasClients) {
+        timer.cancel();
+        return;
+      }
+      
+      final currentOffset = _keyListScrollController.offset;
+      final maxScrollExtent = _keyListScrollController.position.maxScrollExtent;
+      final minScrollExtent = _keyListScrollController.position.minScrollExtent;
+      
+      double newOffset = currentOffset + speed;
+      
+      // 限制滚动范围
+      if (newOffset < minScrollExtent) {
+        newOffset = minScrollExtent;
+        timer.cancel();
+      } else if (newOffset > maxScrollExtent) {
+        newOffset = maxScrollExtent;
+        timer.cancel();
+      }
+      
+      // 如果已经到达边界，停止滚动
+      if ((speed < 0 && currentOffset <= minScrollExtent) ||
+          (speed > 0 && currentOffset >= maxScrollExtent)) {
+        timer.cancel();
+        return;
+      }
+      
+      _keyListScrollController.jumpTo(newOffset);
+    });
+  }
+
+  /// 停止边缘滚动
+  void _stopEdgeScrolling() {
+    _edgeScrollTimer?.cancel();
+    _edgeScrollTimer = null;
   }
 }
 

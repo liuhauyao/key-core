@@ -41,6 +41,7 @@ class KeyCard extends StatefulWidget {
   final VoidCallback? onCopyApiEndpoint;
   final VoidCallback? onCopyApiKey;
   final VoidCallback? onCopyEnvVarCommand; // 复制环境变量命令
+  final VoidCallback? onMoveToTop; // 置顶回调
 
   const KeyCard({
     super.key,
@@ -56,6 +57,7 @@ class KeyCard extends StatefulWidget {
     this.onCopyApiEndpoint,
     this.onCopyApiKey,
     this.onCopyEnvVarCommand,
+    this.onMoveToTop,
   });
 
   @override
@@ -1266,6 +1268,13 @@ class _KeyCardState extends State<KeyCard> {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
+                        _buildActionButton(
+                          context,
+                          icon: Icons.vertical_align_top,
+                          tooltip: localizations?.moveToTop ?? '置顶',
+                          onPressed: widget.onMoveToTop,
+                        ),
+                        const SizedBox(width: 8),
                         _buildActionButton(
                           context,
                           icon: Icons.edit_outlined,

@@ -1,7 +1,7 @@
 {
   "version": "1.0.4",
-  "schemaVersion": 2,
-  "lastUpdated": "2025-12-02T08:00:00.000000",
+  "schemaVersion": 3,
+  "lastUpdated": "2025-12-19T08:00:00.000000",
   "config": {
     "supportedLanguages": [
       {
@@ -2482,6 +2482,64 @@
           "balanceBaseUrlSource": null,
           "balanceFallbackBaseUrl": null
         }
+      },
+      {
+        "id": "xiaomiMimo",
+        "name": "小米 MiMo",
+        "platformType": "xiaomiMimo",
+        "icon": "xiaomi.svg",
+        "categories": [
+          "claudeCode",
+          "popular",
+          "llm"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://platform.xiaomimimo.com",
+        "isOfficial": false,
+        "isPartner": false,
+        "claudeCode": {
+          "baseUrl": "https://api.xiaomimimo.com/v1",
+          "modelConfig": {
+            "mainModel": "mimo-v2-flash",
+            "haikuModel": "mimo-v2-flash",
+            "sonnetModel": "mimo-v2-flash",
+            "opusModel": "mimo-v2-flash"
+          }
+        },
+        "platform": {
+          "managementUrl": "https://platform.xiaomimimo.com",
+          "apiEndpoint": "https://api.xiaomimimo.com/v1",
+          "defaultName": "小米 MiMo API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
+        }
       }
     ],
     "mcpServerTemplates": [
@@ -3206,6 +3264,17 @@
           "baseUrlPatterns": [
             "siliconflow.cn",
             "api.siliconflow.cn"
+          ],
+          "supportsAuthJson": true,
+          "requiresOpenaiAuth": true,
+          "authJsonKey": "OPENAI_API_KEY",
+          "wireApi": "chat"
+        },
+        {
+          "platformType": "xiaomiMimo",
+          "baseUrlPatterns": [
+            "xiaomimimo.com",
+            "api.xiaomimimo.com"
           ],
           "supportsAuthJson": true,
           "requiresOpenaiAuth": true,

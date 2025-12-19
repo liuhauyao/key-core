@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2025-12-19T07:13:07.985247",
-  "totalIcons": 277,
+  "generatedAt": "2025-12-19T16:06:17.471946",
+  "totalIcons": 278,
   "icons": [
     "Weaviate-icon.svg",
     "adobe-color.svg",
@@ -268,6 +268,7 @@
     "windsurf.svg",
     "workersai-color.svg",
     "xai.svg",
+    "xiaomi.svg",
     "xinference-color.svg",
     "xuanyuan-color.svg",
     "yandex.svg",
