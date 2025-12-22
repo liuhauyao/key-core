@@ -31,6 +31,12 @@ class AppLocalizations {
       'theme_light': '亮色',
       'theme_dark': '暗色',
       'theme_system': '跟随系统',
+      'region_restrictions': '地区限制',
+      'region_restrictions_title': '中国大陆地区合规限制',
+      'region_restrictions_desc': '请勿在中国大陆地区使用没有运营许可的服务，如不在中国大陆地区可关闭此选项。',
+      'region_restrictions_enabled': '已启用中国大陆地区合规限制',
+      'region_restrictions_disabled': '已禁用中国大陆地区合规限制',
+      'region_restrictions_failed': '设置地区限制失败',
       'minimize_to_tray': '最小化到状态栏',
       'minimize_to_tray_desc': '关闭窗口时隐藏到系统状态栏，点击状态栏图标可显示窗口',
       'show_window': '显示窗口',
@@ -203,13 +209,6 @@ class AppLocalizations {
       'sonnet_model_hint': '请输入 Sonnet 模型名称',
       'opus_model_hint': '请输入 Opus 模型名称',
       'keys': '钥匙包',
-      'category_popular': '常用',
-      'category_claude_code': 'ClaudeCode',
-      'category_codex': 'Codex',
-      'category_llm': '大语言模型',
-      'category_cloud': '云服务',
-      'category_tools': '工具',
-      'category_vector': '其他',
       'claude_code_config': 'ClaudeCode 配置',
       'codex_config': 'Codex 配置',
       'gemini_config': 'Gemini 配置',
@@ -931,6 +930,12 @@ class AppLocalizations {
   String get themeLight => translate('theme_light');
   String get themeDark => translate('theme_dark');
   String get themeSystem => translate('theme_system');
+  String get regionRestrictions => translate('region_restrictions');
+  String get regionRestrictionsTitle => translate('region_restrictions_title');
+  String get regionRestrictionsDesc => translate('region_restrictions_desc');
+  String get regionRestrictionsEnabled => translate('region_restrictions_enabled');
+  String get regionRestrictionsDisabled => translate('region_restrictions_disabled');
+  String get regionRestrictionsFailed => translate('region_restrictions_failed');
   String get minimizeToTray => translate('minimize_to_tray');
   String get minimizeToTrayDesc => translate('minimize_to_tray_desc');
   String get importKeys => translate('import_keys');

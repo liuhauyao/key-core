@@ -1,6 +1,7 @@
 import '../models/platform_type.dart';
 import '../services/cloud_config_service.dart';
 import '../services/platform_registry.dart';
+import '../services/region_filter_service.dart';
 import '../models/unified_provider_config.dart';
 
 /// 平台预设信息
@@ -55,8 +56,13 @@ class PlatformPresets {
     int loadedCount = 0;
     int skippedCount = 0;
     int errorCount = 0;
+    int filteredCount = 0;
     final List<String> skippedPlatforms = [];
-    
+    final List<String> filteredPlatforms = [];
+
+    // 检查是否启用中国地区过滤
+    final isChinaFilterEnabled = await RegionFilterService.isChinaRegionFilterEnabled();
+
     for (final provider in providers) {
       try {
         if (provider.platform != null) {
@@ -64,14 +70,23 @@ class PlatformPresets {
           final platformTypeId = provider.platformType;
           final platformType = PlatformRegistry.fromString(platformTypeId);
           final customType = PlatformRegistry.get('custom');
-          
+
           // 如果找不到平台类型，记录警告
           if (platformType == customType && platformTypeId != 'custom') {
             skippedCount++;
             skippedPlatforms.add(platformTypeId);
             continue;
           }
-          
+
+          // 检查是否为中国大陆受限平台
+          if (isChinaFilterEnabled &&
+              (RegionFilterService.isPlatformRestrictedInChina(platformTypeId) ||
+               RegionFilterService.isPlatformRestrictedInChina(provider.name))) {
+            filteredCount++;
+            filteredPlatforms.add(platformTypeId);
+            continue;
+          }
+
           if (platformType != customType) {
             loadedPresets[platformType] = PlatformPreset(
               platformType: platformType,
@@ -89,8 +104,11 @@ class PlatformPresets {
     
     if (loadedPresets.isNotEmpty) {
       _cachedPresets = loadedPresets;
-      if (skippedCount > 0 || errorCount > 0) {
-        print('PlatformPresets: 加载完成 - 配置文件供应商总数: ${providers.length}, 成功加载: $loadedCount, 跳过: $skippedCount${skippedPlatforms.isNotEmpty ? ' (${skippedPlatforms.join(', ')})' : ''}, 错误: $errorCount');
+      if (skippedCount > 0 || errorCount > 0 || filteredCount > 0) {
+        final filterMsg = isChinaFilterEnabled && filteredCount > 0
+            ? ', 地区过滤: $filteredCount${filteredPlatforms.isNotEmpty ? ' (${filteredPlatforms.join(', ')})' : ''}'
+            : '';
+        print('PlatformPresets: 加载完成 - 配置文件供应商总数: ${providers.length}, 成功加载: $loadedCount, 跳过: $skippedCount${skippedPlatforms.isNotEmpty ? ' (${skippedPlatforms.join(', ')})' : ''}, 错误: $errorCount$filterMsg');
       }
     } else {
       print('PlatformPresets: 加载失败 - 配置文件供应商总数: ${providers.length}, 成功加载: $loadedCount, 跳过: $skippedCount, 错误: $errorCount');

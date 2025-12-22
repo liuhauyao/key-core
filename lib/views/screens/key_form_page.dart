@@ -22,6 +22,7 @@ import '../../services/url_launcher_service.dart';
 import '../../services/key_validation_service.dart';
 import '../../services/model_list_service.dart';
 import '../../services/key_cache_service.dart';
+import '../../services/region_filter_service.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../models/mcp_server.dart';
 import '../../models/validation_result.dart';
@@ -44,7 +45,7 @@ class KeyFormPage extends StatefulWidget {
   State<KeyFormPage> createState() => _KeyFormPageState();
 }
 
-class _KeyFormPageState extends State<KeyFormPage> {
+class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   late TextEditingController _nameController;
   late TextEditingController _managementUrlController;
   late TextEditingController _apiEndpointController;
@@ -78,6 +79,9 @@ class _KeyFormPageState extends State<KeyFormPage> {
   bool _obscureKeyValue = true;
   PlatformCategory _selectedCategory = PlatformCategory.popular;
   bool _showProviderList = false; // 编辑模式下是否显示供应商列表
+
+  // 地区过滤后的平台列表缓存
+  Map<PlatformCategory, List<PlatformType>> _filteredPlatformsCache = {};
   
   // ClaudeCode/Codex/Gemini 启用状态
   bool _enableClaudeCode = false;
@@ -116,6 +120,7 @@ class _KeyFormPageState extends State<KeyFormPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _isEditMode = widget.editingKey != null;
 
     _nameController = TextEditingController(text: widget.editingKey?.name ?? '');
@@ -220,6 +225,38 @@ class _KeyFormPageState extends State<KeyFormPage> {
     _checkPlatformCapabilities();
     // 加载缓存的模型列表（编辑模式下）
     _loadCachedModels();
+    // 加载地区过滤后的平台列表
+    _loadFilteredPlatforms();
+  }
+
+
+  /// 加载地区过滤后的平台列表
+  Future<void> _loadFilteredPlatforms() async {
+    final categories = PlatformCategoryManager.allCategories;
+    final filteredCache = <PlatformCategory, List<PlatformType>>{};
+
+    // 检查是否启用中国地区过滤
+    final isChinaFilterEnabled = await RegionFilterService.isChinaRegionFilterEnabled();
+
+    for (final category in categories) {
+      List<PlatformType> platforms = PlatformCategoryManager.getPlatformsByCategory(category);
+
+      // 应用地区过滤
+      if (isChinaFilterEnabled) {
+        platforms = platforms.where((platform) =>
+          !RegionFilterService.isPlatformRestrictedInChina(platform.id) &&
+          !RegionFilterService.isPlatformRestrictedInChina(platform.value)
+        ).toList();
+      }
+
+      filteredCache[category] = platforms;
+    }
+
+    if (mounted) {
+      setState(() {
+        _filteredPlatformsCache = filteredCache;
+      });
+    }
   }
   
   /// 检查是否支持模型列表查询和密钥校验
@@ -438,7 +475,16 @@ class _KeyFormPageState extends State<KeyFormPage> {
     _codexApiEndpointController.dispose();
     _codexModelController.dispose();
     _codexBaseUrlController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // 应用重新获得焦点时，重新加载平台列表（以防地区过滤设置改变）
+      _loadFilteredPlatforms();
+    }
   }
 
   /// 切换供应商（编辑模式下也支持）
@@ -1163,7 +1209,17 @@ class _KeyFormPageState extends State<KeyFormPage> {
 
   /// 构建供应商选择标签区域
   Widget _buildPlatformChips(BuildContext context, ShadThemeData shadTheme) {
-    final displayPlatforms = PlatformCategoryManager.getPlatformsByCategory(_selectedCategory);
+    // 获取原始平台列表
+    List<PlatformType> displayPlatforms;
+    if (_filteredPlatformsCache.containsKey(_selectedCategory)) {
+      displayPlatforms = _filteredPlatformsCache[_selectedCategory]!;
+    } else {
+      displayPlatforms = PlatformCategoryManager.getPlatformsByCategory(_selectedCategory);
+      // 如果还没有加载地区过滤，应用同步过滤
+      // 注意：这里使用同步检查，只是为了避免UI等待，实际的过滤在异步加载完成后会更新
+      // 这里我们简单地返回所有平台，真正的过滤会在 _loadFilteredPlatforms 完成后更新
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final localizations = AppLocalizations.of(context);
     

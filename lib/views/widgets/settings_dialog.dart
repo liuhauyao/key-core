@@ -2,11 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
 import 'package:file_picker/file_picker.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../services/auth_service.dart';
+import '../../services/region_filter_service.dart';
 import '../../utils/app_localizations.dart';
 import 'master_password_dialog.dart';
 
@@ -30,11 +29,18 @@ class SettingsDialog extends StatefulWidget {
 class _SettingsDialogState extends State<SettingsDialog> {
   final _authService = AuthService();
   bool _hasPassword = false;
+  bool _chinaRegionFilterEnabled = false;
+  bool _isRegionFilterLoading = false; // 默认为false，确保UI能显示
 
   @override
   void initState() {
     super.initState();
     _checkPasswordStatus();
+    // 先设置加载状态，然后异步加载
+    setState(() {
+      _isRegionFilterLoading = true;
+    });
+    _loadRegionFilterStatus();
   }
 
   Future<void> _checkPasswordStatus() async {
@@ -42,6 +48,31 @@ class _SettingsDialogState extends State<SettingsDialog> {
     setState(() {
       _hasPassword = hasPassword;
     });
+  }
+
+  Future<void> _loadRegionFilterStatus() async {
+    try {
+      // 设置超时，确保UI不会一直处于加载状态
+      final isEnabled = await RegionFilterService.isChinaRegionFilterEnabled().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => false, // 超时默认返回false
+      );
+
+      if (mounted) {
+        setState(() {
+          _chinaRegionFilterEnabled = isEnabled;
+          _isRegionFilterLoading = false;
+        });
+      }
+    } catch (e) {
+      // 即使出现错误也要停止加载状态，确保UI能正常显示
+      if (mounted) {
+        setState(() {
+          _chinaRegionFilterEnabled = false;
+          _isRegionFilterLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -54,7 +85,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       backgroundColor: Colors.transparent,
       child: Container(
         width: 750,
-        constraints: const BoxConstraints(maxHeight: 800),
+        constraints: const BoxConstraints(maxHeight: 900),
         decoration: BoxDecoration(
           color: shadTheme.colorScheme.background,
           borderRadius: BorderRadius.circular(12),
@@ -121,7 +152,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       context,
                       Icons.language,
                       localizations.interfaceLanguage,
-                      _buildInterfaceSettings(context, localizations, settingsViewModel),
+                      _buildInterfaceSettings(
+                          context, localizations, settingsViewModel),
                     ),
                     const SizedBox(height: 24),
                     // 窗口行为
@@ -129,7 +161,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       context,
                       Icons.window,
                       localizations.windowBehavior,
-                      _buildWindowBehaviorControl(context, localizations, settingsViewModel),
+                      _buildWindowBehaviorControl(
+                          context, localizations, settingsViewModel),
+                    ),
+                    const SizedBox(height: 24),
+                    // 地区过滤
+                    _buildSettingSection(
+                      context,
+                      Icons.location_on,
+                      '地区过滤',
+                      _buildRegionFilterControl(context),
                     ),
                     const SizedBox(height: 24),
                     // 数据管理
@@ -311,7 +352,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   ) {
     final shadTheme = ShadTheme.of(context);
     final isZh = settingsViewModel.currentLanguage == 'zh';
-    
+
     return Container(
       decoration: BoxDecoration(
         color: shadTheme.colorScheme.muted,
@@ -332,7 +373,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               settingsViewModel.setLanguage('zh');
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(localizations.languageChangedZh),
+                  content: Text(localizations.languageChangedSuccess),
                   duration: const Duration(seconds: 2),
                 ),
               );
@@ -346,7 +387,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               settingsViewModel.setLanguage('en');
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(localizations.languageChangedEn),
+                  content: Text(localizations.languageChangedSuccess),
                   duration: const Duration(seconds: 2),
                 ),
               );
@@ -364,21 +405,19 @@ class _SettingsDialogState extends State<SettingsDialog> {
     VoidCallback onTap,
   ) {
     final shadTheme = ShadTheme.of(context);
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive 
-              ? shadTheme.colorScheme.primary
-              : Colors.transparent,
+          color: isActive ? shadTheme.colorScheme.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           label,
           style: shadTheme.textTheme.small.copyWith(
-            color: isActive 
+            color: isActive
                 ? shadTheme.colorScheme.primaryForeground
                 : shadTheme.colorScheme.mutedForeground,
             fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
@@ -395,7 +434,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   ) {
     final shadTheme = ShadTheme.of(context);
     ThemeMode currentMode = settingsViewModel.themeMode;
-    
+
     return Container(
       decoration: BoxDecoration(
         color: shadTheme.colorScheme.muted,
@@ -442,15 +481,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
     VoidCallback onTap,
   ) {
     final shadTheme = ShadTheme.of(context);
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive 
-              ? shadTheme.colorScheme.primary
-              : Colors.transparent,
+          color: isActive ? shadTheme.colorScheme.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -459,7 +496,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             Icon(
               icon,
               size: 16,
-              color: isActive 
+              color: isActive
                   ? shadTheme.colorScheme.primaryForeground
                   : shadTheme.colorScheme.mutedForeground,
             ),
@@ -467,7 +504,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             Text(
               label,
               style: shadTheme.textTheme.small.copyWith(
-                color: isActive 
+                color: isActive
                     ? shadTheme.colorScheme.primaryForeground
                     : shadTheme.colorScheme.mutedForeground,
                 fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
@@ -509,7 +546,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 );
               }
             },
-            activeColor: shadTheme.colorScheme.primary,
+            activeThumbColor: shadTheme.colorScheme.primary,
           ),
         ),
         isLast: true,
@@ -648,7 +685,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   ) {
     final shadTheme = ShadTheme.of(context);
     final settingsViewModel = context.watch<SettingsViewModel>();
-    
+
     return Container(
       decoration: BoxDecoration(
         color: shadTheme.colorScheme.muted,
@@ -660,7 +697,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
           _buildDirectorySettingItem(
             context,
             localizations.claudeConfigDir,
-            settingsViewModel.claudeConfigDir ?? settingsViewModel.defaultClaudeConfigDir ?? '~/.claude',
+            settingsViewModel.claudeConfigDir ??
+                settingsViewModel.defaultClaudeConfigDir ??
+                '~/.claude',
             settingsViewModel.defaultClaudeConfigDir ?? '~/.claude',
             () => _browseDirectory(context, settingsViewModel, true),
             () => settingsViewModel.resetClaudeConfigDir(),
@@ -673,7 +712,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
           _buildDirectorySettingItem(
             context,
             localizations.codexConfigDir,
-            settingsViewModel.codexConfigDir ?? settingsViewModel.defaultCodexConfigDir ?? '~/.codex',
+            settingsViewModel.codexConfigDir ??
+                settingsViewModel.defaultCodexConfigDir ??
+                '~/.codex',
             settingsViewModel.defaultCodexConfigDir ?? '~/.codex',
             () => _browseDirectory(context, settingsViewModel, false),
             () => settingsViewModel.resetCodexConfigDir(),
@@ -695,7 +736,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   }) {
     final shadTheme = ShadTheme.of(context);
     final isCustom = currentPath != defaultPath;
-    
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -717,7 +758,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     if (isCustom) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: shadTheme.colorScheme.primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(4),
@@ -735,8 +777,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  isCustom 
-                      ? '${AppLocalizations.of(context)?.currentLabel ?? '当前'}: $currentPath' 
+                  isCustom
+                      ? '${AppLocalizations.of(context)?.currentLabel ?? '当前'}: $currentPath'
                       : '${AppLocalizations.of(context)?.defaultLabel ?? '默认'}: $defaultPath',
                   style: shadTheme.textTheme.small.copyWith(
                     color: shadTheme.colorScheme.mutedForeground,
@@ -783,32 +825,33 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final localizations = AppLocalizations.of(context);
     try {
       print('SettingsDialog: 开始选择${isClaude ? 'Claude' : 'Codex'}配置目录');
-      
+
       // 使用 file_picker 选择目录
       // 注意：在 macOS 沙盒环境中，file_picker 会自动处理权限请求
       // 不设置 initialDirectory，让系统从用户主目录开始
       String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: isClaude 
+        dialogTitle: isClaude
             ? (localizations?.selectClaudeConfigDir ?? '选择 Claude 配置目录')
             : (localizations?.selectCodexConfigDir ?? '选择 Codex 配置目录'),
       );
-      
+
       print('SettingsDialog: file_picker 返回结果: $selectedDirectory');
-      
+
       if (selectedDirectory != null && selectedDirectory.isNotEmpty) {
         print('SettingsDialog: 选择的目录: $selectedDirectory');
-        
+
         if (isClaude) {
           await settingsViewModel.setClaudeConfigDir(selectedDirectory);
         } else {
           await settingsViewModel.setCodexConfigDir(selectedDirectory);
         }
-        
+
         if (context.mounted) {
           final localizations = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(localizations?.configDirSet(selectedDirectory) ?? '已设置配置目录: $selectedDirectory'),
+              content: Text(localizations?.configDirSet(selectedDirectory) ??
+                  '已设置配置目录: $selectedDirectory'),
               duration: const Duration(seconds: 2),
             ),
           );
@@ -820,12 +863,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
     } catch (e, stackTrace) {
       print('SettingsDialog: 选择目录异常: $e');
       print('SettingsDialog: 堆栈跟踪: $stackTrace');
-      
+
       if (context.mounted) {
         final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(localizations?.browseDirectoryFailed(e.toString()) ?? '选择目录失败: $e'),
+            content: Text(localizations?.browseDirectoryFailed(e.toString()) ??
+                '选择目录失败: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
@@ -891,6 +935,79 @@ class _SettingsDialogState extends State<SettingsDialog> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRegionFilterControl(BuildContext context) {
+    final shadTheme = ShadTheme.of(context);
+
+    if (_isRegionFilterLoading) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: shadTheme.colorScheme.muted,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: shadTheme.colorScheme.muted,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          // 中国大陆地区过滤
+          _buildSettingItem(
+            context,
+            '中国大陆地区过滤',
+            '启用后将在界面中隐藏中国大陆受限的平台（如OpenAI相关），以符合App Store审核要求',
+            ShadSwitch(
+              value: _chinaRegionFilterEnabled,
+              onChanged: (value) async {
+                try {
+                  await RegionFilterService.setChinaRegionFilter(value);
+                  setState(() {
+                    _chinaRegionFilterEnabled = value;
+                  });
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(value ? '已启用中国大陆地区过滤' : '已禁用中国大陆地区过滤'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+
+                    // 如果启用了过滤，刷新应用状态
+                    if (value && widget.onRefresh != null) {
+                      widget.onRefresh!();
+                    }
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('设置地区过滤失败'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+            isLast: true,
+          ),
+        ],
       ),
     );
   }

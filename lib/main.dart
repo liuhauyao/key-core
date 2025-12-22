@@ -14,6 +14,7 @@ import 'services/language_pack_service.dart';
 import 'services/macos_preferences_bridge.dart';
 import 'services/tray_menu_bridge.dart';
 import 'services/macos_bookmark_service.dart';
+import 'services/region_filter_service.dart';
 import 'dart:io';
 import 'package:window_manager/window_manager.dart';
 import 'config/provider_config.dart';
@@ -26,7 +27,9 @@ import 'services/platform_registry.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
+  print('🚀 MAIN: 应用main函数开始执行');
   WidgetsFlutterBinding.ensureInitialized();
+  print('🔧 MAIN: WidgetsFlutterBinding.ensureInitialized() 完成');
   
   // Windows/Linux: 初始化 window_manager（用于窗口管理）
   if (Platform.isWindows || Platform.isLinux) {
@@ -99,7 +102,12 @@ void main() async {
   
   // 加载动态平台（从云端配置）
   await PlatformRegistry.loadDynamicPlatforms(cloudConfigService);
-  
+
+  // 初始化地区过滤服务
+  print('🔍 MAIN: 即将调用RegionFilterService.init()');
+  await RegionFilterService.init();
+  print('✅ MAIN: RegionFilterService.init() 执行完成');
+
   // 初始化所有配置模块
   await ProviderConfig.init();
   await PlatformPresets.init();

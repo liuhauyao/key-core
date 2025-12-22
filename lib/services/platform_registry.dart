@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/platform_type.dart';
 import '../services/cloud_config_service.dart';
+import '../services/region_filter_service.dart';
 
 /// 平台注册表
 /// 管理所有平台类型（内置 + 云端动态加载）
@@ -158,6 +159,30 @@ class PlatformRegistry {
   /// 获取所有平台（兼容原枚举的 all）
   static List<PlatformType> get all {
     return values;
+  }
+
+  /// 获取过滤后的平台列表（根据地区限制）
+  /// 如果启用中国地区过滤，将移除受限平台
+  static Future<List<PlatformType>> getFilteredPlatforms() async {
+    final isChinaFilterEnabled = await RegionFilterService.isChinaRegionFilterEnabled();
+
+    if (!isChinaFilterEnabled) {
+      return all;
+    }
+
+    // 过滤掉中国大陆受限的平台
+    return all.where((platform) =>
+      !RegionFilterService.isPlatformRestrictedInChina(platform.id) &&
+      !RegionFilterService.isPlatformRestrictedInChina(platform.value)
+    ).toList();
+  }
+
+  /// 获取过滤后的平台列表（同步版本，用于UI渲染）
+  /// 注意：此方法不会进行地区检测，只根据缓存的状态进行过滤
+  static List<PlatformType> getFilteredPlatformsSync() {
+    // 由于这是同步方法，我们返回所有平台
+    // 实际的过滤在异步方法中处理，或者在UI层根据设置过滤
+    return all;
   }
 
   /// 检查是否已初始化

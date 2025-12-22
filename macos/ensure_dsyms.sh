@@ -69,3 +69,7 @@ echo ""
 echo "要验证 dSYM 文件，请运行:"
 echo "  dwarfdump --uuid $DSYMS_DIR/*.dSYM"
 
+
+
+
+

@@ -23,6 +23,7 @@ import '../widgets/tool_config_card.dart';
 import '../widgets/export_password_dialog.dart';
 import '../../services/macos_bookmark_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/region_filter_service.dart';
 
 /// 设置分组枚举
 enum SettingsCategory {
@@ -55,6 +56,11 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
   bool _isHomeDirAuthorized = false;
   bool _isCheckingAuthorization = true;
 
+  // 地区过滤状态
+  bool _chinaRegionFilterEnabled = false;
+  bool _isRegionFilterLoading = true;
+  bool _shouldShowRegionFilter = false;
+
   @override
   bool get wantKeepAlive => true; // 保持状态，防止重建时丢失选中分类
 
@@ -65,6 +71,8 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     _loadConfigDate();
     _loadSupportedLanguages();
     _checkInitialAuthorization();
+    _loadRegionFilterStatus();
+    _loadRegionFilterVisibility();
     
     // ⭐ 自动在后台检查配置更新（静默刷新）
     // App Store 版本：禁用自动检查（符合审核要求），用户可通过"检查更新"按钮手动触发
@@ -105,6 +113,49 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
         _isHomeDirAuthorized = false;
         _isCheckingAuthorization = false;
       });
+    }
+  }
+
+  /// 加载地区过滤状态
+  Future<void> _loadRegionFilterStatus() async {
+    try {
+      final isEnabled = await RegionFilterService.isChinaRegionFilterEnabled().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => false,
+      );
+
+      if (mounted) {
+        setState(() {
+          _chinaRegionFilterEnabled = isEnabled;
+          _isRegionFilterLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _chinaRegionFilterEnabled = false;
+          _isRegionFilterLoading = false;
+        });
+      }
+    }
+  }
+
+  /// 加载地区过滤设置项显示状态
+  Future<void> _loadRegionFilterVisibility() async {
+    try {
+      final shouldShow = await RegionFilterService.shouldShowRegionFilterSetting();
+
+      if (mounted) {
+        setState(() {
+          _shouldShowRegionFilter = shouldShow;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _shouldShowRegionFilter = false;
+        });
+      }
     }
   }
 
@@ -589,6 +640,15 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                 _buildInterfaceSettings(context, localizations, settingsViewModel),
               ),
         const SizedBox(height: 32),
+              // 地区限制（仅在中国大陆地区显示）
+              if (_shouldShowRegionFilter) ...[
+                _buildSettingSection(
+                  context,
+                  localizations.regionRestrictions,
+                  _buildRegionFilterControl(context, localizations, shadTheme),
+                ),
+                const SizedBox(height: 32),
+              ],
               // 窗口行为
               _buildSettingSection(
                 context,
@@ -1609,6 +1669,103 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
         );
       }
     }
+  }
+
+  /// 构建地区过滤控制
+  Widget _buildRegionFilterControl(BuildContext context, AppLocalizations localizations, ShadThemeData shadTheme) {
+    if (_isRegionFilterLoading) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: shadTheme.colorScheme.muted,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: shadTheme.colorScheme.muted,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localizations.regionRestrictionsTitle,
+                    style: shadTheme.textTheme.p.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: shadTheme.colorScheme.foreground,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localizations.regionRestrictionsDesc,
+                    style: shadTheme.textTheme.small.copyWith(
+                      color: shadTheme.colorScheme.mutedForeground,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Transform.scale(
+              scale: 0.8,
+              child: Switch(
+              value: _chinaRegionFilterEnabled,
+              onChanged: (value) async {
+                try {
+                  await RegionFilterService.setChinaRegionFilter(value);
+                  setState(() {
+                    _chinaRegionFilterEnabled = value;
+                  });
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(value ? localizations.regionRestrictionsEnabled : localizations.regionRestrictionsDisabled),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+
+                    // 通知其他组件刷新
+                    final keyManagerViewModel = context.read<KeyManagerViewModel>();
+                    await keyManagerViewModel.refresh();
+
+                    // 通知平台注册表重新加载（如果地区过滤改变）
+                    await PlatformRegistry.reloadDynamicPlatforms(_cloudConfigService);
+                    await PlatformPresets.init(forceRefresh: true);
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(localizations.regionRestrictionsFailed),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                }
+              },
+                activeColor: shadTheme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
 }

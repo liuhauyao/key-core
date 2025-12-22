@@ -4,6 +4,7 @@ import '../config/provider_config.dart';
 import '../utils/app_localizations.dart';
 import '../services/platform_registry.dart';
 import '../services/cloud_config_service.dart';
+import '../services/region_filter_service.dart';
 
 /// 平台分类枚举
 enum PlatformCategory {

@@ -1242,11 +1242,11 @@
           "llm"
         ],
         "providerCategory": "thirdParty",
-        "websiteUrl": "https://dashscope.console.aliyun.com",
+        "websiteUrl": "https://bailian.console.aliyun.com/?tab=model#/api-key",
         "isOfficial": false,
         "isPartner": false,
         "platform": {
-          "managementUrl": "https://dashscope.console.aliyun.com",
+          "managementUrl": "https://bailian.console.aliyun.com/?tab=model#/api-key",
           "apiEndpoint": "https://dashscope.aliyuncs.com/api/v1",
           "defaultName": "百炼云 API Key"
         },
