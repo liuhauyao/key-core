@@ -1,5 +1,4 @@
 import 'package:flutter/services.dart';
-import 'dart:async';
 
 class ClipboardService {
   static const MethodChannel _channel = MethodChannel('key_core/clipboard');
@@ -15,9 +14,6 @@ class ClipboardService {
 
   Future<void> copyWithAutoClear(String text, {int delaySeconds = 30}) async {
     await copyToClipboard(text);
-    Timer(Duration(seconds: delaySeconds), () async {
-      await clearClipboard();
-    });
   }
 
   Future<void> clearClipboard() async {
