@@ -13,7 +13,6 @@ class RegionFilterService {
     'openAI',
     'azureOpenAI',
     'chatgpt',
-    'openai-compatible',
   ];
 
   /// 初始化地区检测
@@ -29,20 +28,10 @@ class RegionFilterService {
     await prefs.setBool(_detectedRegionKey, isChina);
     print('💾 RegionFilter: 已保存检测结果到SharedPreferences');
 
-    // 检查用户是否已手动设置过
-    final hasUserManualSet = prefs.containsKey(_userManualSetKey);
-    print('👤 RegionFilter: 用户是否手动设置过 - ${hasUserManualSet ? '是' : '否'}');
-
-    // 如果用户从未手动设置过，进行默认值设置
-    if (!hasUserManualSet) {
-      // 根据地区设置默认值：中国大陆默认开启，非中国大陆默认关闭
-      await prefs.setBool(_chinaRegionKey, isChina);
-      print('⚙️ RegionFilter: 设置默认值 - ${isChina ? '开启地区过滤' : '关闭地区过滤'}');
-    } else {
-      // 用户已手动设置过，保持用户设置
-      final currentSetting = prefs.getBool(_chinaRegionKey) ?? false;
-      print('🔒 RegionFilter: 保持用户手动设置 - ${currentSetting ? '开启地区过滤' : '关闭地区过滤'}');
-    }
+    // 中国大陆地区强制开启地区过滤，非中国大陆地区关闭
+    final shouldEnableFilter = isChina;
+    await prefs.setBool(_chinaRegionKey, shouldEnableFilter);
+    print('🔒 RegionFilter: 强制设置地区过滤 - ${shouldEnableFilter ? '开启（中国大陆地区合规要求）' : '关闭（非中国大陆地区）'}');
 
     // 标记为已检测（用于其他逻辑）
     await prefs.setBool(_regionDetectionKey, true);
@@ -50,7 +39,7 @@ class RegionFilterService {
 
     // 输出最终状态摘要
     final finalStatus = await getRegionStatus();
-    print('📊 RegionFilter: 最终状态 - 地区: ${finalStatus['isRegionDetected'] ? '中国大陆' : '非中国大陆'}, 过滤: ${finalStatus['isChinaFilterEnabled'] ? '开启' : '关闭'}');
+    print('📊 RegionFilter: 最终状态 - 地区: ${finalStatus['isRegionDetected'] ? '中国大陆' : '非中国大陆'}, 过滤: ${finalStatus['isChinaFilterEnabled'] ? '开启（强制）' : '关闭'}');
   }
 
   /// 检测是否为中国大陆地区
@@ -98,9 +87,15 @@ class RegionFilterService {
   }
 
   /// 获取当前是否启用中国地区过滤
+  /// 中国大陆地区强制返回true，非中国大陆地区返回false
   static Future<bool> isChinaRegionFilterEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_chinaRegionKey) ?? false;
+    final isChina = await isInChinaRegion();
+    if (isChina) {
+      // 中国大陆地区强制开启地区过滤
+      return true;
+    }
+    // 非中国大陆地区关闭地区过滤
+    return false;
   }
 
   /// 设置中国地区过滤状态
@@ -124,9 +119,11 @@ class RegionFilterService {
     return prefs.getBool(_userManualSetKey) ?? false;
   }
 
-  /// 检查是否应该显示地区过滤设置（在中国大陆地区必须显示）
+  /// 检查是否应该显示地区过滤设置（中国大陆地区隐藏设置项，因为强制开启）
   static Future<bool> shouldShowRegionFilterSetting() async {
-    return await isInChinaRegion();
+    // 中国大陆地区强制开启地区过滤，隐藏设置项
+    // 非中国大陆地区显示设置项，让用户可以选择
+    return !(await isInChinaRegion());
   }
 
   /// 重置地区检测（用于测试或重新检测）
