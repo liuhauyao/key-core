@@ -1,0 +1,8 @@
+/* 
+  InfoPlist.strings
+  中文（繁體）應用名稱本地化
+*/
+
+"CFBundleDisplayName" = "密枢";
+
+"CFBundleName" = "密枢";

@@ -30,7 +30,7 @@ fi
 
 # 获取版本号
 VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//')
-APP_DISPLAY_NAME="密枢"
+APP_DISPLAY_NAME="Key Core"
 DMG_NAME="${APP_DISPLAY_NAME}-${VERSION}"
 
 echo "版本号: ${VERSION}"

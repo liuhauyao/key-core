@@ -14,7 +14,7 @@ if [ -z "$ARCHIVE_PATH" ]; then
 fi
 
 DSYMS_DIR="$ARCHIVE_PATH/dSYMs"
-APP_PATH="$ARCHIVE_PATH/Products/Applications/密枢.app"
+APP_PATH="$ARCHIVE_PATH/Products/Applications/Key Core.app"
 FRAMEWORKS_DIR="$APP_PATH/Contents/Frameworks"
 
 echo "检查 dSYM 文件..."
@@ -26,7 +26,7 @@ echo "应用路径: $APP_PATH"
 mkdir -p "$DSYMS_DIR"
 
 # 检查主应用的 dSYM
-APP_DSYM="$DSYMS_DIR/密枢.app.dSYM"
+APP_DSYM="$DSYMS_DIR/Key Core.app.dSYM"
 if [ ! -d "$APP_DSYM" ]; then
     echo "警告: 主应用的 dSYM 不存在: $APP_DSYM"
     echo "请确保在 Xcode Build Settings 中设置了 DEBUG_INFORMATION_FORMAT = dwarf-with-dsym"

@@ -251,7 +251,8 @@ class KeyCoreApp extends StatelessWidget {
             // 使用全局 NavigatorKey 保持导航状态
             // 不使用 key，避免 MaterialApp 重建导致导航栈重置
             navigatorKey: navigatorKey,
-              title: '密枢',
+              onGenerateTitle: (context) =>
+                  AppLocalizations.of(context)?.appName ?? 'Key Core',
               // 国际化支持
               localizationsDelegates: const [
                 AppLocalizations.delegate,

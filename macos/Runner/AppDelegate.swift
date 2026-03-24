@@ -7,6 +7,24 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
   var mainWindow: NSWindow?
   var statusBarChannel: FlutterMethodChannel?
 
+  /// 与 Bundle 本地化显示名一致（Dock / 关于本应用 / 审核关注的「安装后名称」）
+  static func resolvedLocalizedAppName() -> String {
+    let bundle = Bundle.main
+    if let localized = bundle.localizedInfoDictionary?["CFBundleDisplayName"] as? String,
+       !localized.isEmpty {
+      return localized
+    }
+    if let display = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
+       !display.isEmpty {
+      return display
+    }
+    if let name = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
+       !name.isEmpty {
+      return name
+    }
+    return "Key Core"
+  }
+
   override func applicationDidFinishLaunching(_ notification: Notification) {
     print("AppDelegate: ========== 应用启动 ==========")
     
@@ -260,10 +278,13 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
       return
     }
     
+    // 与 InfoPlist.strings / CFBundleDisplayName 一致（英文 Key Core，简繁中文 密枢）
+    let statusBarAppTitle = AppDelegate.resolvedLocalizedAppName()
+
     // 设置状态栏图标（兼容 macOS 10.15+）
     // 关键：必须设置 image 或 title，否则按钮不会显示
     if #available(macOS 11.0, *) {
-      if let image = NSImage(systemSymbolName: "key.fill", accessibilityDescription: "密枢") {
+      if let image = NSImage(systemSymbolName: "key.fill", accessibilityDescription: statusBarAppTitle) {
         button.image = image
         button.image?.isTemplate = true
       } else {
@@ -277,7 +298,7 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
       button.font = NSFont.systemFont(ofSize: 14)
     }
     
-    button.toolTip = "密枢"
+    button.toolTip = statusBarAppTitle
     
     // 设置点击事件
     button.action = #selector(statusBarButtonClicked)

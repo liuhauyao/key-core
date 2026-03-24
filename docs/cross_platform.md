@@ -7,7 +7,7 @@
 - **构建命令**: `flutter build macos --release`
 - **构建脚本**: `./scripts/build_macos.sh`
 - **打包格式**: DMG 文件
-- **构建产物**: `build/macos/Build/Products/Release/key_core.app` 和 `build/dmg/密枢-{VERSION}.dmg`
+- **构建产物**: `build/macos/Build/Products/Release/Key Core.app`（`PRODUCT_NAME`）和 `build/dmg/Key Core-{VERSION}.dmg`（GitHub 构建脚本）
 
 ### ⚠️ Windows
 - **状态**: 代码已实现，**未在实际环境中测试**
