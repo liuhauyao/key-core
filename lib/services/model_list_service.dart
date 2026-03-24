@@ -5,6 +5,7 @@ import '../models/model_info.dart';
 import '../models/validation_config.dart';
 import '../models/platform_type.dart';
 import '../services/cloud_config_service.dart';
+import '../services/region_filter_service.dart';
 import 'validators/validation_helper.dart';
 
 /// 模型列表查询结果
@@ -34,6 +35,10 @@ class ModelListService {
     Duration? timeout,
   }) async {
     try {
+      if (await _isChinaRestrictedKey(key)) {
+        return ModelListResult.failure('当前地区不支持该供应商');
+      }
+
       // 使用密钥的 platform_type_id（即 platformType.id）来匹配配置文件中的供应商配置
       final platformTypeId = key.platformType.id;
       // 从缓存中获取供应商配置（配置文件在应用启动时已加载到缓存）
@@ -58,28 +63,31 @@ class ModelListService {
 
       // 获取 baseUrl 列表（支持多个 fallback）
       List<String> baseUrls = [];
-      
+
       if (validationConfig.modelsBaseUrlSource != null) {
         // 创建临时配置使用 modelsBaseUrlSource
         final tempConfig = ValidationConfig(
           type: validationConfig.type,
           baseUrlSource: validationConfig.modelsBaseUrlSource,
-          fallbackBaseUrl: validationConfig.modelsFallbackBaseUrl ?? validationConfig.fallbackBaseUrl,
+          fallbackBaseUrl: validationConfig.modelsFallbackBaseUrl ??
+              validationConfig.fallbackBaseUrl,
           fallbackBaseUrls: validationConfig.modelsFallbackBaseUrls,
         );
         // 使用改进后的getBaseUrl，传递providerConfig以支持自动检测
-        final primaryUrl = ValidationHelper.getBaseUrl(key, tempConfig, providerConfig);
+        final primaryUrl =
+            ValidationHelper.getBaseUrl(key, tempConfig, providerConfig);
         if (primaryUrl != null && primaryUrl.isNotEmpty) {
           baseUrls.add(primaryUrl);
         }
       } else {
         // 如果没有modelsBaseUrlSource，使用默认的baseUrlSource或自动检测
-        final primaryUrl = ValidationHelper.getBaseUrl(key, validationConfig, providerConfig);
+        final primaryUrl =
+            ValidationHelper.getBaseUrl(key, validationConfig, providerConfig);
         if (primaryUrl != null && primaryUrl.isNotEmpty) {
           baseUrls.add(primaryUrl);
         }
       }
-      
+
       // 添加 fallback URLs
       if (validationConfig.modelsFallbackBaseUrls != null) {
         baseUrls.addAll(validationConfig.modelsFallbackBaseUrls!);
@@ -88,10 +96,10 @@ class ModelListService {
       } else if (validationConfig.fallbackBaseUrl != null) {
         baseUrls.add(validationConfig.fallbackBaseUrl!);
       }
-      
+
       // 去重
       baseUrls = baseUrls.toSet().toList();
-      
+
       if (baseUrls.isEmpty) {
         return ModelListResult.failure('缺少 API 端点配置');
       }
@@ -123,15 +131,16 @@ class ModelListService {
       // 添加默认请求头
       headers.putIfAbsent('User-Agent', () => 'KeyCore/1.0');
       headers.putIfAbsent('Accept', () => 'application/json');
-      
+
       // 合并配置中的请求头（如果配置中有 modelsHeaders，优先使用）
       // 注意：目前配置中没有 modelsHeaders 字段，所以使用默认的 headers
       if (validationConfig.headers != null) {
         headers.addAll(
-          ValidationHelper.replaceApiKeyInHeaders(validationConfig.headers!, apiKey),
+          ValidationHelper.replaceApiKeyInHeaders(
+              validationConfig.headers!, apiKey),
         );
       }
-      
+
       // 如果是 POST 请求，添加 Content-Type
       if (method == 'POST') {
         headers.putIfAbsent('Content-Type', () => 'application/json');
@@ -140,14 +149,15 @@ class ModelListService {
       // 获取所有模型（支持多个 baseUrl，不分页）
       final client = http.Client();
       final requestTimeout = timeout ?? const Duration(seconds: 5);
-      
+
       try {
         // 尝试每个 baseUrl
         Exception? lastError;
         for (int urlIndex = 0; urlIndex < baseUrls.length; urlIndex++) {
           final baseUrl = baseUrls[urlIndex];
-          print('ModelListService: 尝试 baseUrl ${urlIndex + 1}/${baseUrls.length}: $baseUrl');
-          
+          print(
+              'ModelListService: 尝试 baseUrl ${urlIndex + 1}/${baseUrls.length}: $baseUrl');
+
           try {
             // 直接获取所有模型（所有供应商的模型列表 API 都不需要分页）
             final url = ValidationHelper.buildUrl(baseUrl, endpoint);
@@ -159,16 +169,19 @@ class ModelListService {
             if (method == 'POST') {
               final body = validationConfig.body != null
                   ? jsonEncode(
-                      ValidationHelper.replaceApiKeyInBody(validationConfig.body!, apiKey),
+                      ValidationHelper.replaceApiKeyInBody(
+                          validationConfig.body!, apiKey),
                     )
                   : null;
               response = await client
                   .post(url, headers: headers, body: body)
                   .timeout(requestTimeout);
             } else {
-              response = await client.get(url, headers: headers).timeout(requestTimeout);
+              response = await client
+                  .get(url, headers: headers)
+                  .timeout(requestTimeout);
             }
-            
+
             print('ModelListService: 响应状态码: ${response.statusCode}');
 
             if (response.statusCode == 200) {
@@ -178,9 +191,11 @@ class ModelListService {
               if (models.isNotEmpty) {
                 return ModelListResult.success(models);
               }
-            } else if (response.statusCode >= 400 && response.statusCode < 500) {
+            } else if (response.statusCode >= 400 &&
+                response.statusCode < 500) {
               // 4xx 错误，不尝试下一个 URL
-              return ModelListResult.failure('查询失败：HTTP ${response.statusCode}');
+              return ModelListResult.failure(
+                  '查询失败：HTTP ${response.statusCode}');
             }
           } catch (e) {
             print('ModelListService: baseUrl $baseUrl 请求失败: $e');
@@ -188,7 +203,7 @@ class ModelListService {
             // 继续尝试下一个 URL
           }
         }
-        
+
         // 所有 URL 都失败了
         if (lastError != null) {
           return ModelListResult.failure('查询失败：${lastError.toString()}');
@@ -208,6 +223,23 @@ class ModelListService {
       }
       return ModelListResult.failure('查询失败：${e.toString()}');
     }
+  }
+
+  Future<bool> _isChinaRestrictedKey(AIKey key) async {
+    final isChinaFilterEnabled =
+        await RegionFilterService.isChinaRegionFilterEnabled();
+    if (!isChinaFilterEnabled) {
+      return false;
+    }
+
+    return RegionFilterService.isKeyRestrictedInChina(
+      platformId: key.platformType.id,
+      platformName: key.platform,
+      apiEndpoint: key.apiEndpoint,
+      codexBaseUrl: key.codexBaseUrl,
+      claudeCodeBaseUrl: key.claudeCodeBaseUrl,
+      managementUrl: key.managementUrl,
+    );
   }
 
   /// 解析模型列表
@@ -264,4 +296,3 @@ class ModelListService {
     return models;
   }
 }
-

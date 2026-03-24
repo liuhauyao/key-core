@@ -10,9 +10,18 @@ class RegionFilterService {
   static const String _detectedRegionKey = 'region_filter_detected_region';
 
   static final List<String> _chinaRestrictedPlatforms = [
-    'openAI',
-    'azureOpenAI',
+    'openai',
+    'azureopenai',
     'chatgpt',
+  ];
+
+  static final List<String> _chinaRestrictedKeywords = [
+    'openai',
+    'chatgpt',
+    'api.openai.com',
+    'platform.openai.com',
+    'chatgpt.com',
+    'openai.azure.com',
   ];
 
   /// 初始化地区检测
@@ -31,7 +40,8 @@ class RegionFilterService {
     // 中国大陆地区强制开启地区过滤，非中国大陆地区关闭
     final shouldEnableFilter = isChina;
     await prefs.setBool(_chinaRegionKey, shouldEnableFilter);
-    print('🔒 RegionFilter: 强制设置地区过滤 - ${shouldEnableFilter ? '开启（中国大陆地区合规要求）' : '关闭（非中国大陆地区）'}');
+    print(
+        '🔒 RegionFilter: 强制设置地区过滤 - ${shouldEnableFilter ? '开启（中国大陆地区合规要求）' : '关闭（非中国大陆地区）'}');
 
     // 标记为已检测（用于其他逻辑）
     await prefs.setBool(_regionDetectionKey, true);
@@ -39,7 +49,8 @@ class RegionFilterService {
 
     // 输出最终状态摘要
     final finalStatus = await getRegionStatus();
-    print('📊 RegionFilter: 最终状态 - 地区: ${finalStatus['isRegionDetected'] ? '中国大陆' : '非中国大陆'}, 过滤: ${finalStatus['isChinaFilterEnabled'] ? '开启（强制）' : '关闭'}');
+    print(
+        '📊 RegionFilter: 最终状态 - 地区: ${finalStatus['isRegionDetected'] ? '中国大陆' : '非中国大陆'}, 过滤: ${finalStatus['isChinaFilterEnabled'] ? '开启（强制）' : '关闭'}');
   }
 
   /// 检测是否为中国大陆地区
@@ -50,7 +61,8 @@ class RegionFilterService {
 
       // 1. 检查时区
       final timezone = DateTime.now().timeZoneName.toLowerCase();
-      print('🕐 RegionFilter: 时区检测 - 原始值: "${DateTime.now().timeZoneName}", 小写: "$timezone"');
+      print(
+          '🕐 RegionFilter: 时区检测 - 原始值: "${DateTime.now().timeZoneName}", 小写: "$timezone"');
       if (timezone.contains('cst') || timezone.contains('china')) {
         print('✅ RegionFilter: 时区检测通过 - 包含 "cst" 或 "china"');
         return true;
@@ -59,7 +71,8 @@ class RegionFilterService {
 
       // 2. 检查系统语言环境
       final locale = Platform.localeName.toLowerCase();
-      print('🌐 RegionFilter: 语言环境检测 - 原始值: "${Platform.localeName}", 小写: "$locale"');
+      print(
+          '🌐 RegionFilter: 语言环境检测 - 原始值: "${Platform.localeName}", 小写: "$locale"');
       if (locale.startsWith('zh_cn') || locale.startsWith('zh-hans-cn')) {
         print('✅ RegionFilter: 语言环境检测通过 - 以 "zh_cn" 或 "zh-hans-cn" 开头');
         return true;
@@ -68,7 +81,8 @@ class RegionFilterService {
 
       // 3. 检查环境变量
       final lang = Platform.environment['LANG']?.toLowerCase() ?? '';
-      print('🔧 RegionFilter: LANG环境变量检测 - 原始值: "${Platform.environment['LANG']}", 小写: "$lang"');
+      print(
+          '🔧 RegionFilter: LANG环境变量检测 - 原始值: "${Platform.environment['LANG']}", 小写: "$lang"');
       if (lang.contains('zh_cn') || lang.contains('zh-hans')) {
         print('✅ RegionFilter: LANG环境变量检测通过 - 包含 "zh_cn" 或 "zh-hans"');
         return true;
@@ -138,8 +152,54 @@ class RegionFilterService {
   /// 检查平台是否在中国大陆受限
   static bool isPlatformRestrictedInChina(String platformId) {
     return _chinaRestrictedPlatforms.contains(platformId.toLowerCase()) ||
-           _chinaRestrictedPlatforms.any((restricted) =>
-               platformId.toLowerCase().contains(restricted.toLowerCase()));
+        _chinaRestrictedPlatforms.any((restricted) =>
+            platformId.toLowerCase().contains(restricted.toLowerCase()));
+  }
+
+  /// 文本是否包含中国大陆受限关键词（OpenAI/ChatGPT 相关）
+  static bool containsRestrictedKeyword(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return false;
+    }
+    final normalized = value.toLowerCase();
+    return _chinaRestrictedKeywords.any(normalized.contains);
+  }
+
+  /// URL/域名是否命中中国大陆受限域名（OpenAI/ChatGPT 相关）
+  static bool isRestrictedUrlInChina(String? urlOrHost) {
+    if (urlOrHost == null || urlOrHost.trim().isEmpty) {
+      return false;
+    }
+
+    final raw = urlOrHost.trim();
+    final uri = Uri.tryParse(
+        raw.startsWith('http://') || raw.startsWith('https://')
+            ? raw
+            : 'https://$raw');
+    final host = uri?.host.toLowerCase() ?? raw.toLowerCase();
+    return _chinaRestrictedKeywords.any(host.contains);
+  }
+
+  /// 基于平台与端点配置检查是否命中中国大陆受限能力
+  static bool isKeyRestrictedInChina({
+    required String platformId,
+    String? platformName,
+    String? apiEndpoint,
+    String? codexBaseUrl,
+    String? claudeCodeBaseUrl,
+    String? managementUrl,
+  }) {
+    if (isPlatformRestrictedInChina(platformId)) {
+      return true;
+    }
+    if (platformName != null && containsRestrictedKeyword(platformName)) {
+      return true;
+    }
+
+    return isRestrictedUrlInChina(apiEndpoint) ||
+        isRestrictedUrlInChina(codexBaseUrl) ||
+        isRestrictedUrlInChina(claudeCodeBaseUrl) ||
+        isRestrictedUrlInChina(managementUrl);
   }
 
   /// 获取过滤后的平台列表（移除中国大陆受限平台）
