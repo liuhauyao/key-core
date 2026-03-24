@@ -4,6 +4,7 @@ import '../models/ai_key.dart';
 import '../models/validation_config.dart';
 import '../models/platform_type.dart';
 import '../services/cloud_config_service.dart';
+import '../services/region_filter_service.dart';
 import 'validators/validation_helper.dart';
 
 /// 余额查询结果
@@ -33,9 +34,13 @@ class BalanceQueryService {
     Duration? timeout,
   }) async {
     try {
+      if (await _isChinaRestrictedKey(key)) {
+        return BalanceQueryResult.failure('当前地区不支持该供应商');
+      }
+
       // 使用密钥的 platform_type_id（即 platformType.id）来匹配配置文件中的供应商配置
       final platformTypeId = key.platformType.id;
-      
+
       // 从缓存中获取供应商配置（配置文件在应用启动时已加载到缓存）
       final configData = await _cloudConfigService.getConfigData();
       if (configData == null) {
@@ -48,7 +53,6 @@ class BalanceQueryService {
         (p) => p.platformType == platformTypeId,
         orElse: () => throw Exception('未找到供应商配置: $platformTypeId'),
       );
-
 
       // 获取校验配置
       final validationConfig = providerConfig.validation;
@@ -66,15 +70,17 @@ class BalanceQueryService {
         final tempConfig = ValidationConfig(
           type: validationConfig.type,
           baseUrlSource: validationConfig.balanceBaseUrlSource,
-          fallbackBaseUrl: validationConfig.balanceFallbackBaseUrl ?? validationConfig.fallbackBaseUrl,
+          fallbackBaseUrl: validationConfig.balanceFallbackBaseUrl ??
+              validationConfig.fallbackBaseUrl,
         );
         // 使用改进后的getBaseUrl，传递providerConfig以支持自动检测
         baseUrl = ValidationHelper.getBaseUrl(key, tempConfig, providerConfig);
       } else {
         // 使用改进后的getBaseUrl，传递providerConfig以支持自动检测
-        baseUrl = ValidationHelper.getBaseUrl(key, validationConfig, providerConfig);
+        baseUrl =
+            ValidationHelper.getBaseUrl(key, validationConfig, providerConfig);
       }
-      
+
       if (baseUrl == null || baseUrl.isEmpty) {
         return BalanceQueryResult.failure('缺少 API 端点配置');
       }
@@ -109,7 +115,8 @@ class BalanceQueryService {
       // 注意：目前配置中没有 balanceHeaders 字段，所以使用默认的 headers
       if (validationConfig.headers != null) {
         headers.addAll(
-          ValidationHelper.replaceApiKeyInHeaders(validationConfig.headers!, apiKey),
+          ValidationHelper.replaceApiKeyInHeaders(
+              validationConfig.headers!, apiKey),
         );
       }
 
@@ -123,27 +130,28 @@ class BalanceQueryService {
       if (method == 'POST') {
         final body = validationConfig.balanceBody != null
             ? jsonEncode(
-                ValidationHelper.replaceApiKeyInBody(validationConfig.balanceBody!, apiKey),
+                ValidationHelper.replaceApiKeyInBody(
+                    validationConfig.balanceBody!, apiKey),
               )
             : null;
         response = await http
             .post(url, headers: headers, body: body)
             .timeout(requestTimeout);
       } else {
-        response = await http.get(url, headers: headers).timeout(requestTimeout);
+        response =
+            await http.get(url, headers: headers).timeout(requestTimeout);
       }
-
 
       // 解析响应
       if (response.statusCode == 200) {
         final responseBody = utf8.decode(response.bodyBytes);
         final jsonData = jsonDecode(responseBody);
-        
+
         // 打印响应内容（限制长度）
-        final previewBody = responseBody.length > 500 
-            ? '${responseBody.substring(0, 500)}...' 
+        final previewBody = responseBody.length > 500
+            ? '${responseBody.substring(0, 500)}...'
             : responseBody;
-        
+
         return BalanceQueryResult.success(jsonData as Map<String, dynamic>);
       } else {
         return BalanceQueryResult.failure(
@@ -169,6 +177,13 @@ class BalanceQueryService {
   /// 检查平台是否支持余额查询
   Future<bool> supportsBalanceQuery(PlatformType platformType) async {
     try {
+      final isChinaFilterEnabled =
+          await RegionFilterService.isChinaRegionFilterEnabled();
+      if (isChinaFilterEnabled &&
+          RegionFilterService.isPlatformRestrictedInChina(platformType.id)) {
+        return false;
+      }
+
       final configData = await _cloudConfigService.getConfigData();
       if (configData == null) {
         return false;
@@ -179,14 +194,31 @@ class BalanceQueryService {
         orElse: () => throw Exception('未找到供应商配置'),
       );
 
-      final hasBalanceEndpoint = providerConfig.validation?.balanceEndpoint != null &&
-          providerConfig.validation!.balanceEndpoint!.isNotEmpty;
-      
+      final hasBalanceEndpoint =
+          providerConfig.validation?.balanceEndpoint != null &&
+              providerConfig.validation!.balanceEndpoint!.isNotEmpty;
+
       return hasBalanceEndpoint;
     } catch (e) {
       print('BalanceQueryService: 检查余额查询支持失败: $e');
       return false;
     }
   }
-}
 
+  Future<bool> _isChinaRestrictedKey(AIKey key) async {
+    final isChinaFilterEnabled =
+        await RegionFilterService.isChinaRegionFilterEnabled();
+    if (!isChinaFilterEnabled) {
+      return false;
+    }
+
+    return RegionFilterService.isKeyRestrictedInChina(
+      platformId: key.platformType.id,
+      platformName: key.platform,
+      apiEndpoint: key.apiEndpoint,
+      codexBaseUrl: key.codexBaseUrl,
+      claudeCodeBaseUrl: key.claudeCodeBaseUrl,
+      managementUrl: key.managementUrl,
+    );
+  }
+}

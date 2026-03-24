@@ -3,6 +3,7 @@ import '../models/validation_config.dart';
 import '../models/validation_result.dart';
 import '../models/platform_type.dart';
 import '../services/cloud_config_service.dart';
+import '../services/region_filter_service.dart';
 import 'validators/base_validator.dart';
 import 'validators/openai_validator.dart';
 import 'validators/anthropic_validator.dart';
@@ -21,10 +22,17 @@ class KeyValidationService {
     Duration? timeout,
   }) async {
     try {
+      if (await _isChinaRestrictedKey(key)) {
+        return KeyValidationResult.failure(
+          error: ValidationError.unknown,
+          message: '当前地区不支持该供应商',
+        );
+      }
+
       // 使用密钥的 platform_type_id（即 platformType.id）来匹配配置文件中的供应商配置
       // platformType 是从数据库恢复的，优先使用 platform_type_id 字段
       final platformTypeId = key.platformType.id;
-      
+
       // 从缓存中获取供应商配置（配置文件在应用启动时已加载到缓存）
       final configData = await _cloudConfigService.getConfigData();
       if (configData == null) {
@@ -52,23 +60,23 @@ class KeyValidationService {
       // 如果还是没有配置，使用通用校验器
       if (validationConfig == null) {
         final requestTimeout = timeout ?? const Duration(seconds: 5);
-        return await _validateWithGenericValidator(key, timeout: requestTimeout);
+        return await _validateWithGenericValidator(key,
+            timeout: requestTimeout);
       }
-
 
       // 根据类型选择合适的校验器
       final validator = _getValidator(validationConfig.type);
-      
+
       // 如果没有指定超时，默认使用5秒
       final requestTimeout = timeout ?? const Duration(seconds: 5);
-      
+
       final result = await validator.validate(
         key: key,
         config: validationConfig,
         providerConfig: providerConfig,
         timeout: requestTimeout,
       );
-      
+
       return result;
     } catch (e, stackTrace) {
       print('KeyValidationService: 校验异常: $e');
@@ -202,6 +210,13 @@ class KeyValidationService {
   /// 使用 platform_type_id（即 platformType.id）从已加载的配置文件中匹配配置
   Future<bool> supportsModelList(PlatformType platformType) async {
     try {
+      final isChinaFilterEnabled =
+          await RegionFilterService.isChinaRegionFilterEnabled();
+      if (isChinaFilterEnabled &&
+          RegionFilterService.isPlatformRestrictedInChina(platformType.id)) {
+        return false;
+      }
+
       final platformTypeId = platformType.id;
       // 从缓存中获取配置（配置文件在应用启动时已加载到缓存）
       final configData = await _cloudConfigService.getConfigData();
@@ -215,9 +230,10 @@ class KeyValidationService {
         orElse: () => throw Exception('未找到供应商配置: $platformTypeId'),
       );
 
-      final hasModelsEndpoint = providerConfig.validation?.modelsEndpoint != null &&
-          providerConfig.validation!.modelsEndpoint!.isNotEmpty;
-      
+      final hasModelsEndpoint =
+          providerConfig.validation?.modelsEndpoint != null &&
+              providerConfig.validation!.modelsEndpoint!.isNotEmpty;
+
       return hasModelsEndpoint;
     } catch (e) {
       return false;
@@ -228,6 +244,13 @@ class KeyValidationService {
   /// 使用 platform_type_id（即 platformType.id）从已加载的配置文件中匹配配置
   Future<bool> hasValidationConfig(PlatformType platformType) async {
     try {
+      final isChinaFilterEnabled =
+          await RegionFilterService.isChinaRegionFilterEnabled();
+      if (isChinaFilterEnabled &&
+          RegionFilterService.isPlatformRestrictedInChina(platformType.id)) {
+        return false;
+      }
+
       final platformTypeId = platformType.id;
       // 从缓存中获取配置（配置文件在应用启动时已加载到缓存）
       final configData = await _cloudConfigService.getConfigData();
@@ -244,5 +267,21 @@ class KeyValidationService {
       return false;
     }
   }
-}
 
+  Future<bool> _isChinaRestrictedKey(AIKey key) async {
+    final isChinaFilterEnabled =
+        await RegionFilterService.isChinaRegionFilterEnabled();
+    if (!isChinaFilterEnabled) {
+      return false;
+    }
+
+    return RegionFilterService.isKeyRestrictedInChina(
+      platformId: key.platformType.id,
+      platformName: key.platform,
+      apiEndpoint: key.apiEndpoint,
+      codexBaseUrl: key.codexBaseUrl,
+      claudeCodeBaseUrl: key.claudeCodeBaseUrl,
+      managementUrl: key.managementUrl,
+    );
+  }
+}
