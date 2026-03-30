@@ -26,6 +26,9 @@ class AiToolConfigService {
       case AiToolType.gemini:
         // Gemini 的配置文件在 ~/.gemini 目录下
         return path.join(home, '.gemini');
+      case AiToolType.openclaw:
+        // OpenClaw 的配置文件在 ~/.openclaw 目录下
+        return path.join(home, '.openclaw');
     }
   }
 
@@ -47,6 +50,9 @@ class AiToolConfigService {
       case AiToolType.gemini:
         // Gemini 使用 settings.json 文件
         return path.join(configDir, 'settings.json');
+      case AiToolType.openclaw:
+        // OpenClaw 使用 openclaw.json 文件（JSON5 格式，但标准 JSON 同样兼容）
+        return path.join(configDir, 'openclaw.json');
     }
   }
 

@@ -47,6 +47,11 @@ class AIKey extends Equatable {
   final String? geminiModel;
   final String? geminiBaseUrl;
 
+  // OpenClaw 相关配置
+  final bool enableOpenclaw;
+  final String? openclawBaseUrl; // OpenAI 兼容请求地址
+  final String? openclawModel; // 写入 OpenClaw 配置时使用的模型
+
   // 校验状态
   final bool isValidated; // 是否校验通过
 
@@ -84,6 +89,9 @@ class AIKey extends Equatable {
     this.geminiApiEndpoint,
     this.geminiModel,
     this.geminiBaseUrl,
+    this.enableOpenclaw = false,
+    this.openclawBaseUrl,
+    this.openclawModel,
     this.isValidated = false,
   });
 
@@ -121,6 +129,9 @@ class AIKey extends Equatable {
     String? geminiApiEndpoint,
     String? geminiModel,
     String? geminiBaseUrl,
+    bool? enableOpenclaw,
+    String? openclawBaseUrl,
+    String? openclawModel,
     bool? isValidated,
   }) {
     return AIKey(
@@ -157,6 +168,9 @@ class AIKey extends Equatable {
       geminiApiEndpoint: geminiApiEndpoint ?? this.geminiApiEndpoint,
       geminiModel: geminiModel ?? this.geminiModel,
       geminiBaseUrl: geminiBaseUrl ?? this.geminiBaseUrl,
+      enableOpenclaw: enableOpenclaw ?? this.enableOpenclaw,
+      openclawBaseUrl: openclawBaseUrl ?? this.openclawBaseUrl,
+      openclawModel: openclawModel ?? this.openclawModel,
       isValidated: isValidated ?? this.isValidated,
     );
   }
@@ -197,6 +211,9 @@ class AIKey extends Equatable {
       'gemini_api_endpoint': geminiApiEndpoint,
       'gemini_model': geminiModel,
       'gemini_base_url': geminiBaseUrl,
+      'enable_openclaw': enableOpenclaw ? 1 : 0,
+      'openclaw_base_url': openclawBaseUrl,
+      'openclaw_model': openclawModel,
       'is_validated': isValidated ? 1 : 0,
     };
   }
@@ -296,6 +313,9 @@ class AIKey extends Equatable {
       geminiApiEndpoint: map['gemini_api_endpoint'],
       geminiModel: map['gemini_model'],
       geminiBaseUrl: map['gemini_base_url'],
+      enableOpenclaw: (map['enable_openclaw']?.toInt() ?? 0) == 1,
+      openclawBaseUrl: map['openclaw_base_url'],
+      openclawModel: map['openclaw_model'],
       isValidated: (map['is_validated']?.toInt() ?? 0) == 1,
     );
   }
@@ -377,6 +397,9 @@ class AIKey extends Equatable {
         geminiApiEndpoint,
         geminiModel,
         geminiBaseUrl,
+        enableOpenclaw,
+        openclawBaseUrl,
+        openclawModel,
         isValidated,
       ];
 }

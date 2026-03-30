@@ -11,6 +11,7 @@ import 'key_form_page.dart';
 import 'claude_config_screen.dart';
 import 'codex_config_screen.dart';
 import 'gemini_config_screen.dart';
+import 'openclaw_config_screen.dart';
 import 'mcp_config_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/first_launch_dialog.dart';
@@ -45,6 +46,7 @@ class _MainScreenState extends State<MainScreen> {
   final GlobalKey<ClaudeConfigScreenState> _claudeConfigScreenKey = GlobalKey<ClaudeConfigScreenState>();
   final GlobalKey<CodexConfigScreenState> _codexConfigScreenKey = GlobalKey<CodexConfigScreenState>();
   final GlobalKey<GeminiConfigScreenState> _geminiConfigScreenKey = GlobalKey<GeminiConfigScreenState>();
+  final GlobalKey<OpenClawConfigScreenState> _openClawConfigScreenKey = GlobalKey<OpenClawConfigScreenState>();
   // 使用 ValueKey 来保持设置页面状态，避免 children 列表变化时重置
   static const _settingsScreenKey = ValueKey('settings_screen');
   bool _isEditMode = false;
@@ -217,6 +219,8 @@ class _MainScreenState extends State<MainScreen> {
         _codexConfigScreenKey.currentState?.refresh();
       } else if (app == AppType.gemini) {
         _geminiConfigScreenKey.currentState?.refresh();
+      } else if (app == AppType.openClaw) {
+        _openClawConfigScreenKey.currentState?.refresh();
       }
       // MCP 和密钥列表页面使用 ViewModel 缓存，不需要手动触发
     }
@@ -247,7 +251,7 @@ class _MainScreenState extends State<MainScreen> {
         if (app == AppType.keyManager || app == AppType.mcp || app == AppType.settings) {
           return true;
         }
-        // ClaudeCode、Codex 和 Gemini 根据启用状态显示
+        // ClaudeCode、Codex、Gemini 和 OpenClaw 根据启用状态显示
         if (app == AppType.claudeCode) {
           return enabledTools.contains(AiToolType.claudecode);
         }
@@ -256,6 +260,9 @@ class _MainScreenState extends State<MainScreen> {
         }
         if (app == AppType.gemini) {
           return enabledTools.contains(AiToolType.gemini);
+        }
+        if (app == AppType.openClaw) {
+          return enabledTools.contains(AiToolType.openclaw);
         }
         return true;
       }).toList();
@@ -389,6 +396,8 @@ class _MainScreenState extends State<MainScreen> {
                               return CodexConfigScreen(key: _codexConfigScreenKey);
                             case AppType.gemini:
                               return GeminiConfigScreen(key: _geminiConfigScreenKey);
+                            case AppType.openClaw:
+                              return OpenClawConfigScreen(key: _openClawConfigScreenKey);
                             case AppType.mcp:
                               return const McpConfigScreen();
                             case AppType.settings:

@@ -75,6 +75,11 @@ class ToolEnableService {
         return false;
       }
       
+      // OpenClaw 配置文件是可选的（不存在时使用内置默认值），只要目录存在即可启用
+      if (tool == AiToolType.openclaw) {
+        return true;
+      }
+
       // 目录存在，检查配置文件
       final fileExists = await file.exists();
       if (!fileExists) {
@@ -191,6 +196,10 @@ class ToolEnableService {
           'apiKey': '',
           'mcpServers': <String, dynamic>{},
         });
+
+      case AiToolType.openclaw:
+        // OpenClaw 的配置文件是可选的，此分支不会被调用（validateToolConfig 有特殊处理）
+        return const JsonEncoder.withIndent('  ').convert(<String, dynamic>{});
     }
   }
 }

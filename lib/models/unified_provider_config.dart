@@ -6,6 +6,7 @@ import 'validation_config.dart';
 enum ProviderCapability {
   claudeCode, // 支持 ClaudeCode
   codex, // 支持 Codex
+  openclaw, // 支持 OpenClaw
   platform, // 平台预设（密钥管理）
 }
 
@@ -73,6 +74,23 @@ class CodexConfig {
   }
 }
 
+/// OpenClaw 配置
+class OpenClawConfig {
+  final String baseUrl;
+  final String model;
+
+  OpenClawConfig({required this.baseUrl, required this.model});
+
+  factory OpenClawConfig.fromJson(Map<String, dynamic> json) {
+    return OpenClawConfig(
+      baseUrl: json['baseUrl'] as String,
+      model: json['model'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'baseUrl': baseUrl, 'model': model};
+}
+
 /// 平台预设配置
 class PlatformConfig {
   final String? managementUrl;
@@ -136,6 +154,9 @@ class UnifiedProviderConfig {
   
   /// Codex 配置（如果支持 Codex）
   final CodexConfig? codex;
+
+  /// OpenClaw 配置（如果支持 OpenClaw）
+  final OpenClawConfig? openclaw;
   
   /// 平台预设配置（如果支持平台预设）
   final PlatformConfig? platform;
@@ -158,6 +179,7 @@ class UnifiedProviderConfig {
     this.isPartner = false,
     this.claudeCode,
     this.codex,
+    this.openclaw,
     this.platform,
     this.validation,
     this.icon,
@@ -183,6 +205,9 @@ class UnifiedProviderConfig {
       codex: json['codex'] != null
           ? CodexConfig.fromJson(json['codex'] as Map<String, dynamic>)
           : null,
+      openclaw: json['openclaw'] != null
+          ? OpenClawConfig.fromJson(json['openclaw'] as Map<String, dynamic>)
+          : null,
       platform: json['platform'] != null
           ? PlatformConfig.fromJson(json['platform'] as Map<String, dynamic>)
           : null,
@@ -206,6 +231,7 @@ class UnifiedProviderConfig {
       'isPartner': isPartner,
       if (claudeCode != null) 'claudeCode': claudeCode!.toJson(),
       if (codex != null) 'codex': codex!.toJson(),
+      if (openclaw != null) 'openclaw': openclaw!.toJson(),
       if (platform != null) 'platform': platform!.toJson(),
       if (validation != null) 'validation': validation!.toJson(),
       if (icon != null) 'icon': icon,
@@ -217,6 +243,7 @@ class UnifiedProviderConfig {
     final List<ProviderCapability> caps = [];
     if (claudeCode != null) caps.add(ProviderCapability.claudeCode);
     if (codex != null) caps.add(ProviderCapability.codex);
+    if (openclaw != null) caps.add(ProviderCapability.openclaw);
     if (platform != null) caps.add(ProviderCapability.platform);
     return caps;
   }
@@ -228,6 +255,8 @@ class UnifiedProviderConfig {
         return claudeCode != null;
       case ProviderCapability.codex:
         return codex != null;
+      case ProviderCapability.openclaw:
+        return openclaw != null;
       case ProviderCapability.platform:
         return platform != null;
     }

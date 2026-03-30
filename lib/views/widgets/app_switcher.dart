@@ -12,6 +12,7 @@ enum AppType {
   claudeCode(Icons.code, 'assets/icons/platforms/claude-color.svg'),
   codex(Icons.terminal, 'assets/icons/platforms/openai.svg'),
   gemini(Icons.auto_awesome, 'assets/icons/platforms/gemini-color.svg'),
+  openClaw(Icons.cruelty_free, 'assets/icons/platforms/openclaw-color.svg'),
   mcp(Icons.dns, 'assets/icons/platforms/mcp.svg'),
   settings(Icons.settings, null);
 
@@ -30,6 +31,8 @@ enum AppType {
         return 'Codex';
       case AppType.gemini:
         return 'Gemini';
+      case AppType.openClaw:
+        return 'OpenClaw';
       case AppType.mcp:
         return 'MCP';
       case AppType.settings:
@@ -142,7 +145,7 @@ class AppSwitcher extends StatelessWidget {
         if (app == AppType.keyManager || app == AppType.mcp || app == AppType.settings) {
           return true;
         }
-        // ClaudeCode、Codex 和 Gemini 根据启用状态显示
+        // ClaudeCode、Codex、Gemini 和 OpenClaw 根据启用状态显示
         if (app == AppType.claudeCode) {
           return enabledTools.contains(AiToolType.claudecode);
         }
@@ -151,6 +154,9 @@ class AppSwitcher extends StatelessWidget {
         }
         if (app == AppType.gemini) {
           return enabledTools.contains(AiToolType.gemini);
+        }
+        if (app == AppType.openClaw) {
+          return enabledTools.contains(AiToolType.openclaw);
         }
         return true;
       }).toList();

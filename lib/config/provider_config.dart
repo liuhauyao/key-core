@@ -125,11 +125,40 @@ class CodexProvider {
   });
 }
 
+/// OpenClaw 供应商配置
+class OpenClawProvider {
+  /// 供应商 ID（对应 app_config.json 中的 id 字段，与 PlatformType.id 一致）
+  final String id;
+  final String name;
+  final String websiteUrl;
+  final String? apiKeyUrl;
+  final String baseUrl;
+  final String model;
+  final ProviderCategory category;
+  final bool isOfficial;
+  final bool isPartner;
+  final PlatformType? platformType;
+
+  const OpenClawProvider({
+    required this.id,
+    required this.name,
+    required this.websiteUrl,
+    this.apiKeyUrl,
+    required this.baseUrl,
+    required this.model,
+    required this.category,
+    this.isOfficial = false,
+    this.isPartner = false,
+    this.platformType,
+  });
+}
+
 /// 供应商配置管理
 class ProviderConfig {
   static final CloudConfigService _configService = CloudConfigService();
   static List<ClaudeCodeProvider>? _cachedClaudeCodeProviders;
   static List<CodexProvider>? _cachedCodexProviders;
+  static List<OpenClawProvider>? _cachedOpenClawProviders;
 
   /// 初始化配置（从云端或本地加载）
   static Future<void> init({bool forceRefresh = false}) async {
@@ -156,6 +185,7 @@ class ProviderConfig {
   static Future<void> _loadFromUnifiedProviders(List<UnifiedProviderConfig> providers) async {
     final claudeCodeProvidersList = <ClaudeCodeProvider>[];
     final codexProvidersList = <CodexProvider>[];
+    final openClawProvidersList = <OpenClawProvider>[];
     int errorCount = 0;
     
     for (final provider in providers) {
@@ -198,6 +228,22 @@ class ProviderConfig {
             platformType: platformType == PlatformType.custom ? null : platformType,
           ));
         }
+
+        // 加载 OpenClaw 供应商（只要有配置就加载）
+        if (provider.openclaw != null) {
+          openClawProvidersList.add(OpenClawProvider(
+            id: provider.id,
+            name: provider.name,
+            websiteUrl: provider.websiteUrl,
+            apiKeyUrl: provider.apiKeyUrl,
+            baseUrl: provider.openclaw!.baseUrl,
+            model: provider.openclaw!.model,
+            category: _parseCategory(provider.providerCategory.toString().split('.').last),
+            isOfficial: provider.isOfficial,
+            isPartner: provider.isPartner,
+            platformType: platformType == PlatformType.custom ? null : platformType,
+          ));
+        }
       } catch (e) {
         errorCount++;
       }
@@ -210,9 +256,13 @@ class ProviderConfig {
     if (codexProvidersList.isNotEmpty) {
       _cachedCodexProviders = codexProvidersList;
     }
+
+    if (openClawProvidersList.isNotEmpty) {
+      _cachedOpenClawProviders = openClawProvidersList;
+    }
     
     if (errorCount > 0 || claudeCodeProvidersList.isNotEmpty || codexProvidersList.isNotEmpty) {
-      print('ProviderConfig: 加载完成 - 配置文件供应商总数: ${providers.length}, ClaudeCode供应商: ${claudeCodeProvidersList.length}, Codex供应商: ${codexProvidersList.length}, 错误: $errorCount');
+      print('ProviderConfig: 加载完成 - 配置文件供应商总数: ${providers.length}, ClaudeCode供应商: ${claudeCodeProvidersList.length}, Codex供应商: ${codexProvidersList.length}, OpenClaw供应商: ${openClawProvidersList.length}, 错误: $errorCount');
     }
   }
 
@@ -265,6 +315,31 @@ class ProviderConfig {
   static CodexProvider? getCodexProviderByPlatform(PlatformType platformType) {
     try {
       return codexProviders.firstWhere(
+        (provider) => provider.platformType == platformType,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// OpenClaw 供应商预设列表
+  static List<OpenClawProvider> get openClawProviders {
+    if (_cachedOpenClawProviders != null) return _cachedOpenClawProviders!;
+    return [];
+  }
+
+  /// 根据平台类型或供应商 ID 获取 OpenClaw 供应商
+  /// 优先按 id 匹配（可解决 platformType 与 id 不一致的问题，如 google/gemini、kimi/moonshot）
+  static OpenClawProvider? getOpenClawProviderByPlatform(PlatformType platformType) {
+    try {
+      // 先按 provider.id 与 platformType.id 匹配（最准确）
+      return openClawProviders.firstWhere(
+        (provider) => provider.id == platformType.id,
+      );
+    } catch (_) {}
+    try {
+      // 再按 platformType 对象匹配（兜底）
+      return openClawProviders.firstWhere(
         (provider) => provider.platformType == platformType,
       );
     } catch (e) {

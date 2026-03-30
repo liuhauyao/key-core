@@ -436,6 +436,9 @@ class KeyManagerViewModel extends BaseViewModel {
         geminiApiEndpoint: key.geminiApiEndpoint,
         geminiModel: key.geminiModel,
         geminiBaseUrl: key.geminiBaseUrl,
+        enableOpenclaw: key.enableOpenclaw,
+        openclawBaseUrl: key.openclawBaseUrl,
+        openclawModel: key.openclawModel,
         isValidated: key.isValidated,
       );
 
@@ -682,6 +685,9 @@ class KeyManagerViewModel extends BaseViewModel {
         geminiApiEndpoint: key.geminiApiEndpoint,
         geminiModel: key.geminiModel,
         geminiBaseUrl: key.geminiBaseUrl,
+        enableOpenclaw: key.enableOpenclaw,
+        openclawBaseUrl: key.openclawBaseUrl,
+        openclawModel: key.openclawModel,
         isValidated: key.isValidated,
       );
     } catch (e) {

@@ -71,6 +71,10 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   
   // Gemini 配置控制器（已移除，不再需要）
 
+  // OpenClaw 配置控制器
+  late TextEditingController _openclawBaseUrlController;
+  late TextEditingController _openclawModelController;
+
   PlatformType? _selectedPlatform;
   DateTime? _expiryDate;
   bool _isEditMode = false;
@@ -83,10 +87,11 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   // 地区过滤后的平台列表缓存
   Map<PlatformCategory, List<PlatformType>> _filteredPlatformsCache = {};
   
-  // ClaudeCode/Codex/Gemini 启用状态
+  // ClaudeCode/Codex/Gemini/OpenClaw 启用状态
   bool _enableClaudeCode = false;
   bool _enableCodex = false;
   bool _enableGemini = false;
+  bool _enableOpenclaw = false;
   
   // 图标选择
   String? _selectedIcon;
@@ -165,6 +170,14 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       text: widget.editingKey?.codexBaseUrl ?? '',
     );
 
+    // OpenClaw 配置控制器
+    _openclawBaseUrlController = TextEditingController(
+      text: widget.editingKey?.openclawBaseUrl ?? '',
+    );
+    _openclawModelController = TextEditingController(
+      text: widget.editingKey?.openclawModel ?? '',
+    );
+
     if (widget.editingKey != null) {
       _selectedPlatform = widget.editingKey!.platformType;
       _isCustomPlatform = widget.editingKey!.platformType == PlatformType.custom;
@@ -173,6 +186,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       _enableClaudeCode = widget.editingKey!.enableClaudeCode;
       _enableCodex = widget.editingKey!.enableCodex;
       _enableGemini = widget.editingKey!.enableGemini;
+      _enableOpenclaw = widget.editingKey!.enableOpenclaw;
       _selectedIcon = widget.editingKey!.icon;
     } else {
       _isCustomPlatform = true;
@@ -180,6 +194,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       _enableClaudeCode = false;
       _enableCodex = false;
       _enableGemini = false;
+      _enableOpenclaw = false;
       _selectedIcon = null;
       // 新建模式下：默认选择常用分组中的自定义模板
       _selectedCategory = PlatformCategory.popular;
@@ -475,6 +490,8 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     _codexApiEndpointController.dispose();
     _codexModelController.dispose();
     _codexBaseUrlController.dispose();
+    _openclawBaseUrlController.dispose();
+    _openclawModelController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -932,6 +949,23 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                     return Column(
                       children: [
                         _buildGeminiConfigSection(context, shadTheme, localizations),
+                        const SizedBox(height: 24),
+                      ],
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+
+              // OpenClaw 配置区域（工具已启用且已选供应商时显示）
+              Consumer<SettingsViewModel>(
+                builder: (context, settingsViewModel, child) {
+                  final enabledTools = settingsViewModel.getEnabledTools();
+                  final isOpenClawEnabled = enabledTools.contains(AiToolType.openclaw);
+                  if (isOpenClawEnabled && _selectedPlatform != null) {
+                    return Column(
+                      children: [
+                        _buildOpenClawConfigSection(context, shadTheme, localizations),
                         const SizedBox(height: 24),
                       ],
                     );
@@ -1760,8 +1794,15 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
             : null,
         enableGemini: _enableGemini,
         geminiApiEndpoint: null,
-        geminiModel: null, // Gemini 只支持官方 API，不需要模型配置
-        geminiBaseUrl: null, // Gemini 只支持官方 API，不需要 Base URL 配置
+        geminiModel: null,
+        geminiBaseUrl: null,
+        enableOpenclaw: _enableOpenclaw,
+        openclawBaseUrl: _openclawBaseUrlController.text.trim().isNotEmpty
+            ? _openclawBaseUrlController.text.trim()
+            : null,
+        openclawModel: _openclawModelController.text.trim().isNotEmpty
+            ? _openclawModelController.text.trim()
+            : null,
       );
 
       Navigator.of(context).pop(key);
@@ -1818,46 +1859,21 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                   onChanged: (value) {
                     setState(() {
                       _enableClaudeCode = value;
-                      // ⚠️ 重要：只在新建模式下自动填充模板配置
-                      // 编辑模式下只处理启用/禁用状态，不覆盖用户自定义配置
-                      if (value && provider != null && !_isEditMode) {
-                        // 新建模式：自动填充供应商配置
-                        // 先填充 Base URL（如果为空）
-                        if (_claudeCodeBaseUrlController.text.isEmpty) {
-                          _claudeCodeBaseUrlController.text = provider.baseUrl;
-                        }
-
-                        // 先清空所有模型字段，避免残留其他供应商的配置
-                        _claudeCodeModelController.clear();
-                        _claudeCodeHaikuModelController.clear();
-                        _claudeCodeSonnetModelController.clear();
-                        _claudeCodeOpusModelController.clear();
-
-                        // 只有当模型配置不为空时才自动填充
-                        if (provider.modelConfig.mainModel.isNotEmpty) {
-                          _claudeCodeModelController.text = provider.modelConfig.mainModel;
-                        }
-                        if (provider.modelConfig.haikuModel != null &&
-                            provider.modelConfig.haikuModel!.isNotEmpty) {
-                          _claudeCodeHaikuModelController.text = provider.modelConfig.haikuModel!;
-                        }
-                        if (provider.modelConfig.sonnetModel != null &&
-                            provider.modelConfig.sonnetModel!.isNotEmpty) {
-                          _claudeCodeSonnetModelController.text = provider.modelConfig.sonnetModel!;
-                        }
-                        if (provider.modelConfig.opusModel != null &&
-                            provider.modelConfig.opusModel!.isNotEmpty) {
-                          _claudeCodeOpusModelController.text = provider.modelConfig.opusModel!;
-                        }
+                      if (value && provider != null) {
+                        // 开启时始终从模板加载默认配置（开/关/重开都重置为模板值）
+                        _claudeCodeBaseUrlController.text = provider.baseUrl;
+                        _claudeCodeModelController.text = provider.modelConfig.mainModel;
+                        _claudeCodeHaikuModelController.text = provider.modelConfig.haikuModel ?? '';
+                        _claudeCodeSonnetModelController.text = provider.modelConfig.sonnetModel ?? '';
+                        _claudeCodeOpusModelController.text = provider.modelConfig.opusModel ?? '';
                       } else if (!value) {
-                        // 如果禁用，清空所有 ClaudeCode 相关字段
+                        // 关闭时清空，下次开启时重新从模板加载
                         _claudeCodeBaseUrlController.clear();
                         _claudeCodeModelController.clear();
                         _claudeCodeHaikuModelController.clear();
                         _claudeCodeSonnetModelController.clear();
                         _claudeCodeOpusModelController.clear();
                       }
-                      // 编辑模式且启用：什么也不做，保留用户已有配置
                     });
                   },
                   activeColor: shadTheme.colorScheme.primary,
@@ -1985,18 +2001,15 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                   onChanged: (value) {
                     setState(() {
                       _enableCodex = value;
-                      // ⚠️ 重要：模板配置只在新建模式下自动填充
-                      // 编辑模式下保留用户自定义配置
-                      if (value && provider != null && !_isEditMode) {
-                        // 新建模式：只在字段为空时才自动填充
-                        if (_codexBaseUrlController.text.isEmpty) {
-                          _codexBaseUrlController.text = provider.baseUrl;
-                        }
-                        if (_codexModelController.text.isEmpty) {
-                          _codexModelController.text = provider.model;
-                        }
+                      if (value && provider != null) {
+                        // 开启时始终从模板加载默认配置
+                        _codexBaseUrlController.text = provider.baseUrl;
+                        _codexModelController.text = provider.model;
+                      } else if (!value) {
+                        // 关闭时清空，下次开启时重新从模板加载
+                        _codexBaseUrlController.clear();
+                        _codexModelController.clear();
                       }
-                      // 编辑模式：什么也不做，保留用户已有配置
                     });
                   },
                   activeColor: shadTheme.colorScheme.primary,
@@ -2102,6 +2115,107 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
           ),
           // Gemini 只支持官方 API，无需额外配置
         ],
+    );
+  }
+
+  /// 构建 OpenClaw 配置区域
+  Widget _buildOpenClawConfigSection(
+    BuildContext context,
+    ShadThemeData shadTheme,
+    AppLocalizations? localizations,
+  ) {
+    final provider = _selectedPlatform != null
+        ? ProviderConfig.getOpenClawProviderByPlatform(_selectedPlatform!)
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            SvgPicture.asset(
+              'assets/icons/platforms/openclaw-color.svg',
+              width: 18,
+              height: 18,
+              allowDrawingOutsideViewBox: true,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'OpenClaw 配置',
+                    style: shadTheme.textTheme.p.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: shadTheme.colorScheme.foreground,
+                    ),
+                  ),
+                  if (provider != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      provider.name,
+                      style: shadTheme.textTheme.small.copyWith(
+                        color: shadTheme.colorScheme.mutedForeground,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Transform.scale(
+              scale: 0.75,
+              child: Switch(
+                value: _enableOpenclaw,
+                onChanged: (value) {
+                  setState(() {
+                    _enableOpenclaw = value;
+                    if (value && provider != null) {
+                      // 开启时始终从配置文件加载默认值
+                      _openclawBaseUrlController.text = provider.baseUrl;
+                      _openclawModelController.text = provider.model;
+                    } else if (!value) {
+                      // 关闭时清空，下次开启时重新从配置加载
+                      _openclawBaseUrlController.clear();
+                      _openclawModelController.clear();
+                    }
+                  });
+                },
+                activeColor: shadTheme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+        if (_enableOpenclaw) ...[
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ImeSafeTextField(
+                  controller: _openclawBaseUrlController,
+                  labelText: localizations?.requestUrl ?? '请求地址',
+                  hintText: provider?.baseUrl ?? 'https://api.example.com/v1',
+                  prefixIcon: Icon(Icons.link, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  keyboardType: TextInputType.url,
+                  isDark: Theme.of(context).brightness == Brightness.dark,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ImeSafeTextField(
+                  controller: _openclawModelController,
+                  labelText: localizations?.modelName ?? '模型名称',
+                  hintText: provider?.model ?? 'provider/model-name',
+                  prefixIcon: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  suffixIcon: _buildModelPickerButton(context, _openclawModelController),
+                  isDark: Theme.of(context).brightness == Brightness.dark,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 

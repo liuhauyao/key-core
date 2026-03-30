@@ -42,6 +42,7 @@ class KeyCard extends StatefulWidget {
   final VoidCallback? onCopyApiKey;
   final VoidCallback? onCopyEnvVarCommand; // 复制环境变量命令
   final VoidCallback? onMoveToTop; // 置顶回调
+  final ValueChanged<bool>? onToggle; // OpenClaw 等场景：右上角显示开关滑块
 
   const KeyCard({
     super.key,
@@ -58,6 +59,7 @@ class KeyCard extends StatefulWidget {
     this.onCopyApiKey,
     this.onCopyEnvVarCommand,
     this.onMoveToTop,
+    this.onToggle,
   });
 
   @override
@@ -578,7 +580,7 @@ class _KeyCardState extends State<KeyCard> {
   }
 
   /// 构建余额行
-  /// 构建余额显示组件（右上角）
+  /// 构建余额标签组件（在标签区域内显示，悬浮显示详细余额）
   Widget _buildBalanceDisplay(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations) {
     final balanceData = _cachedBalance;
     if (balanceData == null) {
@@ -813,75 +815,30 @@ class _KeyCardState extends State<KeyCard> {
       }
     }
 
-    // 解析余额文本，分离货币符号和金额
-    // 余额格式通常是 "¥100.00" 或 "$100.00"
-    String currencySymbol = '';
-    String amount = balanceText;
-    if (balanceText.isNotEmpty) {
-      final match = RegExp(r'^([^\d]+)(\d+\.?\d*)$').firstMatch(balanceText);
-      if (match != null) {
-        currencySymbol = match.group(1) ?? '';
-        amount = match.group(2) ?? balanceText;
-      } else {
-        // 如果没有匹配到，尝试查找第一个数字的位置
-        final firstDigitIndex = balanceText.indexOf(RegExp(r'\d'));
-        if (firstDigitIndex > 0) {
-          currencySymbol = balanceText.substring(0, firstDigitIndex);
-          amount = balanceText.substring(firstDigitIndex);
-        }
-      }
-    }
-    
-    final balanceWidget = Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.end, // 整体底部对齐
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          localizations?.balance ?? '余额',
+    // 构建紧凑的余额标签，点击可查询最新余额
+    final tag = GestureDetector(
+      onTap: _supportsBalanceQuery == true ? _handleQueryBalance : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          balanceText,
           style: shadTheme.textTheme.small.copyWith(
-            fontSize: 10,
-            color: shadTheme.colorScheme.mutedForeground,
-            height: 1.0, // 紧凑行高
+            fontSize: 11,
+            color: Colors.green.shade700,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 6), // 稍微添加间距
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              currencySymbol,
-              style: shadTheme.textTheme.p.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: Colors.green.shade700,
-                height: 1.0, // 紧凑行高
-              ),
-            ),
-            Text(
-              amount,
-              style: shadTheme.textTheme.p.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-                color: Colors.green.shade700,
-                height: 1.0, // 紧凑行高
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
 
     if (tooltipText != null && tooltipText.isNotEmpty) {
-      return Tooltip(
-        message: tooltipText,
-        child: balanceWidget,
-      );
+      return Tooltip(message: tooltipText, child: tag);
     }
-
-    return balanceWidget;
+    return tag;
   }
 
   /// 构建校验通过标签（绿色呼吸圆点）
@@ -1039,55 +996,84 @@ class _KeyCardState extends State<KeyCard> {
                       ),
                     ),
                     
-              // 4. 悬浮在右上角的校验通过标签和"当前"标签
-              // 优先使用缓存的校验状态，如果缓存中没有则使用数据库中的状态
-              Builder(
-                builder: (context) {
-                  final isValidated = _cachedValidationStatus ?? widget.aiKey.isValidated;
-                  return Positioned(
-                    top: 12,
-                    right: 12,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // 校验通过标签（绿色呼吸圆点）- 移回右上角
-                        // 仅在没有余额显示时展示，避免信息冗余
-                        if (isValidated && !widget.isEditMode && _cachedBalance == null) ...[
-                          _buildValidationSuccessLabel(context, shadTheme),
-                          if (widget.isCurrent) const SizedBox(height: 6),
-                        ],
-                        // "当前"标签
-                        if (widget.isCurrent) ...[
-                          if ((_cachedBalance != null || isValidated) && !widget.isEditMode)
-                            const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: shadTheme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          localizations?.current ?? '当前',
-                          style: shadTheme.textTheme.small.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
+              // 4. 右上角状态指示（三种模式）
+              if (!widget.isEditMode)
+                Builder(
+                  builder: (context) {
+                    final isValidated = _cachedValidationStatus ?? widget.aiKey.isValidated;
+
+                    // 模式 A：onToggle 不为空 → 显示开关滑块（如 MCP 卡片）
+                    if (widget.onToggle != null) {
+                      return Positioned(
+                        top: 6,
+                        right: 4,
+                        child: Transform.scale(
+                          scale: 0.75,
+                          child: Switch(
+                            value: widget.isCurrent,
+                            onChanged: widget.onToggle,
+                            activeColor: shadTheme.colorScheme.primary,
                           ),
                         ),
-                      ),
-                    ],
-                  ],
+                      );
+                    }
+
+                    // 模式 B：switchKey 且已选中 → 圆点 + "激活" 融合标签
+                    if (widget.cardMode == KeyCardMode.switchKey && widget.isCurrent) {
+                      return Positioned(
+                        top: 10,
+                        right: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade600,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.12),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '激活',
+                                style: shadTheme.textTheme.small.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    // 模式 C：其余情况 → 已同步则显示绿色圆点，否则空白
+                    if (isValidated) {
+                      return Positioned(
+                        top: 12,
+                        right: 12,
+                        child: _buildValidationSuccessLabel(context, shadTheme),
+                      );
+                    }
+
+                    return const SizedBox.shrink();
+                  },
                 ),
-                  );
-                },
-              ),
             ],
           ),
         ),
@@ -1153,17 +1139,7 @@ class _KeyCardState extends State<KeyCard> {
               ),
             ),
             
-              // 余额显示（非编辑模式，靠右对齐，底部对齐）
-              if (!widget.isEditMode && _cachedBalance != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  height: 44, // 与 Logo 高度一致
-                  alignment: Alignment.bottomRight, // 底部对齐
-                  child: _buildBalanceDisplay(context, shadTheme, localizations),
-                ),
-              ],
-
-            // 拖动手柄（仅在编辑模式显示，作为视觉提示）
+              // 拖动手柄（仅在编辑模式显示，作为视觉提示）
             if (widget.isEditMode)
               Container(
                 margin: const EdgeInsets.only(left: 8),
@@ -1210,6 +1186,12 @@ class _KeyCardState extends State<KeyCard> {
                         isModelTag: true,
                       ),
                     ),
+                  ),
+                // 余额标签（如果有余额数据）
+                if (!widget.isEditMode && _cachedBalance != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: _buildBalanceDisplay(context, shadTheme, localizations),
                   ),
                 // 用户自定义标签（显示为紫色）
                 ...widget.aiKey.tags.map((tag) => Padding(

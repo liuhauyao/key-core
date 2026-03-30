@@ -1,7 +1,7 @@
 {
-  "version": "1.0.5",
+  "version": "1.0.6",
   "schemaVersion": 3,
-  "lastUpdated": "2025-12-19T08:00:00.000000",
+  "lastUpdated": "2026-03-27T08:00:00.000000",
   "config": {
     "supportedLanguages": [
       {
@@ -83,6 +83,7 @@
         "icon": "anthropic.svg",
         "categories": [
           "claudeCode",
+          "openclaw",
           "popular",
           "llm"
         ],
@@ -95,6 +96,10 @@
           "modelConfig": {
             "mainModel": ""
           }
+        },
+        "openclaw": {
+          "baseUrl": "https://api.anthropic.com/v1",
+          "model": "claude-opus-4-6"
         },
         "platform": {
           "managementUrl": "https://console.anthropic.com/settings/keys",
@@ -137,6 +142,7 @@
         "icon": "deepseek-color.svg",
         "categories": [
           "claudeCode",
+          "openclaw",
           "popular",
           "llm"
         ],
@@ -147,11 +153,15 @@
         "claudeCode": {
           "baseUrl": "https://api.deepseek.com/anthropic",
           "modelConfig": {
-            "mainModel": "DeepSeek-V3.2-Exp",
-            "haikuModel": "DeepSeek-V3.2-Exp",
-            "sonnetModel": "DeepSeek-V3.2-Exp",
-            "opusModel": "DeepSeek-V3.2-Exp"
+            "mainModel": "deepseek-chat",
+            "haikuModel": "deepseek-chat",
+            "sonnetModel": "deepseek-chat",
+            "opusModel": "deepseek-chat"
           }
+        },
+        "openclaw": {
+          "baseUrl": "https://api.deepseek.com/v1",
+          "model": "deepseek-chat"
         },
         "platform": {
           "managementUrl": "https://platform.deepseek.com",
@@ -205,10 +215,10 @@
         "claudeCode": {
           "baseUrl": "https://open.bigmodel.cn/api/anthropic",
           "modelConfig": {
-            "mainModel": "glm-4.6",
-            "haikuModel": "glm-4.5-air",
-            "sonnetModel": "glm-4.6",
-            "opusModel": "glm-4.6"
+            "mainModel": "glm-4.7",
+            "haikuModel": "glm-4.7-flashx",
+            "sonnetModel": "glm-4.7",
+            "opusModel": "glm-4.7"
           }
         },
         "platform": {
@@ -252,7 +262,8 @@
         "platformType": "zai",
         "icon": "zai.svg",
         "categories": [
-          "claudeCode"
+          "claudeCode",
+          "openclaw"
         ],
         "providerCategory": "cnOfficial",
         "websiteUrl": "https://z.ai",
@@ -262,11 +273,15 @@
         "claudeCode": {
           "baseUrl": "https://api.z.ai/api/anthropic",
           "modelConfig": {
-            "mainModel": "glm-4.6",
-            "haikuModel": "glm-4.5-air",
-            "sonnetModel": "glm-4.6",
-            "opusModel": "glm-4.6"
+            "mainModel": "glm-4.7",
+            "haikuModel": "glm-4.7-flashx",
+            "sonnetModel": "glm-4.7",
+            "opusModel": "glm-4.7"
           }
+        },
+        "openclaw": {
+          "baseUrl": "https://api.z.ai/api/paas/v4",
+          "model": "glm-5"
         },
         "platform": {
           "managementUrl": "https://z.ai",
@@ -283,7 +298,7 @@
             "content-type": "application/json"
           },
           "body": {
-            "model": "glm-4.6",
+            "model": "glm-4.7",
             "max_tokens": 1,
             "messages": [
               {
@@ -319,6 +334,7 @@
         "icon": "kimi-color.svg",
         "categories": [
           "claudeCode",
+          "openclaw",
           "popular",
           "llm"
         ],
@@ -329,11 +345,15 @@
         "claudeCode": {
           "baseUrl": "https://api.moonshot.cn/anthropic",
           "modelConfig": {
-            "mainModel": "kimi-for-coding",
-            "haikuModel": "kimi-for-coding",
-            "sonnetModel": "kimi-for-coding",
-            "opusModel": "kimi-for-coding"
+            "mainModel": "kimi-k2.5",
+            "haikuModel": "kimi-k2.5",
+            "sonnetModel": "kimi-k2.5",
+            "opusModel": "kimi-k2.5"
           }
+        },
+        "openclaw": {
+          "baseUrl": "https://api.moonshot.ai/v1",
+          "model": "kimi-k2.5"
         },
         "platform": {
           "managementUrl": "https://platform.moonshot.cn/console/api-keys",
@@ -346,7 +366,7 @@
           "method": "POST",
           "baseUrlSource": "platform.apiEndpoint",
           "body": {
-            "model": "moonshot-v1-8k",
+            "model": "kimi-k2.5",
             "messages": [
               {
                 "role": "user",
@@ -434,6 +454,7 @@
         "icon": "minimax-color.svg",
         "categories": [
           "claudeCode",
+          "openclaw",
           "llm"
         ],
         "providerCategory": "cnOfficial",
@@ -444,11 +465,15 @@
         "claudeCode": {
           "baseUrl": "https://api.minimaxi.com/anthropic",
           "modelConfig": {
-            "mainModel": "MiniMax-M2",
-            "haikuModel": "MiniMax-M2",
-            "sonnetModel": "MiniMax-M2",
-            "opusModel": "MiniMax-M2"
+            "mainModel": "MiniMax-M2.7",
+            "haikuModel": "MiniMax-M2.7",
+            "sonnetModel": "MiniMax-M2.7",
+            "opusModel": "MiniMax-M2.7"
           }
+        },
+        "openclaw": {
+          "baseUrl": "https://api.minimax.io/anthropic",
+          "model": "MiniMax-M2.7"
         },
         "platform": {
           "managementUrl": "https://platform.minimaxi.com/",
@@ -461,7 +486,7 @@
           "method": "POST",
           "baseUrlSource": "platform.apiEndpoint",
           "body": {
-            "model": "MiniMax-M2",
+            "model": "MiniMax-M2.7",
             "messages": [
               {
                 "role": "user",
@@ -601,6 +626,7 @@
         "categories": [
           "claudeCode",
           "codex",
+          "openclaw",
           "llm",
           "tools",
           "popular"
@@ -619,6 +645,10 @@
         "codex": {
           "baseUrl": "https://openrouter.ai/api/v1",
           "model": "gpt-5-codex"
+        },
+        "openclaw": {
+          "baseUrl": "https://openrouter.ai/api/v1",
+          "model": "anthropic/claude-opus-4-6"
         },
         "platform": {
           "managementUrl": "https://openrouter.ai/keys",
@@ -660,6 +690,7 @@
         "categories": [
           "claudeCode",
           "codex",
+          "openclaw",
           "llm",
           "tools"
         ],
@@ -677,6 +708,10 @@
         "codex": {
           "baseUrl": "https://api-inference.huggingface.co/v1",
           "model": "gpt-5-codex"
+        },
+        "openclaw": {
+          "baseUrl": "https://api-inference.huggingface.co/v1",
+          "model": "Qwen/Qwen3-235B-A22B-Instruct-2507"
         },
         "platform": {
           "managementUrl": "https://huggingface.co/settings/tokens",
@@ -1001,6 +1036,7 @@
         "icon": "openai.svg",
         "categories": [
           "codex",
+          "openclaw",
           "popular",
           "llm"
         ],
@@ -1010,7 +1046,11 @@
         "isPartner": false,
         "codex": {
           "baseUrl": "https://api.openai.com/v1",
-          "model": "gpt-5-codex"
+          "model": "codex-mini-latest"
+        },
+        "openclaw": {
+          "baseUrl": "https://api.openai.com/v1",
+          "model": "gpt-4.1"
         },
         "platform": {
           "managementUrl": "https://platform.openai.com/api-keys",
@@ -1077,6 +1117,7 @@
         "platformType": "gemini",
         "icon": "gemini-color.svg",
         "categories": [
+          "openclaw",
           "popular",
           "llm"
         ],
@@ -1084,6 +1125,10 @@
         "websiteUrl": "https://makersuite.google.com/app/apikey",
         "isOfficial": false,
         "isPartner": false,
+        "openclaw": {
+          "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+          "model": "gemini-2.5-pro"
+        },
         "platform": {
           "managementUrl": "https://makersuite.google.com/app/apikey",
           "apiEndpoint": "https://generativelanguage.googleapis.com/v1",
@@ -1173,6 +1218,7 @@
         "categories": [
           "claudeCode",
           "codex",
+          "openclaw",
           "popular",
           "llm"
         ],
@@ -1196,6 +1242,10 @@
           "endpointCandidates": [
             "https://api.siliconflow.cn/v1"
           ]
+        },
+        "openclaw": {
+          "baseUrl": "https://api.siliconflow.cn/v1",
+          "model": "deepseek-ai/DeepSeek-V3"
         },
         "platform": {
           "managementUrl": "https://cloud.siliconflow.cn/account/ak",
@@ -1239,12 +1289,17 @@
         "platformType": "bailian",
         "icon": "bailian-color.svg",
         "categories": [
+          "openclaw",
           "llm"
         ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://bailian.console.aliyun.com/?tab=model#/api-key",
         "isOfficial": false,
         "isPartner": false,
+        "openclaw": {
+          "baseUrl": "https://coding-intl.dashscope.aliyuncs.com/v1",
+          "model": "qwen3.5-plus"
+        },
         "platform": {
           "managementUrl": "https://bailian.console.aliyun.com/?tab=model#/api-key",
           "apiEndpoint": "https://dashscope.aliyuncs.com/api/v1",
@@ -1291,12 +1346,17 @@
         "platformType": "baidu",
         "icon": "baiducloud-color.svg",
         "categories": [
+          "openclaw",
           "llm"
         ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.bce.baidu.com/qianfan",
         "isOfficial": false,
         "isPartner": false,
+        "openclaw": {
+          "baseUrl": "https://qianfan.baidubce.com/v2",
+          "model": "deepseek-v3.2"
+        },
         "platform": {
           "managementUrl": "https://console.bce.baidu.com/qianfan",
           "apiEndpoint": "https://qianfan.baidubce.com/v2",
@@ -1307,6 +1367,7 @@
           "endpoint": "/chat/completions",
           "method": "POST",
           "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/models",
           "body": {
             "model": "ernie-3.5-8k",
             "messages": [
@@ -1324,10 +1385,7 @@
             "403": "API Key 权限不足",
             "429": "请求频率超限",
             "500": "服务器错误"
-          },
-          "fallbackBaseUrls": [
-            "https://qianfan.baidubce.com/v2"
-          ]
+          }
         }
       },
       {
@@ -1483,6 +1541,7 @@
         "platformType": "volcengine",
         "icon": "volcengine-color.svg",
         "categories": [
+          "openclaw",
           "cloud",
           "llm"
         ],
@@ -1490,6 +1549,10 @@
         "websiteUrl": "https://console.volcengine.com/ark/keymanage",
         "isOfficial": false,
         "isPartner": false,
+        "openclaw": {
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+          "model": "doubao-seed-1-8"
+        },
         "platform": {
           "managementUrl": "https://console.volcengine.com/ark/keymanage",
           "apiEndpoint": "https://ark.cn-beijing.volces.com/api/v3",
@@ -1527,6 +1590,7 @@
         "platformType": "mistral",
         "icon": "mistral-color.svg",
         "categories": [
+          "openclaw",
           "popular",
           "llm"
         ],
@@ -1534,6 +1598,10 @@
         "websiteUrl": "https://console.mistral.ai/api-keys",
         "isOfficial": false,
         "isPartner": false,
+        "openclaw": {
+          "baseUrl": "https://api.mistral.ai/v1",
+          "model": "mistral-large-latest"
+        },
         "platform": {
           "managementUrl": "https://console.mistral.ai/api-keys",
           "apiEndpoint": "https://api.mistral.ai",
@@ -1667,12 +1735,17 @@
         "platformType": "xai",
         "icon": "xai.svg",
         "categories": [
+          "openclaw",
           "llm"
         ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.x.ai/",
         "isOfficial": false,
         "isPartner": false,
+        "openclaw": {
+          "baseUrl": "https://api.x.ai/v1",
+          "model": "grok-4"
+        },
         "platform": {
           "managementUrl": "https://console.x.ai/",
           "apiEndpoint": "https://api.x.ai/v1",
@@ -1713,6 +1786,7 @@
         "platformType": "ollama",
         "icon": "ollama.svg",
         "categories": [
+          "openclaw",
           "llm",
           "tools"
         ],
@@ -1720,6 +1794,10 @@
         "websiteUrl": "https://ollama.ai/",
         "isOfficial": false,
         "isPartner": false,
+        "openclaw": {
+          "baseUrl": "http://localhost:11434/v1",
+          "model": "llama3.2"
+        },
         "platform": {
           "managementUrl": "https://ollama.ai/",
           "apiEndpoint": "http://localhost:11434/api",
@@ -2490,6 +2568,7 @@
         "icon": "xiaomi.svg",
         "categories": [
           "claudeCode",
+          "openclaw",
           "popular",
           "llm"
         ],
@@ -2505,6 +2584,10 @@
             "sonnetModel": "mimo-v2-flash",
             "opusModel": "mimo-v2-flash"
           }
+        },
+        "openclaw": {
+          "baseUrl": "https://api.xiaomimimo.com/v1",
+          "model": "mimo-v2-flash"
         },
         "platform": {
           "managementUrl": "https://platform.xiaomimimo.com",

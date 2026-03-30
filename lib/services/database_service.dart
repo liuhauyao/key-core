@@ -45,7 +45,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 9,
+      version: 12,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -89,6 +89,9 @@ class DatabaseService {
         gemini_api_endpoint TEXT,
         gemini_model TEXT,
         gemini_base_url TEXT,
+        enable_openclaw INTEGER DEFAULT 0,
+        openclaw_base_url TEXT,
+        openclaw_model TEXT,
         is_validated INTEGER DEFAULT 0
       )
     ''');
@@ -312,6 +315,21 @@ class DatabaseService {
     if (oldVersion < 9) {
       // 添加 platform_type_id 字段，用于存储平台ID（字符串）而不是索引
       await _addColumnIfNotExists(db, 'ai_keys', 'platform_type_id', 'TEXT');
+    }
+
+    if (oldVersion < 10) {
+      // 添加 OpenClaw 模型字段
+      await _addColumnIfNotExists(db, 'ai_keys', 'openclaw_model', 'TEXT');
+    }
+
+    if (oldVersion < 11) {
+      // 添加 OpenClaw 启用字段
+      await _addColumnIfNotExists(db, 'ai_keys', 'enable_openclaw', 'INTEGER DEFAULT 0');
+    }
+
+    if (oldVersion < 12) {
+      // 添加 OpenClaw 请求地址字段
+      await _addColumnIfNotExists(db, 'ai_keys', 'openclaw_base_url', 'TEXT');
     }
   }
 

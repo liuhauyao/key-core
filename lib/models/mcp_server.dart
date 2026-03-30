@@ -38,7 +38,8 @@ enum AiToolType {
   claudecode,
   codex,
   windsurf,
-  gemini;
+  gemini,
+  openclaw;
 
   String get value {
     switch (this) {
@@ -52,6 +53,8 @@ enum AiToolType {
         return 'windsurf';
       case AiToolType.gemini:
         return 'gemini';
+      case AiToolType.openclaw:
+        return 'openclaw';
     }
   }
 
@@ -67,6 +70,8 @@ enum AiToolType {
         return 'Windsurf';
       case AiToolType.gemini:
         return 'Gemini';
+      case AiToolType.openclaw:
+        return 'OpenClaw';
     }
   }
 
@@ -83,6 +88,8 @@ enum AiToolType {
         return 'assets/icons/platforms/windsurf.svg';
       case AiToolType.gemini:
         return 'assets/icons/platforms/gemini-color.svg';
+      case AiToolType.openclaw:
+        return 'assets/icons/platforms/openclaw-color.svg';
     }
   }
 
@@ -98,6 +105,8 @@ enum AiToolType {
         return AiToolType.windsurf;
       case 'gemini':
         return AiToolType.gemini;
+      case 'openclaw':
+        return AiToolType.openclaw;
       default:
         return AiToolType.cursor;
     }
