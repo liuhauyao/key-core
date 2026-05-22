@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'viewmodels/key_manager_viewmodel.dart';
 import 'viewmodels/settings_viewmodel.dart';
 import 'viewmodels/mcp_viewmodel.dart';
+import 'viewmodels/skills_viewmodel.dart';
 import 'views/screens/main_screen.dart';
 import 'utils/app_localizations.dart';
 import 'services/settings_service.dart';
@@ -192,6 +193,9 @@ class KeyCoreApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => McpViewModel(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => SkillsViewModel(),
         ),
       ],
       child: Consumer2<SettingsViewModel, KeyManagerViewModel>(

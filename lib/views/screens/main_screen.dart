@@ -13,6 +13,7 @@ import 'codex_config_screen.dart';
 import 'gemini_config_screen.dart';
 import 'openclaw_config_screen.dart';
 import 'mcp_config_screen.dart';
+import 'skills_config_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/first_launch_dialog.dart';
 import '../../models/ai_key.dart';
@@ -248,7 +249,7 @@ class _MainScreenState extends State<MainScreen> {
       
       final visibleApps = AppType.values.where((app) {
         // 钥匙包、MCP、设置始终显示
-        if (app == AppType.keyManager || app == AppType.mcp || app == AppType.settings) {
+        if (app == AppType.keyManager || app == AppType.mcp || app == AppType.skills || app == AppType.settings) {
           return true;
         }
         // ClaudeCode、Codex、Gemini 和 OpenClaw 根据启用状态显示
@@ -400,6 +401,8 @@ class _MainScreenState extends State<MainScreen> {
                               return OpenClawConfigScreen(key: _openClawConfigScreenKey);
                             case AppType.mcp:
                               return const McpConfigScreen();
+                            case AppType.skills:
+                              return const SkillsConfigScreen();
                             case AppType.settings:
                               return SettingsScreen(key: _settingsScreenKey);
                           }

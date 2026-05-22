@@ -24,6 +24,7 @@ dependencies:
   # Database
   sqflite_common_ffi: ^2.3.0
   path: ^1.8.3
+  yaml: ^3.1.2
 
   # Utilities
   intl: ^0.20.2

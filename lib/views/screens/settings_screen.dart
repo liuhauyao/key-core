@@ -8,6 +8,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../../viewmodels/mcp_viewmodel.dart';
+import '../../viewmodels/skills_viewmodel.dart';
+import '../../services/skills_path_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/cloud_config_service.dart';
 import '../../services/language_pack_service.dart';
@@ -945,7 +947,87 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                 );
               },
             ),
+            const SizedBox(height: 32),
+            _buildSkillsSettings(context, localizations, shadTheme),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSkillsSettings(
+    BuildContext context,
+    AppLocalizations localizations,
+    ShadThemeData shadTheme,
+  ) {
+    return Consumer<SkillsViewModel>(
+      builder: (context, skillsViewModel, child) {
+        if (skillsViewModel.skillsSourceDir == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            skillsViewModel.init();
+          });
+        }
+        return _buildSettingSection(
+          context,
+          localizations.skillsSettingsTitle,
+          Container(
+            decoration: BoxDecoration(
+              color: shadTheme.colorScheme.muted,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  localizations.skillsSourcePath,
+                  style: shadTheme.textTheme.small.copyWith(
+                    color: shadTheme.colorScheme.mutedForeground,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  skillsViewModel.skillsSourceDir ?? '~/.keycore/skills/',
+                  style: shadTheme.textTheme.p,
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ShadButton.outline(
+                      onPressed: () async {
+                        final dirPath = await SkillsPathService().ensureSkillsSourceDir();
+                        if (Platform.isMacOS) {
+                          await Process.run('open', [dirPath]);
+                        } else if (Platform.isWindows) {
+                          await Process.run('explorer', [dirPath]);
+                        } else if (Platform.isLinux) {
+                          await Process.run('xdg-open', [dirPath]);
+                        }
+                      },
+                      child: Text(localizations.skillsOpenDirectory),
+                    ),
+                    ShadButton.outline(
+                      onPressed: () => skillsViewModel.refresh(),
+                      child: Text(localizations.skillsRescan),
+                    ),
+                    ShadButton(
+                      onPressed: () async {
+                        await skillsViewModel.syncAll(replaceExisting: false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(localizations.skillsSyncAllDone)),
+                          );
+                        }
+                      },
+                      child: Text(localizations.skillsSyncAll),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         );
       },
     );

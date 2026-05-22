@@ -45,7 +45,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 12,
+      version: 13,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -133,6 +133,33 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_mcp_servers_server_id ON mcp_servers(server_id)');
     await db.execute('CREATE INDEX idx_mcp_servers_active ON mcp_servers(is_active)');
     await db.execute('CREATE INDEX idx_mcp_servers_type ON mcp_servers(server_type)');
+
+    await _createSkillsTable(db);
+  }
+
+  Future<void> _createSkillsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE skills (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        skill_id TEXT NOT NULL UNIQUE,
+        relative_path TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT,
+        enabled_tools TEXT,
+        sync_status TEXT,
+        tags TEXT,
+        notes TEXT,
+        sort_order INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        source_tool TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('CREATE INDEX idx_skills_skill_id ON skills(skill_id)');
+    await db.execute('CREATE INDEX idx_skills_relative_path ON skills(relative_path)');
+    await db.execute('CREATE INDEX idx_skills_active ON skills(is_active)');
   }
 
   /// 检查表中是否存在指定列
@@ -330,6 +357,10 @@ class DatabaseService {
     if (oldVersion < 12) {
       // 添加 OpenClaw 请求地址字段
       await _addColumnIfNotExists(db, 'ai_keys', 'openclaw_base_url', 'TEXT');
+    }
+
+    if (oldVersion < 13) {
+      await _createSkillsTable(db);
     }
   }
 

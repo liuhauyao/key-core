@@ -1489,6 +1489,72 @@ class AppLocalizations {
   String get viewCachedModels => translate('view_cached_models');
   String get noCachedModelsPleaseSync => translate('no_cached_models_please_sync');
 
+  // Skills related
+  String get skills => translate('skills');
+  String get skillsSearchPlaceholder => translate('skills_search_placeholder');
+  String get skillsSync => translate('skills_sync');
+  String get skillsImport => translate('skills_import');
+  String get skillsCreate => translate('skills_create');
+  String get skillsFinishEdit => translate('skills_finish_edit');
+  String get skillsNoDescription => translate('skills_no_description');
+  String get skillsSyncConflict => translate('skills_sync_conflict');
+  String get skillsSyncPending => translate('skills_sync_pending');
+  String get skillsSyncSynced => translate('skills_sync_synced');
+  String get skillsNoSearchResults => translate('skills_no_search_results');
+  String get skillsNoSkills => translate('skills_no_skills');
+  String get skillsAddFirst => translate('skills_add_first');
+  String skillsDeleteConfirm(String name) => translate('skills_delete_confirm').replaceAll('{name}', name);
+  String get skillsDeleteSuccess => translate('skills_delete_success');
+  String get skillsDeleteFailed => translate('skills_delete_failed');
+  String get skillsImportSuccess => translate('skills_import_success');
+  String get skillsImportFailed => translate('skills_import_failed');
+  String get skillsEdit => translate('skills_edit');
+  String get skillsBasicInfo => translate('skills_basic_info');
+  String get skillsId => translate('skills_id');
+  String get skillsIdHint => translate('skills_id_hint');
+  String get skillsCategory => translate('skills_category');
+  String get skillsCategoryHint => translate('skills_category_hint');
+  String get skillsName => translate('skills_name');
+  String get skillsNameHint => translate('skills_name_hint');
+  String get skillsDescription => translate('skills_description');
+  String get skillsDescriptionHint => translate('skills_description_hint');
+  String get skillsTargetTools => translate('skills_target_tools');
+  String get skillsContent => translate('skills_content');
+  String get skillsContentHint => translate('skills_content_hint');
+  String get skillsValidationRequired => translate('skills_validation_required');
+  String get skillsSaveFailed => translate('skills_save_failed');
+  String get skillsSyncPageTitle => translate('skills_sync_page_title');
+  String get skillsReadFromTool => translate('skills_read_from_tool');
+  String get skillsImportToKeyCore => translate('skills_import_to_keycore');
+  String get skillsSyncToTool => translate('skills_sync_to_tool');
+  String get skillsMigrateOneClick => translate('skills_migrate_one_click');
+  String get skillsSelectTool => translate('skills_select_tool');
+  String get skillsKeyCoreList => translate('skills_keycore_list');
+  String get skillsToolList => translate('skills_tool_list');
+  String get skillsNoToolSkills => translate('skills_no_tool_skills');
+  String skillsImportComplete(int imported, int skipped, int failed) =>
+      translate('skills_import_complete')
+          .replaceAll('{imported}', imported.toString())
+          .replaceAll('{skipped}', skipped.toString())
+          .replaceAll('{failed}', failed.toString());
+  String skillsSyncComplete(int synced, int skipped, int conflicts, int failed) =>
+      translate('skills_sync_complete')
+          .replaceAll('{synced}', synced.toString())
+          .replaceAll('{skipped}', skipped.toString())
+          .replaceAll('{conflicts}', conflicts.toString())
+          .replaceAll('{failed}', failed.toString());
+  String get skillsConfirmReplaceTitle => translate('skills_confirm_replace_title');
+  String get skillsConfirmReplaceMessage => translate('skills_confirm_replace_message');
+  String get skillsMigrateConfirm => translate('skills_migrate_confirm');
+  String skillsMigrateComplete(int count) =>
+      translate('skills_migrate_complete').replaceAll('{count}', count.toString());
+  String get skillsSettingsTitle => translate('skills_settings_title');
+  String get skillsSourcePath => translate('skills_source_path');
+  String get skillsOpenDirectory => translate('skills_open_directory');
+  String get skillsRescan => translate('skills_rescan');
+  String get skillsSyncAll => translate('skills_sync_all');
+  String get skillsSyncAllDone => translate('skills_sync_all_done');
+
   /// 清除所有已加载的语言包缓存（用于配置更新后重新加载）
   static void clearLoadedPacksCache() {
     _AppLocalizationsDelegate._loadedPacks.clear();

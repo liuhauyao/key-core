@@ -1,0 +1,353 @@
+import 'dart:io';
+import 'package:path/path.dart' as path;
+import '../models/mcp_server.dart';
+import '../models/skill.dart';
+import '../services/skills_database_service.dart';
+import '../services/skills_path_service.dart';
+import '../services/skills_store_service.dart';
+import '../services/skills_sync_service.dart';
+import 'base_viewmodel.dart';
+
+/// Skills 同步状态汇总
+class SkillsSyncStatusSummary {
+  final int total;
+  final int synced;
+  final int pending;
+  final int conflicts;
+
+  const SkillsSyncStatusSummary({
+    this.total = 0,
+    this.synced = 0,
+    this.pending = 0,
+    this.conflicts = 0,
+  });
+}
+
+/// Skills 管理 ViewModel
+class SkillsViewModel extends BaseViewModel {
+  final SkillsDatabaseService _databaseService = SkillsDatabaseService();
+  final SkillsStoreService _storeService = SkillsStoreService();
+  final SkillsSyncService _syncService = SkillsSyncService();
+  final SkillsPathService _pathService = SkillsPathService();
+
+  List<Skill> _allSkills = [];
+  List<Skill> _filteredSkills = [];
+  String _searchQuery = '';
+  String? _skillsSourceDir;
+
+  List<Skill> get skills => _filteredSkills;
+  List<Skill> get allSkills => _allSkills;
+  String get searchQuery => _searchQuery;
+  String? get skillsSourceDir => _skillsSourceDir;
+
+  Future<void> init() async {
+    if (_allSkills.isEmpty) {
+      await loadSkills(showLoading: true);
+    }
+  }
+
+  Future<void> loadSkills({bool showLoading = true}) async {
+    await executeAsync(() async {
+      _skillsSourceDir = await _pathService.ensureSkillsSourceDir();
+      await _reconcileFilesystemWithDatabase();
+      _allSkills = await _syncService.refreshAllSyncStatus();
+      _updateFilteredSkills();
+    }, showLoading: showLoading);
+  }
+
+  Future<void> refresh() async {
+    await loadSkills(showLoading: _allSkills.isEmpty);
+  }
+
+  void setSearchQuery(String query) {
+    _searchQuery = query;
+    _updateFilteredSkills();
+    notifyListeners();
+  }
+
+  void _updateFilteredSkills() {
+    var filtered = _allSkills;
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      filtered = filtered.where((skill) {
+        return skill.name.toLowerCase().contains(q) ||
+            skill.skillId.toLowerCase().contains(q) ||
+            skill.relativePath.toLowerCase().contains(q) ||
+            (skill.description?.toLowerCase().contains(q) ?? false) ||
+            (skill.tags?.any((tag) => tag.toLowerCase().contains(q)) ?? false);
+      }).toList();
+    }
+    _filteredSkills = filtered;
+  }
+
+  SkillsSyncStatusSummary getSyncSummary() {
+    var synced = 0;
+    var pending = 0;
+    var conflicts = 0;
+
+    for (final skill in _allSkills.where((s) => s.isActive)) {
+      for (final state in skill.syncStatus.values) {
+        switch (state) {
+          case SkillSyncState.synced:
+            synced++;
+            break;
+          case SkillSyncState.conflict:
+            conflicts++;
+            break;
+          case SkillSyncState.notSynced:
+          case SkillSyncState.outdated:
+            pending++;
+            break;
+        }
+      }
+    }
+
+    return SkillsSyncStatusSummary(
+      total: _allSkills.length,
+      synced: synced,
+      pending: pending,
+      conflicts: conflicts,
+    );
+  }
+
+  Future<bool> addSkill({
+    required String skillId,
+    required String name,
+    required String description,
+    String body = '',
+    List<SkillTargetTool> enabledTools = const [],
+    List<String>? tags,
+    String? notes,
+    String? categoryPath,
+  }) async {
+    return await executeAsync(() async {
+      final exists = await _databaseService.skillIdExists(skillId);
+      if (exists) {
+        setError('Skill ID "$skillId" already exists');
+        return false;
+      }
+
+      await _storeService.createSkill(
+        skillId: skillId,
+        name: name,
+        description: description,
+        body: body,
+        categoryPath: categoryPath,
+      );
+
+      final relativePath = categoryPath != null && categoryPath.isNotEmpty
+          ? path.join(categoryPath, skillId)
+          : skillId;
+
+      final now = DateTime.now();
+      await _databaseService.addSkill(
+        Skill(
+          skillId: skillId,
+          relativePath: relativePath,
+          name: name,
+          description: description,
+          enabledTools: enabledTools,
+          tags: tags,
+          notes: notes,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      await loadSkills(showLoading: false);
+      return true;
+    }) ?? false;
+  }
+
+  Future<bool> updateSkill(Skill skill, {String? skillMdContent}) async {
+    return await executeAsync(() async {
+      if (skillMdContent != null) {
+        await _storeService.updateSkillContent(skill.relativePath, skillMdContent);
+      }
+
+      await _databaseService.updateSkill(
+        skill.copyWith(updatedAt: DateTime.now()),
+      );
+      await loadSkills(showLoading: false);
+      return true;
+    }) ?? false;
+  }
+
+  Future<bool> deleteSkill(Skill skill, {bool removeSymlinks = true}) async {
+    return await executeAsync(() async {
+      if (removeSymlinks) {
+        for (final tool in skill.enabledTools) {
+          final toolPath = await _pathService.getSkillToolPath(tool, skill.relativePath);
+          final entityType = await FileSystemEntity.type(toolPath);
+          if (entityType == FileSystemEntityType.link) {
+            await Link(toolPath).delete();
+          }
+        }
+      }
+
+      await _storeService.deleteSkillDirectory(skill.relativePath);
+      if (skill.id != null) {
+        await _databaseService.deleteSkill(skill.id!);
+      }
+      await loadSkills(showLoading: false);
+      return true;
+    }) ?? false;
+  }
+
+  Future<bool> toggleActive(Skill skill) async {
+    return await executeAsync(() async {
+      await _databaseService.updateSkill(
+        skill.copyWith(isActive: !skill.isActive, updatedAt: DateTime.now()),
+      );
+      await loadSkills(showLoading: false);
+      return true;
+    }) ?? false;
+  }
+
+  Future<bool> setEnabledTools(Skill skill, List<SkillTargetTool> tools) async {
+    return await executeAsync(() async {
+      await _databaseService.updateSkill(
+        skill.copyWith(enabledTools: tools, updatedAt: DateTime.now()),
+      );
+      await loadSkills(showLoading: false);
+      return true;
+    }) ?? false;
+  }
+
+  Future<bool> importFromFolder(String folderPath) async {
+    return await executeAsync(() async {
+      final dir = Directory(folderPath);
+      final skillId = path.basename(folderPath);
+
+      await _storeService.importSkillFromFolder(folderPath);
+      final now = DateTime.now();
+
+      final existing = await _databaseService.getSkillByRelativePath(skillId);
+      if (existing != null) {
+        setError('Skill already exists');
+        return false;
+      }
+
+      final scanned = await _storeService.scanSkills();
+      final match = scanned.where((s) => s.relativePath == skillId).firstOrNull;
+      final name = match?.parsed.name ?? skillId;
+      final description = match?.parsed.description;
+
+      await _databaseService.addSkill(
+        Skill(
+          skillId: skillId,
+          relativePath: skillId,
+          name: name,
+          description: description,
+          enabledTools: SkillsPathService.supportedTools,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      await loadSkills(showLoading: false);
+      return true;
+    }) ?? false;
+  }
+
+  Future<SkillImportSummary?> importFromTool(
+    SkillTargetTool tool, {
+    SkillImportConflictAction defaultConflictAction = SkillImportConflictAction.skip,
+  }) async {
+    return await executeAsync(() async {
+      final summary = await _syncService.importFromTool(
+        tool,
+        defaultConflictAction: defaultConflictAction,
+      );
+      await loadSkills(showLoading: false);
+      return summary;
+    });
+  }
+
+  Future<SkillSyncSummary?> syncToTool(
+    SkillTargetTool tool, {
+    bool replaceExisting = false,
+  }) async {
+    return await executeAsync(() async {
+      final summary = await _syncService.syncToTool(
+        tool,
+        replaceExisting: replaceExisting,
+      );
+      await loadSkills(showLoading: false);
+      return summary;
+    });
+  }
+
+  Future<Map<SkillTargetTool, SkillSyncSummary>?> syncAll({
+    bool replaceExisting = false,
+  }) async {
+    return await executeAsync(() async {
+      final summaries = await _syncService.syncAll(replaceExisting: replaceExisting);
+      await loadSkills(showLoading: false);
+      return summaries;
+    });
+  }
+
+  Future<({SkillImportSummary importSummary, SkillSyncSummary? syncSummary})?> migrateFromTool(
+    SkillTargetTool tool, {
+    bool replaceWithSymlink = true,
+  }) async {
+    return await executeAsync(() async {
+      final result = await _syncService.migrateFromTool(
+        tool,
+        replaceWithSymlink: replaceWithSymlink,
+      );
+      await loadSkills(showLoading: false);
+      return result;
+    });
+  }
+
+  Future<List<ToolSkillEntry>> scanToolSkills(SkillTargetTool tool) async {
+    return _syncService.scanToolSkills(tool);
+  }
+
+  Future<String> readSkillContent(Skill skill) async {
+    return _storeService.readSkillContent(skill.relativePath);
+  }
+
+  Future<void> updateSortOrder(List<Skill> orderedSkills) async {
+    await executeAsync(() async {
+      await _databaseService.updateSortOrders(orderedSkills);
+      await loadSkills(showLoading: false);
+    }, showLoading: false);
+  }
+
+  Future<void> _reconcileFilesystemWithDatabase() async {
+    final scanned = await _storeService.scanSkills();
+    final existing = await _databaseService.getAllSkills();
+    final existingPaths = existing.map((s) => s.relativePath).toSet();
+
+    for (final item in scanned) {
+      if (existingPaths.contains(item.relativePath)) continue;
+
+      final now = DateTime.now();
+      await _databaseService.addSkill(
+        Skill(
+          skillId: path.basename(item.relativePath),
+          relativePath: item.relativePath,
+          name: item.parsed.name,
+          description: item.parsed.description,
+          enabledTools: const [],
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+    }
+  }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull {
+    final iterator = this.iterator;
+    if (iterator.moveNext()) return iterator.current;
+    return null;
+  }
+}

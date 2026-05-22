@@ -14,6 +14,7 @@ enum AppType {
   gemini(Icons.auto_awesome, 'assets/icons/platforms/gemini-color.svg'),
   openClaw(Icons.cruelty_free, 'assets/icons/platforms/openclaw-color.svg'),
   mcp(Icons.dns, 'assets/icons/platforms/mcp.svg'),
+  skills(Icons.psychology, null),
   settings(Icons.settings, null);
 
   const AppType(this.icon, this.logoPath);
@@ -35,6 +36,8 @@ enum AppType {
         return 'OpenClaw';
       case AppType.mcp:
         return 'MCP';
+      case AppType.skills:
+        return localizations?.skills ?? 'Skills';
       case AppType.settings:
         return localizations?.settings ?? '设置';
     }
@@ -142,7 +145,7 @@ class AppSwitcher extends StatelessWidget {
       
       return AppType.values.where((app) {
         // 钥匙包、MCP、设置始终显示
-        if (app == AppType.keyManager || app == AppType.mcp || app == AppType.settings) {
+        if (app == AppType.keyManager || app == AppType.mcp || app == AppType.skills || app == AppType.settings) {
           return true;
         }
         // ClaudeCode、Codex、Gemini 和 OpenClaw 根据启用状态显示
