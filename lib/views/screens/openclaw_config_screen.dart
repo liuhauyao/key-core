@@ -202,11 +202,9 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
       if (mounted) {
         setState(() {});
         final modelRef = result.modelRef;
-        final message = result.primaryModelSet && modelRef != null
+        final message = modelRef != null
             ? '已将 ${item.aiKey.name} 写入 OpenClaw，并设置默认模型为 $modelRef'
-            : result.allowlistUpdated && modelRef != null
-                ? '已将 ${item.aiKey.name} 写入 OpenClaw，模型 $modelRef 已加入可选列表'
-                : '已将 ${item.aiKey.name} 写入 OpenClaw 配置';
+            : '已将 ${item.aiKey.name} 写入 OpenClaw 配置';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),

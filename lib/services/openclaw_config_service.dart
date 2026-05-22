@@ -656,7 +656,7 @@ class OpenClawConfigService {
   ///   3. 写入 models.providers[providerId]（含完整模型定义）
   ///   4. 确保 models.mode = "merge"
   ///   5. 合并 agents.defaults.models 允许列表
-  ///   6. 若尚未设置 primary，写入 agents.defaults.model.primary
+  ///   6. 写入 agents.defaults.model.primary 为当前模型
   Future<OpenClawApplyResult> applyProviderKey({
     required int keyId,
     required String decryptedKey,
@@ -718,7 +718,7 @@ class OpenClawConfigService {
       config['models'] = modelsRoot;
     }
 
-    // 5/6. 合并 allowlist，并在 primary 为空时设置默认模型
+    // 5/6. 合并 allowlist，并设置默认模型
     var allowlistUpdated = false;
     var primaryModelSet = false;
     String? modelRef;
@@ -729,7 +729,7 @@ class OpenClawConfigService {
         modelRef: modelRef,
         alias: info.displayName,
       );
-      primaryModelSet = _setPrimaryModelIfEmpty(config, modelRef);
+      primaryModelSet = _setPrimaryModel(config, modelRef);
     }
 
     await writeConfig(config);
@@ -792,24 +792,22 @@ class OpenClawConfigService {
     return true;
   }
 
-  /// 若 primary 未设置则写入，返回是否写入
-  bool _setPrimaryModelIfEmpty(Map<String, dynamic> config, String modelRef) {
+  /// 设置 agents.defaults.model.primary，保留已有 fallbacks
+  bool _setPrimaryModel(Map<String, dynamic> config, String modelRef) {
     final agents = Map<String, dynamic>.from(
         (config['agents'] as Map<String, dynamic>?) ?? {});
     final defaults = Map<String, dynamic>.from(
         (agents['defaults'] as Map<String, dynamic>?) ?? {});
     final modelBlock = defaults['model'];
 
-    var primary = '';
-    if (modelBlock is String) {
-      primary = modelBlock;
-    } else if (modelBlock is Map<String, dynamic>) {
-      primary = modelBlock['primary'] as String? ?? '';
+    if (modelBlock is Map<String, dynamic>) {
+      final updated = Map<String, dynamic>.from(modelBlock);
+      updated['primary'] = modelRef;
+      defaults['model'] = updated;
+    } else {
+      defaults['model'] = {'primary': modelRef};
     }
 
-    if (primary.isNotEmpty) return false;
-
-    defaults['model'] = {'primary': modelRef};
     agents['defaults'] = defaults;
     config['agents'] = agents;
     return true;

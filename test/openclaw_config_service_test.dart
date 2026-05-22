@@ -175,12 +175,15 @@ void main() {
       expect(provider?['baseUrl'], 'https://api.anthropic.com');
     });
 
-    test('已有 primary 时不覆盖，仅合并 allowlist', () async {
+    test('开启密钥时覆盖已有 primary 并保留 fallbacks', () async {
       final configFile = File('${tempDir.path}/openclaw.json');
       await configFile.writeAsString(jsonEncode({
         'agents': {
           'defaults': {
-            'model': {'primary': 'anthropic/claude-opus-4-6'},
+            'model': {
+              'primary': 'anthropic/claude-opus-4-6',
+              'fallbacks': ['openai/gpt-4.1'],
+            },
           },
         },
       }));
@@ -193,11 +196,15 @@ void main() {
       );
 
       final config = await service.readConfig();
-      expect(result.primaryModelSet, isFalse);
+      expect(result.primaryModelSet, isTrue);
       expect(result.allowlistUpdated, isTrue);
       expect(
         config['agents']?['defaults']?['model']?['primary'],
-        'anthropic/claude-opus-4-6',
+        'deepseek/deepseek-chat',
+      );
+      expect(
+        config['agents']?['defaults']?['model']?['fallbacks'],
+        ['openai/gpt-4.1'],
       );
       expect(
         config['agents']?['defaults']?['models']?['deepseek/deepseek-chat'],
