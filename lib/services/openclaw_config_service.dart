@@ -125,7 +125,7 @@ class OpenClawProvider {
       id: 'moonshot',
       displayName: 'Moonshot (Kimi)',
       envKey: 'MOONSHOT_API_KEY',
-      defaultBaseUrl: 'https://api.moonshot.cn/v1',
+      defaultBaseUrl: 'https://api.moonshot.ai/v1',
     ),
   ];
 }
@@ -174,6 +174,19 @@ class OpenClawModelAlias {
   const OpenClawModelAlias({required this.modelId, required this.alias});
 }
 
+/// applyProviderKey 写入结果（供 UI 提示）
+class OpenClawApplyResult {
+  final String? modelRef;
+  final bool primaryModelSet;
+  final bool allowlistUpdated;
+
+  const OpenClawApplyResult({
+    this.modelRef,
+    this.primaryModelSet = false,
+    this.allowlistUpdated = false,
+  });
+}
+
 /// OpenClaw 模型配置数据
 class OpenClawModelConfig {
   final String primaryModel;
@@ -209,8 +222,8 @@ class OpenClawConfigService {
       displayName: 'Anthropic',
       models: [
         OpenClawModelDef(
-          id: 'claude-opus-4-5',
-          name: 'Claude Opus 4.5',
+          id: 'claude-opus-4-6',
+          name: 'Claude Opus 4.6',
           reasoning: true,
           input: ['text', 'image'],
           contextWindow: 200000,
@@ -227,8 +240,8 @@ class OpenClawConfigService {
       displayName: 'OpenAI',
       models: [
         OpenClawModelDef(
-          id: 'gpt-4o',
-          name: 'GPT-4o',
+          id: 'gpt-4.1',
+          name: 'GPT-4.1',
           reasoning: false,
           input: ['text', 'image'],
           contextWindow: 128000,
@@ -263,8 +276,8 @@ class OpenClawConfigService {
       displayName: 'OpenRouter',
       models: [
         OpenClawModelDef(
-          id: 'auto',
-          name: 'OpenRouter Auto',
+          id: 'anthropic/claude-opus-4-6',
+          name: 'Claude Opus 4.6 (OpenRouter)',
           reasoning: false,
           input: ['text', 'image'],
           contextWindow: 200000,
@@ -642,7 +655,9 @@ class OpenClawConfigService {
   ///   2. 写入 auth.profiles[providerId:default]
   ///   3. 写入 models.providers[providerId]（含完整模型定义）
   ///   4. 确保 models.mode = "merge"
-  Future<void> applyProviderKey({
+  ///   5. 合并 agents.defaults.models 允许列表
+  ///   6. 若尚未设置 primary，写入 agents.defaults.model.primary
+  Future<OpenClawApplyResult> applyProviderKey({
     required int keyId,
     required String decryptedKey,
     required String platformId,
@@ -650,13 +665,16 @@ class OpenClawConfigService {
     String? openclawModel,
   }) async {
     final info = platformMapping[platformId];
-    if (info == null) return;
+    if (info == null) {
+      return const OpenClawApplyResult();
+    }
 
     // 1. 写入 .env
     await writeEnvKeys({info.envKey: decryptedKey});
 
     final config = await readConfig();
     final providerId = info.openclawProviderId;
+    final resolvedModelId = _resolveModelId(info, openclawModel);
 
     // 2. 写入 auth.profiles
     final authRoot = Map<String, dynamic>.from(
@@ -671,9 +689,10 @@ class OpenClawConfigService {
     config['auth'] = authRoot;
 
     // 3. 写入 models.providers（含完整模型定义）
-    final effectiveBaseUrl = (openclawBaseUrl != null && openclawBaseUrl.isNotEmpty)
+    final rawBaseUrl = (openclawBaseUrl != null && openclawBaseUrl.isNotEmpty)
         ? openclawBaseUrl
         : info.baseUrl;
+    final effectiveBaseUrl = _normalizeBaseUrl(rawBaseUrl, info.apiType);
 
     if (effectiveBaseUrl != null) {
       final modelsRoot = Map<String, dynamic>.from(
@@ -699,8 +718,101 @@ class OpenClawConfigService {
       config['models'] = modelsRoot;
     }
 
+    // 5/6. 合并 allowlist，并在 primary 为空时设置默认模型
+    var allowlistUpdated = false;
+    var primaryModelSet = false;
+    String? modelRef;
+    if (resolvedModelId != null && resolvedModelId.isNotEmpty) {
+      modelRef = '$providerId/$resolvedModelId';
+      allowlistUpdated = _mergeAgentModelAllowlist(
+        config,
+        modelRef: modelRef,
+        alias: info.displayName,
+      );
+      primaryModelSet = _setPrimaryModelIfEmpty(config, modelRef);
+    }
+
     await writeConfig(config);
     await _setAppliedKeyId(info.envKey, keyId);
+
+    return OpenClawApplyResult(
+      modelRef: modelRef,
+      primaryModelSet: primaryModelSet,
+      allowlistUpdated: allowlistUpdated,
+    );
+  }
+
+  /// 解析实际写入的模型 ID
+  String? _resolveModelId(OpenClawPlatformInfo info, String? openclawModel) {
+    if (openclawModel != null && openclawModel.isNotEmpty) {
+      return openclawModel;
+    }
+    if (info.models.isNotEmpty) return info.models.first.id;
+    return null;
+  }
+
+  /// anthropic-messages 适配器要求 baseUrl 不含 /v1 后缀
+  static String? _normalizeBaseUrl(String? baseUrl, String apiType) {
+    if (baseUrl == null || baseUrl.isEmpty) return baseUrl;
+    if (apiType == 'anthropic-messages') {
+      var normalized = baseUrl;
+      while (normalized.endsWith('/')) {
+        normalized = normalized.substring(0, normalized.length - 1);
+      }
+      if (normalized.endsWith('/v1')) {
+        return normalized.substring(0, normalized.length - 3);
+      }
+    }
+    return baseUrl;
+  }
+
+  /// 合并 agents.defaults.models 允许列表，返回是否新增条目
+  bool _mergeAgentModelAllowlist(
+    Map<String, dynamic> config, {
+    required String modelRef,
+    String? alias,
+  }) {
+    final agents = Map<String, dynamic>.from(
+        (config['agents'] as Map<String, dynamic>?) ?? {});
+    final defaults = Map<String, dynamic>.from(
+        (agents['defaults'] as Map<String, dynamic>?) ?? {});
+    final modelsMap = Map<String, dynamic>.from(
+        (defaults['models'] as Map<String, dynamic>?) ?? {});
+
+    if (modelsMap.containsKey(modelRef)) {
+      agents['defaults'] = defaults;
+      config['agents'] = agents;
+      return false;
+    }
+
+    modelsMap[modelRef] = alias != null && alias.isNotEmpty ? {'alias': alias} : {};
+    defaults['models'] = modelsMap;
+    agents['defaults'] = defaults;
+    config['agents'] = agents;
+    return true;
+  }
+
+  /// 若 primary 未设置则写入，返回是否写入
+  bool _setPrimaryModelIfEmpty(Map<String, dynamic> config, String modelRef) {
+    final agents = Map<String, dynamic>.from(
+        (config['agents'] as Map<String, dynamic>?) ?? {});
+    final defaults = Map<String, dynamic>.from(
+        (agents['defaults'] as Map<String, dynamic>?) ?? {});
+    final modelBlock = defaults['model'];
+
+    var primary = '';
+    if (modelBlock is String) {
+      primary = modelBlock;
+    } else if (modelBlock is Map<String, dynamic>) {
+      primary = modelBlock['primary'] as String? ?? '';
+    }
+
+    if (primary.isNotEmpty) return false;
+
+    defaults['model'] = {'primary': modelRef};
+    agents['defaults'] = defaults;
+    config['agents'] = agents;
+    return true;
   }
 
   /// 构建写入 openclaw.json 的模型定义列表

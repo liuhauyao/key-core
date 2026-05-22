@@ -98,7 +98,7 @@
           }
         },
         "openclaw": {
-          "baseUrl": "https://api.anthropic.com/v1",
+          "baseUrl": "https://api.anthropic.com",
           "model": "claude-opus-4-6"
         },
         "platform": {

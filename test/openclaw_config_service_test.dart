@@ -55,7 +55,7 @@ void main() {
 
   group('applyProviderKey / removeProviderKey', () {
     test('写入结构符合 OpenClaw models.providers + auth.profiles 规范', () async {
-      await service.applyProviderKey(
+      final result = await service.applyProviderKey(
         keyId: 1,
         decryptedKey: 'sk-test-deepseek',
         platformId: 'deepSeek',
@@ -64,6 +64,9 @@ void main() {
 
       final config = await service.readConfig();
       expect(config['models']?['mode'], 'merge');
+      expect(result.modelRef, 'deepseek/deepseek-chat');
+      expect(result.allowlistUpdated, isTrue);
+      expect(result.primaryModelSet, isTrue);
 
       final provider = config['models']?['providers']?['deepseek']
           as Map<String, dynamic>?;
@@ -82,6 +85,14 @@ void main() {
           as Map<String, dynamic>?;
       expect(profile?['provider'], 'deepseek');
       expect(profile?['mode'], 'api_key');
+
+      final allowlist = config['agents']?['defaults']?['models']
+          as Map<String, dynamic>?;
+      expect(allowlist?['deepseek/deepseek-chat'], isNotNull);
+      expect(
+        config['agents']?['defaults']?['model']?['primary'],
+        'deepseek/deepseek-chat',
+      );
 
       final env = await service.readEnv();
       expect(env['DEEPSEEK_API_KEY'], 'sk-test-deepseek');
@@ -156,11 +167,55 @@ void main() {
         keyId: 5,
         decryptedKey: 'sk-ant',
         platformId: 'anthropic',
-        openclawModel: 'claude-opus-4-5',
+        openclawModel: 'claude-opus-4-6',
       );
       final provider = (await service.readConfig())['models']?['providers']
           ?['anthropic'] as Map<String, dynamic>?;
       expect(provider?['api'], 'anthropic-messages');
+      expect(provider?['baseUrl'], 'https://api.anthropic.com');
+    });
+
+    test('已有 primary 时不覆盖，仅合并 allowlist', () async {
+      final configFile = File('${tempDir.path}/openclaw.json');
+      await configFile.writeAsString(jsonEncode({
+        'agents': {
+          'defaults': {
+            'model': {'primary': 'anthropic/claude-opus-4-6'},
+          },
+        },
+      }));
+
+      final result = await service.applyProviderKey(
+        keyId: 7,
+        decryptedKey: 'sk-ds',
+        platformId: 'deepSeek',
+        openclawModel: 'deepseek-chat',
+      );
+
+      final config = await service.readConfig();
+      expect(result.primaryModelSet, isFalse);
+      expect(result.allowlistUpdated, isTrue);
+      expect(
+        config['agents']?['defaults']?['model']?['primary'],
+        'anthropic/claude-opus-4-6',
+      );
+      expect(
+        config['agents']?['defaults']?['models']?['deepseek/deepseek-chat'],
+        isNotNull,
+      );
+    });
+
+    test('anthropic-messages 自动去除 baseUrl 的 /v1 后缀', () async {
+      await service.applyProviderKey(
+        keyId: 8,
+        decryptedKey: 'sk-ant',
+        platformId: 'anthropic',
+        openclawBaseUrl: 'https://api.anthropic.com/v1',
+        openclawModel: 'claude-opus-4-6',
+      );
+
+      final provider = (await service.readConfig())['models']?['providers']
+          ?['anthropic'] as Map<String, dynamic>?;
       expect(provider?['baseUrl'], 'https://api.anthropic.com');
     });
 
