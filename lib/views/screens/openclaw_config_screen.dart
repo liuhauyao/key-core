@@ -190,7 +190,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
         }
       }
 
-      await _service.applyProviderKey(
+      final result = await _service.applyProviderKey(
         keyId: item.aiKey.id!,
         decryptedKey: decrypted,
         platformId: item.platformId,
@@ -201,10 +201,14 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
 
       if (mounted) {
         setState(() {});
+        final modelRef = result.modelRef;
+        final message = modelRef != null
+            ? '已将 ${item.aiKey.name} 写入 OpenClaw，并设置默认模型为 $modelRef'
+            : '已将 ${item.aiKey.name} 写入 OpenClaw 配置';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('已将 ${item.aiKey.name} 写入 OpenClaw 配置'),
-            duration: const Duration(seconds: 2),
+            content: Text(message),
+            duration: const Duration(seconds: 3),
             backgroundColor: Colors.green.shade700,
           ),
         );
