@@ -99,6 +99,9 @@ class ImportService {
       final updatedMcpServers = <McpServer>[];
       final errors = <String>[];
 
+      // 导入时的基准时间，用于根据 sort_order 恢复排列顺序
+      final importBaseTime = DateTime.now();
+
       // 处理密钥（如果存在）
       if (keysData != null && keysData.isNotEmpty) {
         for (final keyData in keysData) {
@@ -214,8 +217,8 @@ class ImportService {
             tags: tags,
             notes: keyMap['notes'] as String?,
             isActive: keyMap['is_active'] as bool? ?? true,
-            createdAt: existingKey != null ? existingKey.createdAt : createdAt, // 保留原始创建时间
-            updatedAt: DateTime.now(), // 更新时间为当前时间
+            createdAt: existingKey != null ? existingKey.createdAt : createdAt,
+            updatedAt: importBaseTime.subtract(Duration(microseconds: keyMap['sort_order'] as int? ?? 0)),
             isFavorite: keyMap['is_favorite'] as bool? ?? false,
             icon: keyMap['icon'] as String?,
             enableClaudeCode: keyMap['enable_claude_code'] as bool? ?? false,
@@ -240,6 +243,9 @@ class ImportService {
             geminiApiEndpoint: keyMap['gemini_api_endpoint'] as String?,
             geminiModel: keyMap['gemini_model'] as String?,
             geminiBaseUrl: keyMap['gemini_base_url'] as String?,
+            enableOpenclaw: keyMap['enable_openclaw'] as bool? ?? false,
+            openclawBaseUrl: keyMap['openclaw_base_url'] as String?,
+            openclawModel: keyMap['openclaw_model'] as String?,
           );
 
           if (existingKey != null) {

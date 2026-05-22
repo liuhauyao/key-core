@@ -3,8 +3,8 @@ class AppConstants {
   /// 应用名称
   static const String appName = 'Key Core';
 
-  /// 应用版本
-  static const String appVersion = '1.0.0';
+  /// 应用版本（与 pubspec 同步；PackageInfo 不可用时作为回退）
+  static const String appVersion = '1.0.5';
 
   /// 数据库文件名
   static const String databaseName = 'key_core.db';

@@ -280,6 +280,12 @@ class AppLocalizations {
       'settings_tools': '工具配置',
       'settings_data': '数据选项',
       'settings_security': '安全选项',
+      'settings_about': '关于',
+      'about_version_label': '版本',
+      'about_intro_title': '应用简介',
+      'about_intro_text': '密枢（Key Core）是一款安全、跨平台的 AI API 密钥管理应用，帮助您集中管理各类 AI API 密钥，并与开发工具配置协同使用。',
+      'about_build_line': '内部版本号 #{build}',
+      'about_copyright': '版权所有 © {year} Key Core',
       'config_valid': '配置正常',
       'config_missing': '配置缺失',
       // MCP 表单相关
@@ -710,6 +716,12 @@ class AppLocalizations {
       'settings_tools': 'Tools',
       'settings_data': 'Data',
       'settings_security': 'Security',
+      'settings_about': 'About',
+      'about_version_label': 'Version',
+      'about_intro_title': 'Introduction',
+      'about_intro_text': 'Key Core is a secure, cross-platform application for managing AI API keys, helping you centralize keys and work with your development tool configurations.',
+      'about_build_line': 'Build #{build}',
+      'about_copyright': 'Copyright © {year} Key Core',
       'config_valid': 'Config Valid',
       'config_missing': 'Config Missing',
       // MCP Form related
@@ -1187,6 +1199,14 @@ class AppLocalizations {
   String get settingsTools => translate('settings_tools');
   String get settingsData => translate('settings_data');
   String get settingsSecurity => translate('settings_security');
+  String get settingsAbout => translate('settings_about');
+  String get aboutVersionLabel => translate('about_version_label');
+  String get aboutIntroTitle => translate('about_intro_title');
+  String get aboutIntroText => translate('about_intro_text');
+  String aboutBuildLine(String build) =>
+      translate('about_build_line').replaceAll('{build}', build);
+  String get aboutCopyright =>
+      translate('about_copyright').replaceAll('{year}', '${DateTime.now().year}');
   String get configValid => translate('config_valid');
   String get configMissing => translate('config_missing');
   // MCP Form related

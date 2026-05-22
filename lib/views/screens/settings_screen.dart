@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../../viewmodels/mcp_viewmodel.dart';
@@ -24,6 +25,7 @@ import '../widgets/export_password_dialog.dart';
 import '../../services/macos_bookmark_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/region_filter_service.dart';
+import '../../constants/app_constants.dart';
 
 /// 设置分组枚举
 enum SettingsCategory {
@@ -31,6 +33,7 @@ enum SettingsCategory {
   tools,
   data,
   security,
+  about,
 }
 
 
@@ -465,6 +468,8 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     // 只在需要响应式更新的地方使用 watch
     final settingsViewModel = context.read<SettingsViewModel>();
     final shadTheme = ShadTheme.of(context);
+    final sidebarCategories = _settingsSidebarCategories(localizations);
+    final menuHeight = _settingsMenuHeightForItemCount(sidebarCategories.length);
 
     return Scaffold(
       backgroundColor: shadTheme.colorScheme.background,
@@ -475,9 +480,15 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 左侧菜单栏
-              _buildSidebar(context, localizations, shadTheme),
+              _buildSidebar(
+                context,
+                localizations,
+                shadTheme,
+                sidebarCategories,
+                menuHeight,
+              ),
               // 分隔线容器（只与菜单高度相同）
-              _buildDivider(context, shadTheme),
+              _buildDivider(context, shadTheme, menuHeight),
               // 右侧内容区域
               Expanded(
                 child: _buildContentArea(context, localizations, settingsViewModel, shadTheme),
@@ -489,22 +500,28 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     );
   }
 
+  List<(String, SettingsCategory)> _settingsSidebarCategories(AppLocalizations localizations) {
+    return [
+      (localizations.settingsGeneral, SettingsCategory.general),
+      (localizations.settingsTools, SettingsCategory.tools),
+      (localizations.settingsData, SettingsCategory.data),
+      (localizations.settingsSecurity, SettingsCategory.security),
+      (localizations.settingsAbout, SettingsCategory.about),
+    ];
+  }
+
+  double _settingsMenuHeightForItemCount(int n) {
+    return n * 32.0 + (n - 1) * 4.0 + 16.0;
+  }
+
   /// 构建左侧菜单栏
   Widget _buildSidebar(
     BuildContext context,
     AppLocalizations localizations,
     ShadThemeData shadTheme,
+    List<(String, SettingsCategory)> categories,
+    double menuHeight,
   ) {
-    final categories = [
-      (localizations.settingsGeneral, SettingsCategory.general),
-      (localizations.settingsTools, SettingsCategory.tools),
-      (localizations.settingsData, SettingsCategory.data),
-      (localizations.settingsSecurity, SettingsCategory.security),
-    ];
-
-    // 计算菜单总高度：4个菜单项 * 32px + 3个间距 * 4px + 上下padding 16px
-    final menuHeight = 4 * 32.0 + 3 * 4.0 + 16.0;
-
     return Container(
       width: 240,
       padding: const EdgeInsets.only(left: 24, top: 16, bottom: 16),
@@ -534,10 +551,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
   }
 
   /// 构建分隔线（只与菜单高度相同）
-  Widget _buildDivider(BuildContext context, ShadThemeData shadTheme) {
-    // 计算菜单总高度：4个菜单项 * 32px + 3个间距 * 4px + 上下padding 16px
-    final menuHeight = 4 * 32.0 + 3 * 4.0 + 16.0;
-    
+  Widget _buildDivider(BuildContext context, ShadThemeData shadTheme, double menuHeight) {
     return Container(
       width: 1,
       height: menuHeight,
@@ -620,7 +634,136 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
         return _buildDataSettings(context, localizations, shadTheme);
       case SettingsCategory.security:
         return _buildSecuritySettings(context, localizations, shadTheme);
+      case SettingsCategory.about:
+        return _buildAboutSettings(context, localizations, shadTheme);
     }
+  }
+
+  /// 关于：IDE 风格 — 左侧图标、右侧标题层级与简介、底部版权
+  Widget _buildAboutSettings(
+    BuildContext context,
+    AppLocalizations localizations,
+    ShadThemeData shadTheme,
+  ) {
+    final fg = shadTheme.colorScheme.foreground;
+    final mutedFg = shadTheme.colorScheme.mutedForeground;
+
+    Widget buildAboutBody(PackageInfo? info, {required bool loading}) {
+      final version = (!loading && info != null)
+          ? info.version
+          : AppConstants.appVersion;
+      final buildNum = (!loading && info != null) ? info.buildNumber : '';
+
+      final titleStyle = shadTheme.textTheme.h4.copyWith(
+        fontSize: 26,
+        fontWeight: FontWeight.w600,
+        height: 1.15,
+        letterSpacing: -0.5,
+        color: fg,
+      );
+      final buildStyle = shadTheme.textTheme.small.copyWith(
+        fontSize: 13,
+        height: 1.45,
+        color: mutedFg,
+      );
+      final bodyStyle = shadTheme.textTheme.p.copyWith(
+        fontSize: 14,
+        height: 1.55,
+        color: mutedFg,
+      );
+      final footerStyle = shadTheme.textTheme.small.copyWith(
+        fontSize: 12,
+        height: 1.4,
+        color: mutedFg.withOpacity(0.9),
+      );
+
+      final textBlock = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (loading)
+            Text(localizations.loading, style: titleStyle)
+          else
+            Text(
+              '${localizations.appName} $version',
+              style: titleStyle,
+            ),
+          if (!loading && buildNum.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              localizations.aboutBuildLine(buildNum),
+              style: buildStyle,
+            ),
+          ],
+          const SizedBox(height: 20),
+          Text(localizations.aboutIntroText, style: bodyStyle),
+          const SizedBox(height: 28),
+          Text(localizations.aboutCopyright, style: footerStyle),
+        ],
+      );
+
+      final iconBlock = ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.asset(
+          'assets/images/app_about.png',
+          width: 128,
+          height: 128,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return SizedBox(
+              width: 128,
+              height: 128,
+              child: Icon(
+                Icons.vpn_key_rounded,
+                size: 56,
+                color: mutedFg,
+              ),
+            );
+          },
+        ),
+      );
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final stacked = constraints.maxWidth < 520;
+          if (stacked) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                iconBlock,
+                const SizedBox(height: 24),
+                textBlock,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              iconBlock,
+              const SizedBox(width: 32),
+              Expanded(child: textBlock),
+            ],
+          );
+        },
+      );
+    }
+
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final loading = snapshot.connectionState == ConnectionState.waiting;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(28, 32, 32, 36),
+          child: SizedBox(
+            width: double.infinity,
+            child: buildAboutBody(
+              snapshot.hasData ? snapshot.data : null,
+              loading: loading,
+            ),
+          ),
+        );
+      },
+    );
   }
 
   /// 构建常规设置

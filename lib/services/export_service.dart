@@ -53,6 +53,7 @@ class ExportService {
           }
 
           exportKeys.add({
+            'sort_order': exportKeys.length,
             'name': key.name,
             'platform': key.platform,
             'platform_type': key.platformType.index,
@@ -86,6 +87,10 @@ class ExportService {
             'gemini_api_endpoint': key.geminiApiEndpoint,
             'gemini_model': key.geminiModel,
             'gemini_base_url': key.geminiBaseUrl,
+            // OpenClaw 配置
+            'enable_openclaw': key.enableOpenclaw,
+            'openclaw_base_url': key.openclawBaseUrl,
+            'openclaw_model': key.openclawModel,
           });
         } catch (e) {
           // 跳过无法处理的密钥
@@ -187,6 +192,7 @@ class ExportService {
           );
 
           exportKeys.add({
+            'sort_order': exportKeys.length,
             'name': key.name,
             'platform': key.platform,
             'platform_type': key.platformType.index,
@@ -220,6 +226,10 @@ class ExportService {
             'gemini_api_endpoint': key.geminiApiEndpoint,
             'gemini_model': key.geminiModel,
             'gemini_base_url': key.geminiBaseUrl,
+            // OpenClaw 配置
+            'enable_openclaw': key.enableOpenclaw,
+            'openclaw_base_url': key.openclawBaseUrl,
+            'openclaw_model': key.openclawModel,
           });
         } catch (e) {
           continue;
