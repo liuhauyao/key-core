@@ -10,6 +10,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../theme/kc_tokens.dart';
 import '../../utils/app_localizations.dart';
+import 'kc_menu.dart';
 
 /// 底部悬浮栏的高度 + 边距；网格底部需要预留这么多 padding，避免最后一行被遮住。
 const double kcFloatingBarReserve = 72;
@@ -237,6 +238,128 @@ class KcSelectableCard extends StatelessWidget {
         if (manage)
           Positioned(top: 10, right: 10, child: KcSelectCheck(key: checkKey, selected: selected, onChanged: onSelect)),
       ],
+    );
+  }
+}
+
+/// 统一页头（钥匙包 / MCP / Skills 共用的几何）：高 52 = 标题 + 副标题（管理模式原位换文案）
+/// + 定宽 240 搜索 + 图标按钮组 + 定宽主按钮槽。
+class KcPageHeader extends StatelessWidget {
+  const KcPageHeader({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.manageSubtitle,
+    required this.manage,
+    required this.searchController,
+    required this.searchHint,
+    required this.onSearch,
+    this.searchKey,
+    this.actions = const [],
+    required this.primary,
+    this.primaryWidth = 112,
+  });
+
+  final String title;
+  final String subtitle;
+  final String manageSubtitle;
+  final bool manage;
+  final TextEditingController searchController;
+  final String searchHint;
+  final ValueChanged<String> onSearch;
+  final Key? searchKey;
+  final List<Widget> actions;
+  final Widget primary;
+  final double primaryWidth;
+
+  /// 与钥匙包页一致的 32×32 描边图标按钮
+  static Widget iconButton(BuildContext context,
+      {Key? key, required IconData icon, required String tip, required VoidCallback? onPressed, bool active = false}) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    return Padding(
+      padding: const EdgeInsets.only(left: KcSpace.x2),
+      child: Tooltip(
+        key: key,
+        message: tip,
+        child: ShadButton.outline(
+          width: KcSize.control,
+          height: KcSize.control,
+          padding: EdgeInsets.zero,
+          backgroundColor: active ? kc.actionSoft : null,
+          onPressed: onPressed,
+          child: Icon(icon, size: 16, color: active ? cs.primary : kc.text2),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
+    return Container(
+      height: KcSize.pageHeader,
+      padding: const EdgeInsets.symmetric(horizontal: KcSpace.page),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: cs.border))),
+      child: Row(children: [
+        Text(title, style: KcType.page.copyWith(color: cs.foreground)),
+        const SizedBox(width: KcSpace.x3),
+        Expanded(child: KcManageSubtitle(manage: manage, normal: subtitle, manageText: manageSubtitle)),
+        const SizedBox(width: KcSpace.x2),
+        SizedBox(
+          width: 240,
+          child: ShadInput(
+            key: searchKey,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            style: KcType.body,
+            controller: searchController,
+            onChanged: onSearch,
+            placeholder: Text(searchHint),
+            leading: Icon(Icons.search, size: 16, color: cs.mutedForeground),
+          ),
+        ),
+        ...actions,
+        const SizedBox(width: KcSpace.x2),
+        KcPrimarySlot(width: primaryWidth, child: primary),
+      ]),
+    );
+  }
+}
+
+/// 筛选行右侧的下拉/弹出按钮（与钥匙包「全部分组 / 全部平台」一致）
+class KcFilterMenuButton<T> extends StatelessWidget {
+  const KcFilterMenuButton({super.key, required this.label, required this.items, required this.onSelected, this.selected});
+
+  final String label;
+  final List<(T, String, int?)> items;
+  final ValueChanged<T> onSelected;
+  final T? selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    return KcMenuButton<T>(
+      selected: selected,
+      hasSelection: true,
+      onSelected: onSelected,
+      entries: () => [
+        for (final (v, text, n) in items) KcMenuItem<T>(value: v, label: text, trailing: n?.toString()),
+      ],
+      child: Container(
+        height: KcSize.control,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: cs.background,
+          border: Border.all(color: cs.border),
+          borderRadius: BorderRadius.circular(KcRadius.control),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(label, style: KcType.body.copyWith(color: cs.foreground)),
+          const SizedBox(width: 6),
+          Icon(Icons.expand_more, size: 16, color: kc.text2),
+        ]),
+      ),
     );
   }
 }

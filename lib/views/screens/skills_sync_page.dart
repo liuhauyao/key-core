@@ -1,3 +1,5 @@
+import '../widgets/kc_logo.dart';
+import '../widgets/kc_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -131,11 +133,11 @@ class _SkillsSyncPageState extends State<SkillsSyncPage> {
       children: [
         Text(localizations?.skillsSelectTool ?? 'Select tool', style: shadTheme.textTheme.p),
         const SizedBox(width: 12),
-        DropdownButton<SkillTargetTool>(
+        KcSelect<SkillTargetTool>(
+          key: const ValueKey('skillsSync.tool'),
           value: _selectedTool,
-          items: tools
-              .map((tool) => DropdownMenuItem(value: tool, child: Text(tool.displayName)))
-              .toList(),
+          options: [for (final t in tools) (t, t.displayName)],
+          leadingOf: (t) => KcToolLogo(tool: t.toAiToolType(), size: 16),
           onChanged: (tool) {
             setState(() => _selectedTool = tool);
             _scanTool();

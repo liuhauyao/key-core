@@ -1,3 +1,6 @@
+import '../widgets/kc_manage_scaffold.dart';
+import '../../services/platform/window_chrome.dart';
+import '../../theme/kc_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -135,9 +138,13 @@ class _JsonConfigFormatter extends TextInputFormatter {
 class McpFormPage extends StatefulWidget {
   final McpServer? editingServer;
 
+  /// 从「添加 ▾」菜单进入时预选的模板分类
+  final McpServerCategory? initialCategory;
+
   const McpFormPage({
     super.key,
     this.editingServer,
+    this.initialCategory,
   });
 
   @override
@@ -155,7 +162,7 @@ class _McpFormPageState extends State<McpFormPage> {
 
   String? _selectedIcon;
   bool _isEditMode = false;
-  McpServerCategory _selectedCategory = McpServerCategory.popular;
+  late McpServerCategory _selectedCategory = widget.initialCategory ?? McpServerCategory.popular;
 
   @override
   void initState() {
@@ -458,160 +465,155 @@ class _McpFormPageState extends State<McpFormPage> {
     final localizations = AppLocalizations.of(context);
     final shadTheme = ShadTheme.of(context);
 
-    return Scaffold(
-      backgroundColor: shadTheme.colorScheme.background,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        toolbarHeight: 0,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = shadTheme.colorScheme;
+    Widget section(String text) => Padding(
+          padding: const EdgeInsets.only(bottom: KcSpace.x3),
+          child: Text(text, style: KcType.section.copyWith(color: cs.foreground)),
+        );
+
+    // v3 表单（与密钥表单同一结构，form_v3.md §7）：
+    // 顶栏 → 左栏「模板 + 基本信息」/ 右栏「配置 JSON」（窄屏上下排）→ 固定底栏（⌘↵ 提示 / 取消 / 主按钮）
+    final leftColumn = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (!_isEditMode) ...[
+        Row(children: [
+          Expanded(child: section(localizations?.tr('mcp_template', '从模板开始') ?? '从模板开始')),
+          Padding(padding: const EdgeInsets.only(bottom: KcSpace.x3), child: _buildCategorySwitcher(context, shadTheme)),
+        ]),
+        _buildTemplateChips(context, shadTheme),
+        const SizedBox(height: KcSpace.x6),
+      ],
+      section(localizations?.basicInfo ?? '基本信息'),
+      ImeSafeTextField(
+        controller: _nameController,
+        labelText: localizations?.mcpDisplayName ?? '显示名称 *',
+        hintText: localizations?.mcpDisplayNameHint ?? '例如: Context7 MCP',
+        prefixIcon: _buildClickableIcon(context, shadTheme),
+        isDark: isDark,
       ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        left: false,
-        right: false,
-        child: Column(
-          children: [
-            // macOS 26 风格：沉浸式标题栏（与界面融为一体）
-            _buildImmersiveTitleBar(context),
-            // 分类切换区域 - 仅在新建模式下显示
-            if (!_isEditMode)
-              Container(
-                padding: const EdgeInsets.only(top: 12, bottom: 12, left: 24, right: 24),
-                decoration: BoxDecoration(
-                  color: shadTheme.colorScheme.background,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: shadTheme.colorScheme.border,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: _buildTemplateChips(context, shadTheme),
-                ),
-              ),
-            // 表单内容
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                child: ShadForm(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 第一行：显示名称、标签
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                        // 显示名称 - 使用 ImeSafeTextField，统一输入框高度和图标尺寸
-                        Expanded(
-                          child: ImeSafeTextField(
-                            controller: _nameController,
-                            labelText: localizations?.mcpDisplayName ?? '显示名称 *',
-                            hintText: localizations?.mcpDisplayNameHint ?? '例如: Context7 MCP',
-                            prefixIcon: _buildClickableIcon(context, shadTheme),
-                            isDark: Theme.of(context).brightness == Brightness.dark,
+      const SizedBox(height: KcSpace.x4),
+      ImeSafeTextField(
+        controller: _tagsController,
+        labelText: localizations?.mcpTags ?? '标签',
+        hintText: localizations?.mcpTagsHint ?? '多个标签用逗号分隔',
+        prefixIcon: Icon(Icons.local_offer_outlined, size: 18, color: cs.mutedForeground),
+        isDark: isDark,
+      ),
+      const SizedBox(height: KcSpace.x4),
+      ImeSafeTextField(
+        controller: _homepageController,
+        labelText: localizations?.mcpHomepage ?? '管理地址（选填）',
+        hintText: localizations?.mcpHomepageHint ?? 'https://example.com',
+        prefixIcon: Icon(Icons.language, size: 18, color: cs.mutedForeground),
+        keyboardType: TextInputType.url,
+        isDark: isDark,
+      ),
+      const SizedBox(height: KcSpace.x4),
+      ImeSafeTextField(
+        controller: _docsController,
+        labelText: localizations?.mcpDocs ?? '文档地址（选填）',
+        hintText: localizations?.mcpDocsHint ?? 'https://docs.example.com',
+        prefixIcon: Icon(Icons.menu_book_outlined, size: 18, color: cs.mutedForeground),
+        keyboardType: TextInputType.url,
+        isDark: isDark,
+      ),
+      const SizedBox(height: KcSpace.x4),
+      ImeSafeTextField(
+        controller: _descriptionController,
+        labelText: localizations?.mcpDescription ?? '描述（选填）',
+        hintText: localizations?.mcpDescriptionHint ?? 'MCP 服务器描述',
+        maxLines: 3,
+        isDark: isDark,
+      ),
+    ]);
+    final rightColumn = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      section(localizations?.tr('mcp_config_json', '服务配置（JSON）') ?? '服务配置（JSON）'),
+      _buildJsonConfigField(context, shadTheme),
+    ]);
+
+    void close() => Navigator.of(context).popUntil((route) => route.isFirst);
+
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): close,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): _handleSubmit,
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): _handleSubmit,
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: cs.background,
+          body: ShadForm(
+            key: _formKey,
+            child: Column(children: [
+              _buildImmersiveTitleBar(context),
+              Expanded(
+                child: LayoutBuilder(builder: (context, constraints) {
+                  if (constraints.maxWidth >= 860) {
+                    final leftW = (constraints.maxWidth * 0.42).clamp(360.0, 460.0);
+                    return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      SizedBox(
+                        width: leftW,
+                        child: SingleChildScrollView(
+                          key: const ValueKey('mcpForm.left'),
+                          primary: false,
+                          padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.page),
+                          child: leftColumn,
+                        ),
+                      ),
+                      VerticalDivider(width: 1, thickness: 1, color: cs.border),
+                      Expanded(
+                        child: ColoredBox(
+                          color: context.kc.subtle.withValues(alpha: 0.55),
+                          child: SingleChildScrollView(
+                            key: const ValueKey('mcpForm.right'),
+                            primary: false,
+                            padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.page),
+                            child: rightColumn,
                           ),
                         ),
-                          const SizedBox(width: 12),
-                          // 标签
-                          Expanded(
-                            child: ImeSafeTextField(
-                              controller: _tagsController,
-                              labelText: localizations?.mcpTags ?? '标签',
-                              hintText: localizations?.mcpTagsHint ?? '多个标签用逗号分隔',
-                              prefixIcon: Icon(Icons.local_offer, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                              isDark: Theme.of(context).brightness == Brightness.dark,
-                            ),
-                          ),
-                        ],
                       ),
-                      const SizedBox(height: 16),
-                      // 第二行：JSON配置文本输入框（不需要icon）
-                      _buildJsonConfigField(context, shadTheme),
-                      const SizedBox(height: 16),
-                      // 第三行：管理地址（选填）、文档地址（选填）
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: ImeSafeTextField(
-                              controller: _homepageController,
-                              labelText: localizations?.mcpHomepage ?? '管理地址（选填）',
-                              hintText: localizations?.mcpHomepageHint ?? 'https://example.com',
-                              prefixIcon: Icon(Icons.language, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                              keyboardType: TextInputType.url,
-                              isDark: Theme.of(context).brightness == Brightness.dark,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ImeSafeTextField(
-                              controller: _docsController,
-                              labelText: localizations?.mcpDocs ?? '文档地址（选填）',
-                              hintText: localizations?.mcpDocsHint ?? 'https://docs.example.com',
-                              prefixIcon: Icon(Icons.book, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                              keyboardType: TextInputType.url,
-                              isDark: Theme.of(context).brightness == Brightness.dark,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // 第四行：描述文本输入框（选填）去掉前置图标
-                      ImeSafeTextField(
-                        controller: _descriptionController,
-                        labelText: localizations?.mcpDescription ?? '描述（选填）',
-                        hintText: localizations?.mcpDescriptionHint ?? 'MCP 服务器描述',
-                        maxLines: 3,
-                        isDark: Theme.of(context).brightness == Brightness.dark,
-                      ),
-                    ],
-                  ),
-                ),
+                    ]);
+                  }
+                  return SingleChildScrollView(
+                    primary: false,
+                    padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.page),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [leftColumn, const SizedBox(height: KcSpace.x6), rightColumn]),
+                  );
+                }),
               ),
-            ),
-            // 底部按钮区域
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                color: shadTheme.colorScheme.background,
-                border: Border(
-                  top: BorderSide(
-                    color: shadTheme.colorScheme.border,
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ShadButton.outline(
-                    onPressed: () {
-                      Navigator.of(context).popUntil((route) => route.isFirst);
-                    },
-                    child: Text(localizations?.cancel ?? '取消'),
-                  ),
-                  const SizedBox(width: 12),
-                  ShadButton(
-                    onPressed: _handleSubmit,
-                    leading: Icon(
-                      _isEditMode ? Icons.save : Icons.add,
-                      size: 18,
-                    ),
+              // 固定底栏 56
+              Container(
+                key: const ValueKey('mcpForm.footer'),
+                height: 56,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(color: cs.background, border: Border(top: BorderSide(color: cs.border))),
+                child: Row(children: [
+                  Icon(Icons.info_outline, size: 14, color: cs.mutedForeground),
+                  const SizedBox(width: 6),
+                  Expanded(
                     child: Text(
-                      _isEditMode
-                          ? (localizations?.save ?? '保存')
-                          : (localizations?.add ?? '添加'),
+                      localizations?.tr('mcp_form_footer_hint', '保存后在卡片上「按工具启用」写入各工具配置') ?? '保存后在卡片上「按工具启用」写入各工具配置',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KcType.caption.copyWith(color: cs.mutedForeground),
                     ),
                   ),
-                ],
+                  Text(WindowChrome.isMacOS ? '⌘ Enter' : 'Ctrl Enter', style: KcType.caption.copyWith(color: cs.mutedForeground)),
+                  const SizedBox(width: 12),
+                  ShadButton.outline(height: 32, onPressed: close, child: Text(localizations?.cancel ?? '取消')),
+                  const SizedBox(width: 8),
+                  ShadButton(
+                    key: const ValueKey('mcpForm.submit'),
+                    height: 32,
+                    onPressed: _handleSubmit,
+                    leading: Icon(_isEditMode ? Icons.check : Icons.add, size: 16),
+                    child: Text(_isEditMode ? (localizations?.save ?? '保存') : (localizations?.add ?? '添加')),
+                  ),
+                ]),
               ),
-            ),
-          ],
+            ]),
+          ),
         ),
       ),
     );
@@ -625,59 +627,21 @@ class _McpFormPageState extends State<McpFormPage> {
       title: _isEditMode
           ? (localizations?.editMcpServer ?? '编辑MCP服务器')
           : (localizations?.tr('mcp_add_server', '添加 MCP 服务器') ?? '添加 MCP 服务器'),
-      center: _isEditMode ? null : _buildCategorySwitcher(context, ShadTheme.of(context)),
       onClose: () => Navigator.of(context).popUntil((route) => route.isFirst),
     );
   }
 
-  /// 构建分类切换滑块（仅在新建模式下显示）
+  /// 模板分类：「从模板开始」标题右侧的弹出菜单（取代旧的顶栏分段条）
   Widget _buildCategorySwitcher(BuildContext context, ShadThemeData shadTheme) {
-    // 编辑模式下不显示分类切换滑块
-    if (_isEditMode) {
-      return const SizedBox.shrink();
-    }
-    
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: shadTheme.colorScheme.border,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: McpServerPresets.allCategories.map((category) {
-          final isActive = category == _selectedCategory;
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedCategory = category;
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? shadTheme.colorScheme.background
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                category.getValue(context),
-                style: shadTheme.textTheme.small.copyWith(
-                  color: isActive
-                      ? shadTheme.colorScheme.foreground
-                      : shadTheme.colorScheme.mutedForeground,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+    if (_isEditMode) return const SizedBox.shrink();
+    return KcFilterMenuButton<McpServerCategory>(
+      key: const ValueKey('mcpForm.category'),
+      label: _selectedCategory.getValue(context),
+      selected: _selectedCategory,
+      onSelected: (c) => setState(() => _selectedCategory = c),
+      items: [
+        for (final c in McpServerPresets.allCategories) (c, c.getValue(context), McpServerPresets.getTemplatesByCategory(c).length),
+      ],
     );
   }
 

@@ -16,6 +16,7 @@ import '../../viewmodels/key_manager_viewmodel.dart';
 import 'package:provider/provider.dart';
 import 'model_list_dialog.dart';
 import 'kc_logo.dart';
+import 'kc_menu.dart';
 import '../../models/mcp_server.dart' show AiToolType;
 import 'kc_toast.dart';
 import '../../theme/kc_tokens.dart';
@@ -1319,7 +1320,6 @@ class _KeyCardState extends State<KeyCard> {
   }
 
   Widget _buildMoreMenu(BuildContext context, AppLocalizations? localizations) {
-    final cs = ShadTheme.of(context).colorScheme;
     final key = widget.aiKey;
     // 分组（form_v3.md §14.3）：查看 / 复制 / 置顶·删除；null 项为分隔线
     final hasEndpoint = (key.apiEndpoint ?? '').trim().isNotEmpty;
@@ -1353,43 +1353,32 @@ class _KeyCardState extends State<KeyCard> {
     while (cleaned.isNotEmpty && cleaned.last == null) {
       cleaned.removeLast();
     }
-    final danger = context.kc.dangerText;
     return Tooltip(
       key: const ValueKey('keyCard.more'),
       message: localizations?.moreActions ?? '更多',
-      child: PopupMenuButton<String>(
-        tooltip: '',
-        padding: EdgeInsets.zero,
-        position: PopupMenuPosition.under,
-        color: cs.popover,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KcRadius.panel),
-          side: BorderSide(color: cs.border),
-        ),
-        onOpened: () => setState(() => _menuOpen = true),
-        onCanceled: () => setState(() => _menuOpen = false),
+      child: KcMenuButton<String>(
+        alignRight: true,
+        onOpen: () => setState(() => _menuOpen = true),
+        onClose: () {
+          if (mounted) setState(() => _menuOpen = false);
+        },
         onSelected: (id) {
-          setState(() => _menuOpen = false);
           for (final it in cleaned) {
             if (it != null && it.$1 == id) it.$4?.call();
           }
         },
-        itemBuilder: (_) => [
+        entries: () => [
           for (final it in cleaned)
             if (it == null)
-              const PopupMenuDivider(height: 9)
+              const KcMenuDivider<String>()
             else
-              PopupMenuItem<String>(
+              KcMenuItem<String>(
                 key: ValueKey('keyCard.menu.${it.$1}'),
                 value: it.$1,
                 enabled: it.$4 != null,
-                height: 32,
-                child: Row(children: [
-                  Icon(it.$2, size: 15, color: it.$1 == 'delete' ? danger : cs.mutedForeground),
-                  const SizedBox(width: 10),
-                  Text(it.$3, style: KcType.body.copyWith(color: it.$1 == 'delete' ? danger : cs.popoverForeground)),
-                ]),
+                icon: it.$2,
+                label: it.$3,
+                danger: it.$1 == 'delete',
               ),
         ],
         child: _iconBox(context, Icons.more_horiz),
@@ -1767,7 +1756,7 @@ class _ToolStatusChips extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (final c in chips) Padding(padding: const EdgeInsets.only(right: 5), child: c),
-                  // 菜单弹出后鼠标离开卡片（hover 消失）时按钮必须仍然挂载，否则选中项会被 PopupMenuButton 丢弃
+                  // 菜单弹出后鼠标离开卡片（hover 消失）时按钮必须仍然挂载，否则选中项会被 菜单组件 丢弃
                   if (hasPlus)
                     Visibility(
                       visible: showPlus,
@@ -2021,33 +2010,16 @@ class _PlusMenu extends StatelessWidget {
       painter: _DashedCirclePainter(color: cs.input),
       child: SizedBox(width: 24, height: 24, child: Icon(Icons.add, size: 14, color: kc.text2)),
     );
-    return PopupMenuButton<AiToolType>(
+    return KcMenuButton<AiToolType>(
       key: const ValueKey('toolChip.plus'),
       tooltip: l?.enableMoreTools ?? '启用到更多工具',
-      padding: EdgeInsets.zero,
-      position: PopupMenuPosition.under,
-      color: cs.popover,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(KcRadius.panel),
-        side: BorderSide(color: cs.border),
-      ),
       onSelected: onSelected,
-      itemBuilder: (_) => [
+      entries: () => [
         for (final t in tools)
-          PopupMenuItem<AiToolType>(
+          KcMenuItem<AiToolType>(
             value: t,
-            height: 32,
-            child: Row(children: [
-              KcToolLogo(tool: t, size: 18),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(l?.enableForTool(kcToolName(t)) ?? '启用到 ${kcToolName(t)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: KcType.body.copyWith(color: cs.popoverForeground)),
-              ),
-            ]),
+            leading: KcToolLogo(tool: t, size: 18),
+            label: l?.enableForTool(t.displayName) ?? '启用到 ${t.displayName}',
           ),
       ],
       child: withLabel

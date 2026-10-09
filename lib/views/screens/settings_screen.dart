@@ -1,3 +1,4 @@
+import '../widgets/kc_menu.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -1155,28 +1156,51 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     ShadThemeData shadTheme,
   ) {
     final viewModel = context.read<KeyManagerViewModel>();
-    return Row(
-      children: [
-        Expanded(
-          child: _buildActionCard(
-                context,
-            Icons.import_export,
-            localizations.importKeys,
-            localizations.importKeysDesc,
-            () => _handleImport(context, viewModel),
-          ),
-              ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildActionCard(
-                context,
-            Icons.file_download,
-            localizations.exportKeys,
-            localizations.exportKeysDesc,
-            () => _handleExport(context, viewModel),
-          ),
+    // 分组列表行（与「通用」页同一语言），替代旧的两张灰底大卡片
+    return _groupBox(context, [
+      _buildSettingItem(
+        context,
+        localizations.importKeys,
+        localizations.importKeysDesc,
+        ShadButton.outline(
+          key: const ValueKey('settings.data.import'),
+          height: KcSize.control,
+          leading: const Icon(Icons.file_upload_outlined, size: 15),
+          onPressed: () => _handleImport(context, viewModel),
+          child: Text(localizations.tr('import_ellipsis', '导入…')),
         ),
-      ],
+      ),
+      _buildSettingItem(
+        context,
+        localizations.exportKeys,
+        localizations.exportKeysDesc,
+        ShadButton.outline(
+          key: const ValueKey('settings.data.export'),
+          height: KcSize.control,
+          leading: const Icon(Icons.file_download_outlined, size: 15),
+          onPressed: () => _handleExport(context, viewModel),
+          child: Text(localizations.tr('export_ellipsis', '导出…')),
+        ),
+        isLast: true,
+      ),
+    ]);
+  }
+
+  /// System Settings 风格分组容器：卡片底色 + 1px 边框 + 行间分隔线
+  Widget _groupBox(BuildContext context, List<Widget> rows) {
+    final cs = ShadTheme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.card,
+        borderRadius: BorderRadius.circular(KcRadius.panel),
+        border: Border.all(color: cs.border),
+      ),
+      child: Column(children: [
+        for (final (i, r) in rows.indexed) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, indent: 14, color: cs.border),
+          r,
+        ],
+      ]),
     );
   }
 
@@ -1302,7 +1326,6 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     AppLocalizations localizations,
     SettingsViewModel settingsViewModel,
   ) {
-    final shadTheme = ShadTheme.of(context);
     final currentLanguage = settingsViewModel.currentLanguage;
     
     // 如果没有加载到支持的语言列表，使用默认的中英文
@@ -1325,36 +1348,13 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
           ]
         : _supportedLanguages;
     
-    // ⭐ 使用语言代码列表作为 key，确保语言列表变化时 ShadSelect 重新构建
-    final languagesKey = languages.map((l) => l.code).join('_');
     
-    return ShadSelect<String>(
-      key: ValueKey('language_select_$languagesKey'),
-      initialValue: currentLanguage,
-      placeholder: Text(
-        localizations.interfaceLanguage,
-        style: shadTheme.textTheme.small,
-      ),
-      options: languages.map((lang) {
-        return ShadOption<String>(
-          value: lang.code,
-          child: Text(
-            lang.nativeName,
-            style: shadTheme.textTheme.small,
-          ),
-        );
-      }).toList(),
-      selectedOptionBuilder: (context, value) {
-        final lang = languages.firstWhere(
-          (l) => l.code == value,
-          orElse: () => languages.first,
-        );
-        return Text(
-          lang.nativeName,
-          style: shadTheme.textTheme.small,
-        );
-      },
-          onChanged: (String? newLanguage) async {
+    return KcSelect<String>(
+      key: const ValueKey('settings.language'),
+      width: 150,
+      value: currentLanguage,
+      options: [for (final lang in languages) (lang.code, lang.nativeName)],
+      onChanged: (String? newLanguage) async {
             if (newLanguage != null && newLanguage != currentLanguage) {
               if (!mounted) return;
               
@@ -1554,58 +1554,29 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     BuildContext context,
     AppLocalizations localizations,
   ) {
-    final shadTheme = ShadTheme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
+    final kc = context.kc;
+    return _groupBox(context, [
+      _buildSettingItem(
+        context,
+        _hasPassword ? localizations.masterPasswordSet : localizations.masterPasswordNotSet,
+        _hasPassword ? localizations.masterPasswordEncrypted : localizations.masterPasswordPlain,
+        Row(mainAxisSize: MainAxisSize.min, children: [
           Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _hasPassword
-                  ? Colors.green.withOpacity(0.2)
-                  : Colors.orange.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              _hasPassword ? Icons.lock : Icons.lock_open,
-              color: _hasPassword ? Colors.green : Colors.orange,
-              size: 20,
-            ),
+            height: 20,
+            padding: const EdgeInsets.symmetric(horizontal: 7),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: _hasPassword ? kc.okSoft : kc.warnSoft, borderRadius: BorderRadius.circular(999)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(_hasPassword ? Icons.lock : Icons.lock_open, size: 12, color: _hasPassword ? kc.okText : kc.warnText),
+              const SizedBox(width: 4),
+              Text(_hasPassword ? localizations.tr('encrypted', '已加密') : localizations.tr('not_encrypted', '未加密'),
+                  style: KcType.badge.copyWith(color: _hasPassword ? kc.okText : kc.warnText)),
+            ]),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _hasPassword
-                      ? localizations.masterPasswordSet
-                      : localizations.masterPasswordNotSet,
-                  style: shadTheme.textTheme.small.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: shadTheme.colorScheme.foreground,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _hasPassword
-                      ? localizations.masterPasswordEncrypted
-                      : localizations.masterPasswordPlain,
-                  style: shadTheme.textTheme.small.copyWith(
-                    color: shadTheme.colorScheme.mutedForeground,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          ShadButton(
+          const SizedBox(width: 10),
+          ShadButton.outline(
+            key: const ValueKey('settings.security.password'),
+            height: KcSize.control,
             onPressed: () async {
               final result = await showDialog<bool>(
                 context: context,
@@ -1613,80 +1584,19 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
               );
               if (result == true) {
                 await _checkPasswordStatus();
-                final viewModel = context.read<KeyManagerViewModel>();
-                viewModel.refresh();
+                if (!context.mounted) return;
+                context.read<KeyManagerViewModel>().refresh();
               }
             },
-            child: Text(
-              _hasPassword ? localizations.change : localizations.set,
-            ),
+            child: Text(_hasPassword ? localizations.change : localizations.set),
           ),
-        ],
+        ]),
+        isLast: true,
       ),
-    );
+    ]);
   }
 
 
-  Widget _buildActionCard(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String description,
-    VoidCallback onTap,
-  ) {
-    final shadTheme = ShadTheme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: shadTheme.colorScheme.muted,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: shadTheme.colorScheme.border,
-            width: 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: shadTheme.colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: shadTheme.colorScheme.primary,
-                size: 20,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: shadTheme.textTheme.small.copyWith(
-                fontWeight: FontWeight.w600,
-                color: shadTheme.colorScheme.foreground,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              description,
-              style: shadTheme.textTheme.small.copyWith(
-                color: shadTheme.colorScheme.mutedForeground,
-                height: 1.3,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Future<void> _handleImport(BuildContext context, KeyManagerViewModel viewModel) async {
     final localizations = AppLocalizations.of(context)!;

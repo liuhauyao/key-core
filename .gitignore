@@ -115,3 +115,7 @@ PUBLISH.md
 !/dev/ci/**/Gemfile.lock
 
 test/goldens/failures/
+
+# golden 失败产物
+test/widgets/failures/
+test/**/failures/

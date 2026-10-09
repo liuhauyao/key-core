@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -191,7 +192,12 @@ class _SkillFormPageState extends State<SkillFormPage> {
     final shadTheme = ShadTheme.of(context);
     final localizations = AppLocalizations.of(context);
 
-    return Scaffold(
+    // Esc 关闭（与密钥 / MCP 表单一致）
+    return CallbackShortcuts(
+      bindings: {const SingleActivator(LogicalKeyboardKey.escape): () => Navigator.of(context).maybePop()},
+      child: Focus(
+      autofocus: true,
+      child: Scaffold(
       backgroundColor: shadTheme.colorScheme.background,
       appBar: KcWindowHeader(
         title: _isEditing
@@ -265,7 +271,7 @@ class _SkillFormPageState extends State<SkillFormPage> {
 
                   // ── Tags ──
                   const SizedBox(height: 20),
-                  _sectionTitle('Tags', shadTheme),
+                  _sectionTitle(localizations?.tr('skills_tags', '标签') ?? '标签', shadTheme),
                   const SizedBox(height: 8),
                   _buildTagsArea(shadTheme),
                   const SizedBox(height: 20),
@@ -317,6 +323,8 @@ class _SkillFormPageState extends State<SkillFormPage> {
                 ],
               ),
             ),
+    ),
+      ),
     );
   }
 
@@ -347,11 +355,11 @@ class _SkillFormPageState extends State<SkillFormPage> {
               children: [
                 Icon(template.icon, size: 24, color: shadTheme.colorScheme.primary),
                 const SizedBox(height: 10),
-                Text(template.name,
+                Text(_tplName(context, template.name),
                     style: shadTheme.textTheme.p.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 Text(
-                  template.description,
+                  _tplDesc(context, template.name, template.description),
                   style: shadTheme.textTheme.small.copyWith(
                     color: shadTheme.colorScheme.mutedForeground,
                   ),
@@ -398,7 +406,7 @@ class _SkillFormPageState extends State<SkillFormPage> {
                 child: ShadInput(
                   controller: _tagController,
                   focusNode: _tagFocusNode,
-                  placeholder: const Text('Add tag...'),
+                  placeholder: Text(AppLocalizations.of(context)?.tr('skills_add_tag', '添加标签…') ?? '添加标签…'),
                   onSubmitted: (value) {
                     _addTag(value);
                     _tagFocusNode.requestFocus();
@@ -448,7 +456,7 @@ class _SkillFormPageState extends State<SkillFormPage> {
     final description = _descriptionController.text.trim();
 
     if (skillId.isEmpty || name.isEmpty || description.isEmpty) {
-      showKcToast(context, localizations?.skillsValidationRequired ?? 'Please fill required fields', kind: KcToastKind.success);
+      showKcToast(context, localizations?.skillsValidationRequired ?? 'Please fill required fields', kind: KcToastKind.error);
       return;
     }
 
@@ -491,7 +499,29 @@ class _SkillFormPageState extends State<SkillFormPage> {
     if (success) {
       Navigator.of(context).pop(true);
     } else {
-      showKcToast(context, viewModel.errorMessage ?? localizations?.skillsSaveFailed ?? 'Save failed', kind: KcToastKind.success);
+      showKcToast(context, viewModel.errorMessage ?? localizations?.skillsSaveFailed ?? 'Save failed', kind: KcToastKind.error);
     }
   }
+}
+
+String _tplName(BuildContext c, String name) {
+  final l = AppLocalizations.of(c);
+  return switch (name) {
+    'Code Review' => l?.tr('skill_tpl_review', '代码审查') ?? name,
+    'Documentation Generator' => l?.tr('skill_tpl_docs', '文档生成') ?? name,
+    'Test Writer' => l?.tr('skill_tpl_tests', '测试编写') ?? name,
+    'Custom (Empty)' => l?.tr('skill_tpl_custom', '空白技能') ?? name,
+    _ => name,
+  };
+}
+
+String _tplDesc(BuildContext c, String name, String desc) {
+  final l = AppLocalizations.of(c);
+  return switch (name) {
+    'Code Review' => l?.tr('skill_tpl_review_desc', '自动化代码审查清单与最佳实践') ?? desc,
+    'Documentation Generator' => l?.tr('skill_tpl_docs_desc', '根据代码生成完整文档') ?? desc,
+    'Test Writer' => l?.tr('skill_tpl_tests_desc', '生成单元测试与集成测试') ?? desc,
+    'Custom (Empty)' => l?.tr('skill_tpl_custom_desc', '从空白技能开始') ?? desc,
+    _ => desc,
+  };
 }

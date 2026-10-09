@@ -33,7 +33,7 @@ Future<PlatformType?> showProviderPicker({
     context: context,
     barrierDismissible: true,
     barrierLabel: 'provider-picker',
-    barrierColor: Colors.black.withValues(alpha: 0.08),
+    barrierColor: Colors.transparent, // 弹出面板不压暗整窗
     transitionDuration: KcMotion.of(context),
     pageBuilder: (ctx, _, __) {
       final screen = MediaQuery.sizeOf(ctx);
@@ -150,15 +150,18 @@ class _ProviderPickerPanelState extends State<ProviderPickerPanel> {
           if (items.isNotEmpty) Navigator.of(context).pop(items.first);
         },
       },
-      child: Material(
+      child: DecoratedBox(
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(KcRadius.dialog), boxShadow: kc.shadowLg),
+        child: Material(
         key: const ValueKey('providerPicker'),
         color: cs.popover,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KcRadius.dialog), side: BorderSide(color: cs.border)),
         clipBehavior: Clip.antiAlias,
         shadowColor: Colors.black26,
+        // 实色面板：阴影不再画在无填充色的盒子里（否则整块面板发灰）
         child: DecoratedBox(
-          decoration: BoxDecoration(boxShadow: kc.shadowLg),
+          decoration: BoxDecoration(color: cs.popover),
           child: Column(children: [
             SizedBox(
               height: 44,
@@ -276,6 +279,7 @@ class _ProviderPickerPanelState extends State<ProviderPickerPanel> {
             ),
           ]),
         ),
+      ),
       ),
     );
   }

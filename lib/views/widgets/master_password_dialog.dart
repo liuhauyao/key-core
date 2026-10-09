@@ -1,3 +1,4 @@
+import 'kc_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
@@ -234,13 +235,9 @@ class _MasterPasswordDialogState extends State<MasterPasswordDialog> {
                         },
                         tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
                       ),
-                      PopupMenuButton<String>(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 40,
-                        ),
-                        icon: const Icon(Icons.more_vert, size: 20),
+                      KcMenuButton<String>(
+                        key: const ValueKey('masterPassword.generate'),
+                        alignRight: true,
                         onSelected: (value) {
                           if (value == 'generate') {
                             _generatePassword();
@@ -248,31 +245,14 @@ class _MasterPasswordDialogState extends State<MasterPasswordDialog> {
                             _generateMemorablePassword();
                           }
                         },
-                        itemBuilder: (context) {
+                        entries: () {
                           final loc = AppLocalizations.of(context);
                           return [
-                            PopupMenuItem(
-                              value: 'generate',
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.shuffle, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text(loc?.generateRandomPassword ?? '生成随机密码'),
-                                ],
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'generate_memorable',
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.text_fields, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text(loc?.generateMemorablePassword ?? '生成易记密码'),
-                                ],
-                              ),
-                            ),
+                            KcMenuItem(value: 'generate', icon: Icons.shuffle, label: loc?.generateRandomPassword ?? '生成随机密码'),
+                            KcMenuItem(value: 'generate_memorable', icon: Icons.auto_awesome, label: loc?.generateMemorablePassword ?? '生成易记密码'),
                           ];
                         },
+                        child: const SizedBox(width: 40, height: 40, child: Icon(Icons.more_vert, size: 20)),
                       ),
                     ],
                   ),

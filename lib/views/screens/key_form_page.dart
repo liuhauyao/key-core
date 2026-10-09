@@ -38,6 +38,7 @@ import '../widgets/provider_picker.dart';
 import '../../services/platform_registry.dart';
 import '../../services/platform/window_chrome.dart';
 import '../widgets/kc_toast.dart';
+import '../../services/tool_providers/tool_provider_service.dart';
 import '../widgets/key_card.dart' show toolConfigPathHint;
 
 /// 密钥编辑表单页面
@@ -144,8 +145,12 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   // 管理地址是否为空（用于控制按钮显示）
   bool _hasManagementUrl = false;
 
+  /// 更多工具（OpenCode / Grok Build / Hermes / Pi / MiniMax Code）的按密钥启用状态，随表单一起保存
+  late Map<String, Map<String, dynamic>> _toolConfigs;
+
   @override
   void initState() {
+    _toolConfigs = {for (final e in (widget.editingKey?.toolConfigs ?? const {}).entries) e.key: Map<String, dynamic>.from(e.value)};
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _isEditMode = widget.editingKey != null;
@@ -1344,6 +1349,51 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   }
 
   /// 右栏：工具页签（已用的打 ✓）+ 当前工具的配置区 + 「开启 / 生效中」后果说明
+  /// 右栏「更多工具」：5 个新工具也在表单里列出；开关 = 为该工具启用这把密钥（toolConfigs.enabled），
+  /// 写入工具配置在密钥详情的「更多工具」里进行（applyKeyToTool）。
+  Widget _buildMoreToolsCard(BuildContext context, AppLocalizations? l) {
+    final cs = ShadTheme.of(context).colorScheme;
+    String t(String k, String f) => l?.tr(k, f) ?? f;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Padding(
+        padding: const EdgeInsets.only(top: KcSpace.x2, bottom: KcSpace.x1),
+        child: Text(t('more_tools', '更多工具'), style: KcType.section.copyWith(color: cs.foreground)),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(bottom: KcSpace.x2),
+        child: Text(t('more_tools_form_hint', '开关 = 为该工具启用这把密钥；保存后在密钥详情里「写入」到工具配置。'),
+            style: KcType.caption.copyWith(color: cs.mutedForeground)),
+      ),
+      Container(
+        key: const ValueKey('keyForm.moreTools'),
+        decoration: BoxDecoration(color: cs.card, border: Border.all(color: cs.border), borderRadius: BorderRadius.circular(KcRadius.panel)),
+        child: Column(children: [
+          for (final (i, tool) in ToolProviderService.tools.indexed) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: cs.border),
+            SizedBox(
+              key: ValueKey('keyForm.tool.${tool.value}'),
+              height: 44,
+              child: Row(children: [
+                const SizedBox(width: KcSpace.x3),
+                KcToolLogo(tool: tool, size: 22),
+                const SizedBox(width: 10),
+                Expanded(child: Text(tool.displayName, style: KcType.strong.copyWith(color: cs.foreground))),
+                Switch.adaptive(
+                  key: ValueKey('keyForm.moreTool.${tool.value}'),
+                  value: _toolConfigs[tool.value]?['enabled'] == true,
+                  onChanged: (v) => setState(() {
+                    _toolConfigs = {..._toolConfigs, tool.value: {...?_toolConfigs[tool.value], 'enabled': v}};
+                  }),
+                ),
+                const SizedBox(width: KcSpace.x2),
+              ]),
+            ),
+          ],
+        ]),
+      ),
+    ]);
+  }
+
   Widget _buildToolConfigPanel(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations) {
     // 右栏「用在哪些工具」（form_v3.md §1）：列出**全部**工具，每个工具一张卡；
     // 开关打开后就地展开字段；设置中未启用的工具置灰并说明去哪里开启。
@@ -1455,6 +1505,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                     style: KcType.body.copyWith(color: cs.mutedForeground)),
               ),
             for (final c in cards) Padding(padding: const EdgeInsets.only(bottom: KcSpace.x3), child: c),
+            _buildMoreToolsCard(context, localizations),
           ],
         );
       },
@@ -1925,6 +1976,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
         claudeDesktopOpusModel: _claudeDesktopOpusController.text.trim().isNotEmpty
             ? _claudeDesktopOpusController.text.trim()
             : null,
+        toolConfigs: _toolConfigs,
       );
 
       Navigator.of(context).pop(key);

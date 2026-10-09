@@ -1,3 +1,5 @@
+import '../../models/mcp_server_category.dart';
+import '../../utils/mcp_server_presets.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -6,9 +8,11 @@ import '../../viewmodels/mcp_viewmodel.dart';
 import '../../models/mcp_server.dart';
 import '../widgets/kc_manage_scaffold.dart';
 import '../widgets/kc_logo.dart';
+import '../widgets/kc_drawer.dart';
+import '../widgets/kc_menu.dart';
+import '../widgets/kc_segmented.dart';
 import '../../theme/kc_tokens.dart';
 import '../widgets/mcp_card.dart';
-import '../widgets/key_details_dialog.dart' show showKeyDetailsSheet;
 import '../widgets/confirm_dialog.dart';
 import 'mcp_sync_page.dart';
 import 'mcp_form_page.dart';
@@ -54,7 +58,6 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
   @override
   Widget build(BuildContext context) {
     final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: shadTheme.colorScheme.background,
@@ -62,199 +65,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
         builder: (context, viewModel, child) {
           return Column(
             children: [
-              // 工具栏：搜索、编辑、添加按钮
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: shadTheme.colorScheme.background,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: shadTheme.colorScheme.border,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    // 搜索栏
-                    Expanded(
-                      flex: 2,
-                      child: Container(
-                        padding: const EdgeInsets.only(right: 12),
-                        height: 38, // 固定高度，避免输入时高度变化
-                        child: ClipRect(
-                          clipBehavior: Clip.hardEdge,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: ShadInput(
-                              controller: _searchController,
-                              onChanged: (query) => viewModel.setSearchQuery(query),
-                              placeholder: Text(localizations?.mcpSearchPlaceholder ?? '搜索 MCP 服务器...'),
-                              leading: Icon(
-                                Icons.search,
-                                size: 18,
-                                color: shadTheme.colorScheme.mutedForeground,
-                              ),
-                              trailing: _searchController.text.isNotEmpty
-                                  ? ShadButton(
-                                      width: 20,
-                                      height: 20,
-                                      padding: EdgeInsets.zero,
-                                      backgroundColor: Colors.transparent,
-                                      foregroundColor: shadTheme.colorScheme.mutedForeground,
-                                      hoverBackgroundColor: Colors.transparent,
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        viewModel.setSearchQuery('');
-                                      },
-                                      child: const Icon(Icons.clear, size: 14),
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // 按钮组：同步、编辑、添加
-                    Container(
-                      height: 38, // 与输入框高度一致
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: shadTheme.colorScheme.border,
-                          width: 1,
-                        ),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // 同步按钮
-                          Tooltip(
-                            message: localizations?.mcpSync ?? '同步',
-                            child: ShadButton.ghost(
-                              width: 38,
-                              height: 38,
-                              padding: EdgeInsets.zero,
-                              onPressed: () => _showSyncDialog(context),
-                              child: Icon(
-                                Icons.swap_horiz,
-                                size: 18,
-                                color: shadTheme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                          // 按工具启用：从工具导入 / 重新写入
-                          // ⋯ 分组菜单（form_v3.md §7）：同步 / 导入导出
-                          PopupMenuButton<String>(
-                            key: const ValueKey('mcp.moreMenu'),
-                            tooltip: localizations?.tr('more', '更多') ?? '更多',
-                            icon: Icon(Icons.more_horiz, size: 18, color: shadTheme.colorScheme.primary),
-                            onSelected: (v) {
-                              switch (v) {
-                                case 'import':
-                                  _importFromEnabledTools(context, viewModel);
-                                case 'sync':
-                                  _syncAllEnabled(context, viewModel);
-                                case 'diff':
-                                  _showSyncDialog(context);
-                              }
-                            },
-                            itemBuilder: (_) => [
-                              PopupMenuItem(enabled: false, height: 28, child: Text(localizations?.tr('menu_group_sync', '同步') ?? '同步', style: KcType.caption)),
-                              PopupMenuItem(value: 'diff', child: Text(localizations?.tr('mcp_menu_diff', '对比与同步…') ?? '对比与同步…')),
-                              PopupMenuItem(value: 'sync', child: Text(localizations?.tr('mcp_menu_rewrite', '重新写入全部已启用的服务') ?? '重新写入全部已启用的服务')),
-                              const PopupMenuDivider(),
-                              PopupMenuItem(enabled: false, height: 28, child: Text(localizations?.tr('menu_group_import', '导入') ?? '导入', style: KcType.caption)),
-                              PopupMenuItem(value: 'import', child: Text(localizations?.tr('mcp_menu_import', '从已启用的工具导入') ?? '从已启用的工具导入')),
-                            ],
-                          ),
-                          // 分隔线
-                          Container(
-                            width: 1,
-                            height: 20,
-                            color: shadTheme.colorScheme.border,
-                          ),
-                          // 拖动模式按钮
-                          Tooltip(
-                            message: _isEditMode 
-                                ? (localizations?.mcpFinishEdit ?? '完成编辑')
-                                : (localizations?.edit ?? '编辑'),
-                            child: _isEditMode
-                                ? ShadButton.ghost(
-                                    width: 38,
-                                    height: 38,
-                                    padding: EdgeInsets.zero,
-                                    onPressed: _exitManage,
-                                    child: Icon(
-                                      Icons.check,
-                                      size: 18,
-                                      color: shadTheme.colorScheme.primary,
-                                    ),
-                                  )
-                                : ShadButton.ghost(
-                                    width: 38,
-                                    height: 38,
-                                    padding: EdgeInsets.zero,
-                                    onPressed: () {
-                                      setState(() {
-                                        _isEditMode = !_isEditMode;
-                                      });
-                                    },
-                                    child: Icon(
-                                      Icons.drag_handle,
-                                      size: 18,
-                                      color: shadTheme.colorScheme.primary,
-                                    ),
-                                  ),
-                          ),
-                          // 分隔线
-                          Container(
-                            width: 1,
-                            height: 20,
-                            color: shadTheme.colorScheme.border,
-                          ),
-                          // 刷新按钮
-                          Tooltip(
-                            message: localizations?.refreshKeyList ?? '刷新列表',
-                            child: ShadButton.ghost(
-                              width: 38,
-                              height: 38,
-                              padding: EdgeInsets.zero,
-                              onPressed: () => viewModel.refresh(),
-                              child: Icon(
-                                Icons.refresh,
-                                size: 18,
-                                color: shadTheme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                          // 分隔线
-                          Container(
-                            width: 1,
-                            height: 20,
-                            color: shadTheme.colorScheme.border,
-                          ),
-                          // 添加按钮
-                          Tooltip(
-                            message: localizations?.mcpAddServer ?? '添加 MCP 服务器',
-                            child: ShadButton.ghost(
-                              width: 38,
-                              height: 38,
-                              padding: EdgeInsets.zero,
-                              onPressed: () => _showAddMcpPage(context),
-                              child: Icon(
-                                Icons.add,
-                                size: 18,
-                                color: shadTheme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildHeader(context, viewModel),
               // MCP 服务器列表
               Expanded(
                 child: viewModel.isLoading
@@ -263,7 +74,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                           color: shadTheme.colorScheme.primary,
                         ),
                       )
-                    : viewModel.servers.isEmpty
+                    : _visible(viewModel).isEmpty && _filter == null
                         ? _buildEmptyState(context, viewModel)
                         : Stack(children: [
                             Positioned.fill(child: _buildServerList(context, viewModel, _isEditMode)),
@@ -281,6 +92,130 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
         },
       ),
     );
+  }
+
+  /// null = 全部；true = 已启用；false = 已停用。管理（排序）模式下始终显示全部，避免按过滤结果重排
+  bool? _filter;
+  List<McpServer> _visible(McpViewModel vm) =>
+      (_filter == null || _isEditMode) ? vm.servers : vm.servers.where((s) => s.isActive == _filter).toList();
+
+  Widget _buildHeader(BuildContext context, McpViewModel viewModel) {
+    final l = AppLocalizations.of(context);
+    String t(String k, String f) => l?.tr(k, f) ?? f;
+    final icon = KcPageHeader.iconButton;
+    final all = viewModel.servers;
+    final on = all.where((s) => s.isActive).length;
+    final header = KcPageHeader(
+      title: 'MCP',
+      subtitle: t('mcp_subtitle', '{n} 个服务 · {m} 个已启用').replaceAll('{n}', '${all.length}').replaceAll('{m}', '$on'),
+      manageSubtitle: t('manage_subtitle_mcp', '管理模式 · 拖动排序，勾选后批量操作'),
+      manage: _isEditMode,
+      searchKey: const ValueKey('mcp.search'),
+      searchController: _searchController,
+      searchHint: l?.mcpSearchPlaceholder ?? '搜索 MCP 服务器...',
+      onSearch: (q) => viewModel.setSearchQuery(q),
+      actions: [
+        icon(context,
+            key: const ValueKey('mcp.manageToggle'),
+            icon: _isEditMode ? Icons.check : Icons.drag_indicator,
+            tip: _isEditMode ? (l?.mcpFinishEdit ?? '完成编辑') : t('manage_tip', '管理：排序 / 批量操作'),
+            active: _isEditMode,
+            onPressed: () => _isEditMode ? _exitManage() : setState(() => _isEditMode = true)),
+        icon(context, key: const ValueKey('mcp.diff'), icon: Icons.compare_arrows, tip: l?.mcpSync ?? '对比与同步', onPressed: () => _showSyncDialog(context)),
+        // iconButton 自带左间距 8，这里不再额外加
+        KcMenuButton<String>(
+          key: const ValueKey('mcp.moreMenu'),
+          tooltip: t('more', '更多'),
+          alignRight: true,
+          onSelected: (v) {
+            switch (v) {
+              case 'import':
+                _importFromEnabledTools(context, viewModel);
+              case 'sync':
+                _syncAllEnabled(context, viewModel);
+              case 'diff':
+                _showSyncDialog(context);
+              case 'refresh':
+                viewModel.refresh();
+            }
+          },
+          entries: () => [
+            KcMenuHeader(t('menu_group_sync', '同步')),
+            KcMenuItem(value: 'diff', icon: Icons.compare_arrows, label: t('mcp_menu_diff', '对比与同步…')),
+            KcMenuItem(value: 'sync', icon: Icons.sync, label: t('mcp_menu_rewrite', '重新写入全部已启用的服务')),
+            const KcMenuDivider(),
+            KcMenuHeader(t('menu_group_import', '导入')),
+            KcMenuItem(value: 'import', icon: Icons.download_outlined, label: t('mcp_menu_import', '从已启用的工具导入')),
+            const KcMenuDivider(),
+            KcMenuItem(value: 'refresh', icon: Icons.refresh, label: l?.refreshKeyList ?? '刷新'),
+          ],
+          child: icon(context, icon: Icons.more_horiz, tip: '', onPressed: () {}),
+        ),
+      ],
+      primary: _isEditMode
+          ? ShadButton(
+              key: const ValueKey('mcp.done'),
+              height: KcSize.control,
+              width: 112,
+              leading: const Icon(Icons.check, size: 16),
+              onPressed: _exitManage,
+              child: Text(t('done', '完成')),
+            )
+          : KcMenuButton<String>(
+              key: const ValueKey('mcp.addMenu'),
+              alignRight: true,
+              minWidth: 240,
+              onSelected: (v) {
+                if (v == 'blank') {
+                  _showAddMcpPage(context);
+                } else if (v == 'import') {
+                  _importFromEnabledTools(context, viewModel);
+                } else {
+                  _showAddMcpPage(context, category: McpServerPresets.allCategories.firstWhere((c) => c.name == v));
+                }
+              },
+              entries: () => [
+                KcMenuItem(value: 'blank', icon: Icons.add, label: t('mcp_add_blank', '手动添加（粘贴 JSON）')),
+                const KcMenuDivider(),
+                KcMenuHeader(t('mcp_from_template', '从模板')),
+                for (final c in McpServerPresets.allCategories)
+                  KcMenuItem(value: c.name, icon: Icons.auto_awesome_mosaic_outlined, label: c.getValue(context),
+                      trailing: '${McpServerPresets.getTemplatesByCategory(c).length}'),
+                const KcMenuDivider(),
+                KcMenuItem(value: 'import', icon: Icons.download_outlined, label: t('mcp_menu_import', '从已启用的工具导入')),
+              ],
+              child: (
+                ShadButton(
+                  key: const ValueKey('mcp.add'),
+                  height: KcSize.control,
+                  width: 112,
+                  leading: const Icon(Icons.add, size: 16),
+                  trailing: const Icon(Icons.expand_more, size: 14),
+                  onPressed: () {},
+                  child: Text(t('add', '添加')),
+                )
+              ),
+            ),
+    );
+    if (all.isEmpty) return header;
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      header,
+      Padding(
+        padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, 0),
+        child: Row(children: [
+          KcSegmented<bool?>(
+            key: const ValueKey('mcp.statusFilter'),
+            value: _isEditMode ? null : _filter,
+            onChanged: (v) => setState(() => _filter = v),
+            items: [
+              (null, t('segment_all', '全部'), all.length),
+              (true, t('mcp_seg_on', '已启用'), on),
+              (false, t('mcp_seg_off', '已停用'), all.length - on),
+            ],
+          ),
+        ]),
+      ),
+    ]);
   }
 
   Widget _buildEmptyState(BuildContext context, McpViewModel viewModel) {
@@ -309,37 +244,39 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
       );
     }
 
+    // 空状态（form_v3.md §7）：说明 MCP 是什么 + 两个直接动作（添加 / 从已启用的工具导入）
+    final kc = context.kc;
+    String t(String k, String f) => localizations?.tr(k, f) ?? f;
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: shadTheme.colorScheme.muted,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.dns_outlined,
-              size: 64,
-              color: shadTheme.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(height: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          KcLogoBox(size: 56, child: Icon(Icons.dns_outlined, size: 28, color: kc.actionText)),
+          const SizedBox(height: KcSpace.x4),
+          Text(localizations?.mcpNoServers ?? '暂无 MCP 服务器', style: KcType.title.copyWith(color: shadTheme.colorScheme.foreground)),
+          const SizedBox(height: KcSpace.x2),
           Text(
-            localizations?.mcpNoServers ?? '暂无 MCP 服务器',
-            style: shadTheme.textTheme.h4.copyWith(
-              color: shadTheme.colorScheme.foreground,
-            ),
+            t('mcp_empty_desc', 'MCP 服务器为 Claude Code、Codex、Cursor 等工具提供额外能力（文件系统、浏览器、数据库…）。在这里统一添加一次，再按工具启用即可。'),
+            textAlign: TextAlign.center,
+            style: KcType.body.copyWith(color: kc.text2, height: 1.5),
           ),
-          const SizedBox(height: 8),
-          Text(
-            localizations?.mcpAddFirstServer ?? '点击上方按钮添加您的第一个 MCP 服务器',
-            style: shadTheme.textTheme.p.copyWith(
-              color: shadTheme.colorScheme.mutedForeground,
+          const SizedBox(height: KcSpace.x5),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            ShadButton(
+              key: const ValueKey('mcp.empty.add'),
+              leading: const Icon(Icons.add, size: 16),
+              onPressed: () => _showAddMcpPage(context),
+              child: Text(t('mcp_add_short', '添加服务')),
             ),
-          ),
-        ],
+            const SizedBox(width: KcSpace.x2),
+            ShadButton.outline(
+              key: const ValueKey('mcp.empty.import'),
+              leading: const Icon(Icons.download_outlined, size: 16),
+              onPressed: () => _importFromEnabledTools(context, viewModel),
+              child: Text(t('mcp_menu_import', '从已启用的工具导入')),
+            ),
+          ]),
+        ]),
       ),
     );
   }
@@ -416,7 +353,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
           crossAxisCount -= 1;
         }
 
-        final servers = List<McpServer>.from(viewModel.servers);
+        final servers = List<McpServer>.from(_visible(viewModel));
 
         // 构建卡片列表
         final cardWidgets = servers.map((server) {
@@ -505,13 +442,13 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
     );
   }
 
-  Future<void> _showAddMcpPage(BuildContext context) async {
+  Future<void> _showAddMcpPage(BuildContext context, {McpServerCategory? category}) async {
     final viewModel = context.read<McpViewModel>();
     final localizations = AppLocalizations.of(context);
 
     final result = await Navigator.of(context).push<McpServer>(
       MaterialPageRoute(
-        builder: (context) => const McpFormPage(),
+        builder: (context) => McpFormPage(initialCategory: category),
       ),
     );
 
@@ -680,7 +617,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                               KcToolLogo(tool: tool, size: 22),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: Text(kcToolName(tool), maxLines: 1, overflow: TextOverflow.ellipsis,
+                                child: Text(tool.displayName, maxLines: 1, overflow: TextOverflow.ellipsis,
                                     style: KcType.strong.copyWith(color: cs.foreground)),
                               ),
                               if (!avail)
@@ -767,7 +704,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
   }
 
   void _showMcpDetails(BuildContext context, McpServer server) {
-    showKeyDetailsSheet(
+    showKcDrawer(
       context: context,
       builder: (context) => _McpDetailsDialog(
         server: server,
@@ -854,96 +791,20 @@ class _McpDetailsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
     final localizations = AppLocalizations.of(context);
     
-    // 右侧抽屉（与密钥详情一致，form_v3.md §7）：宽 560，满高，左边线 + 阴影
-    final width = MediaQuery.sizeOf(context).width;
-    return Material(
+    // 统一抽屉（kc_drawer.dart）：实色面板 + 统一页头 + 固定底栏
+    return KcDrawerSurface(
       key: const ValueKey('mcpDetails.sheet'),
-      color: shadTheme.colorScheme.background,
-      child: Container(
-        width: width < 640 ? width : 560,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          color: shadTheme.colorScheme.background,
-          border: Border(left: BorderSide(color: shadTheme.colorScheme.border)),
-          boxShadow: context.kc.shadowLg,
+      header: KcDrawerHeader(
+        leading: KcLogoBox(
+          child: SvgPicture.asset('assets/icons/platforms/${server.icon ?? 'mcp.svg'}', width: 22, height: 22, allowDrawingOutsideViewBox: true),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            // 标题栏
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: shadTheme.colorScheme.border,
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6),
-                      color: shadTheme.colorScheme.muted,
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'assets/icons/platforms/${server.icon ?? 'mcp.svg'}',
-                        width: 20,
-                        height: 20,
-                        allowDrawingOutsideViewBox: true,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      server.name,
-                      style: shadTheme.textTheme.h4.copyWith(
-                        color: shadTheme.colorScheme.foreground,
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: localizations?.edit ?? '编辑',
-                    child: ShadButton.ghost(
-                      width: 30,
-                      height: 30,
-                      padding: EdgeInsets.zero,
-                      child: Icon(
-                        Icons.edit_outlined,
-                        size: 20,
-                        color: shadTheme.colorScheme.mutedForeground,
-                      ),
-                      onPressed: onEdit,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ShadButton.ghost(
-                    width: 30,
-                    height: 30,
-                    padding: EdgeInsets.zero,
-                    child: Icon(
-                      Icons.close,
-                      size: 20,
-                      color: shadTheme.colorScheme.mutedForeground,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            // 内容区域
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+        title: Text(server.name),
+        subtitle: Text('${server.serverId} · ${server.serverType.value.toUpperCase()}'),
+      ),
+      body: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.x6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1088,36 +949,53 @@ class _McpDetailsDialog extends StatelessWidget {
                   ],
                 ),
               ),
-            ),
-          ],
-        ),
+      footer: KcDrawerFooter(
+        leading: [
+          if (onOpenHomepage != null)
+            ShadButton.ghost(leading: const Icon(Icons.language, size: 16), onPressed: onOpenHomepage, child: Text(localizations?.openManagementUrl ?? '管理地址')),
+          if (onOpenDocs != null)
+            ShadButton.ghost(leading: const Icon(Icons.description_outlined, size: 16), onPressed: onOpenDocs, child: Text(localizations?.mcpOpenDocs ?? '文档地址')),
+        ],
+        trailing: [
+          ShadButton.outline(
+            key: const ValueKey('mcpDetails.copyJson'),
+            leading: const Icon(Icons.copy, size: 15),
+            onPressed: onCopyJson,
+            child: Text(localizations?.tr('copy_json', '复制 JSON') ?? '复制 JSON'),
+          ),
+          ShadButton(
+            key: const ValueKey('mcpDetails.edit'),
+            leading: const Icon(Icons.edit_outlined, size: 15),
+            onPressed: onEdit,
+            child: Text(localizations?.edit ?? '编辑'),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildDetailRow(BuildContext context, String label, String value, {bool isMonospace = false}) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
+  /// 统一键值行（与密钥抽屉一致）：左 112 标签 + 右值
+  Widget _kv(BuildContext context, String label, Widget value) {
+    final cs = ShadTheme.of(context).colorScheme;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 28),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(
+          width: 112,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(label.replaceAll(RegExp(r'[:：]$'), ''), style: KcType.caption.copyWith(color: cs.mutedForeground)),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: shadTheme.textTheme.small.copyWith(
-            color: shadTheme.colorScheme.foreground,
-            fontFamily: isMonospace ? 'monospace' : null,
-            fontSize: isMonospace ? 13 : null,
-          ),
-        ),
-      ],
+        Expanded(child: value),
+      ]),
     );
+  }
+
+  Widget _buildDetailRow(BuildContext context, String label, String value, {bool isMonospace = false}) {
+    final cs = ShadTheme.of(context).colorScheme;
+    return _kv(context, label,
+        SelectableText(value, style: (isMonospace ? KcType.mono.copyWith(fontSize: 12.5) : KcType.body).copyWith(color: cs.foreground)));
   }
 
   Widget _buildActionRow(
@@ -1129,101 +1007,36 @@ class _McpDetailsDialog extends StatelessWidget {
     VoidCallback onPressed, {
     bool isMonospace = false,
   }) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                value,
-                style: shadTheme.textTheme.small.copyWith(
-                  color: shadTheme.colorScheme.primary,
-                  fontFamily: isMonospace ? 'monospace' : null,
-                  fontSize: isMonospace ? 13 : null,
-                ),
-              ),
-            ),
-            Tooltip(
-              message: tooltip,
-              child: ShadButton.ghost(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(6),
-                onPressed: onPressed,
-                child: Icon(icon, size: 18, color: shadTheme.colorScheme.mutedForeground),
-              ),
-            ),
-          ],
-        ),
-      ],
+    return _kv(
+      context,
+      label,
+      InkWell(
+        onTap: onPressed,
+        child: Text(value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: (isMonospace ? KcType.mono.copyWith(fontSize: 12.5) : KcType.body).copyWith(color: context.kc.actionText)),
+      ),
     );
   }
 
   Widget _buildJsonConfigRow(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
+    final cs = ShadTheme.of(context).colorScheme;
     final localizations = AppLocalizations.of(context);
-    
-    final jsonConfig = _generateJsonConfig();
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${localizations?.mcpJsonConfigLabel ?? 'JSON配置'}:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const SizedBox(height: KcSpace.x3),
+      Text(localizations?.mcpJsonConfigLabel ?? 'JSON 配置', style: KcType.section.copyWith(color: cs.foreground)),
+      const SizedBox(height: KcSpace.x2),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cs.card,
+          borderRadius: BorderRadius.circular(KcRadius.panel),
+          border: Border.all(color: cs.border),
         ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: shadTheme.colorScheme.muted,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: SelectableText(
-                  jsonConfig,
-                  style: shadTheme.textTheme.small.copyWith(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: shadTheme.colorScheme.foreground,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: localizations?.mcpCopyJson ?? '复制JSON配置',
-              child: ShadButton.ghost(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(6),
-                onPressed: onCopyJson,
-                child: Icon(
-                  Icons.copy_outlined,
-                  size: 18,
-                  color: shadTheme.colorScheme.mutedForeground,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+        child: SelectableText(_generateJsonConfig(), style: KcType.mono.copyWith(fontSize: 12, height: 1.5, color: cs.foreground)),
+      ),
+    ]);
   }
 
   Widget _buildTimeRow(
@@ -1233,26 +1046,8 @@ class _McpDetailsDialog extends StatelessWidget {
     String updatedLabel,
     String updatedValue,
   ) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$createdLabel / $updatedLabel:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '$createdValue / $updatedValue',
-          style: shadTheme.textTheme.small.copyWith(
-            color: shadTheme.colorScheme.foreground,
-          ),
-        ),
-      ],
-    );
+    final cs = ShadTheme.of(context).colorScheme;
+    return Text('$createdLabel $createdValue  ·  $updatedLabel $updatedValue', style: KcType.caption.copyWith(color: cs.mutedForeground));
   }
 
   String _generateJsonConfig() {

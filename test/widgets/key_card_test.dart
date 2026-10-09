@@ -206,7 +206,7 @@ void main() {
     for (final k in ['view', 'copyKey', 'endpoint', 'top', 'delete']) {
       expect(byKey('keyCard.menu.$k'), findsOneWidget, reason: k);
     }
-    expect(find.byType(PopupMenuDivider), findsWidgets);
+    expect(find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('kcMenu.divider')), findsWidgets);
   });
 
   testWidgets('过滤分段：正在使用 / 未用到工具 / 需处理', (tester) async {
