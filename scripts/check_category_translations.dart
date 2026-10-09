@@ -61,7 +61,7 @@ void main() {
     }
   }
 
-  print('\n${'=' * 50}');
+  print('\n' + '=' * 50);
   if (allComplete) {
     print('🎉 所有语言文件的分组翻译都完整！');
   } else {

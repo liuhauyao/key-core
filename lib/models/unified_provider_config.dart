@@ -1,3 +1,4 @@
+import 'platform_type.dart';
 import 'cloud_config.dart' as cloud;
 import 'validation_config.dart';
 

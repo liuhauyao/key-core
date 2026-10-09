@@ -207,7 +207,7 @@ class _McpToolListDialogState extends State<McpToolListDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    localizations?.mcpTotalTools(_filteredTools.length, localizations.mcpTools ?? '个工具') ?? '共 ${_filteredTools.length} ${localizations?.mcpTools ?? '个工具'}',
+                    localizations?.mcpTotalTools(_filteredTools.length, localizations?.mcpTools ?? '个工具') ?? '共 ${_filteredTools.length} ${localizations?.mcpTools ?? '个工具'}',
                     style: theme.textTheme.small.copyWith(
                       color: theme.colorScheme.mutedForeground,
                     ),

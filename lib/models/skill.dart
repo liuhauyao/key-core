@@ -229,7 +229,7 @@ class Skill extends Equatable {
       'sync_status': jsonEncode(
         syncStatus.map((key, value) => MapEntry(key.value, value.value)),
       ),
-      'tags': tags?.join(','),
+      'tags': tags != null ? tags!.join(',') : null,
       'notes': notes,
       'sort_order': sortOrder,
       'is_active': isActive ? 1 : 0,

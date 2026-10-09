@@ -15,7 +15,6 @@ import 'openclaw_config_screen.dart';
 import 'mcp_config_screen.dart';
 import 'skills_config_screen.dart';
 import 'settings_screen.dart';
-import 'providers_screen.dart';
 import '../widgets/first_launch_dialog.dart';
 import '../../models/ai_key.dart';
 import '../../models/platform_type.dart';
@@ -26,8 +25,10 @@ import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/first_launch_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/key_validation_service.dart';
+import '../../services/model_list_service.dart';
+import '../widgets/model_list_dialog.dart';
 import '../../viewmodels/settings_viewmodel.dart';
-import '../../viewmodels/providers_viewmodel.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/platform_icon_service.dart';
 import 'dart:io';
@@ -221,10 +222,6 @@ class _MainScreenState extends State<MainScreen> {
         _geminiConfigScreenKey.currentState?.refresh();
       } else if (app == AppType.openClaw) {
         _openClawConfigScreenKey.currentState?.refresh();
-      } else if (app == AppType.providers) {
-        // 进入供应商中心时刷新（主密码状态、工具实时配置可能已在其他页面变化）
-        final providersVm = context.read<ProvidersViewModel>();
-        if (providersVm.hasLoaded && !providersVm.isLoading) providersVm.load();
       }
       // MCP 和密钥列表页面使用 ViewModel 缓存，不需要手动触发
     }
@@ -320,7 +317,7 @@ class _MainScreenState extends State<MainScreen> {
                     content: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const SizedBox(
+                        SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
@@ -395,8 +392,6 @@ class _MainScreenState extends State<MainScreen> {
                           switch (app) {
                             case AppType.keyManager:
                               return _buildKeyManagerPage(context, viewModel);
-                            case AppType.providers:
-                              return const ProvidersScreen();
                             case AppType.claudeCode:
                               return ClaudeConfigScreen(key: _claudeConfigScreenKey);
                             case AppType.codex:
@@ -410,7 +405,7 @@ class _MainScreenState extends State<MainScreen> {
                             case AppType.skills:
                               return const SkillsConfigScreen();
                             case AppType.settings:
-                              return const SettingsScreen(key: _settingsScreenKey);
+                              return SettingsScreen(key: _settingsScreenKey);
                           }
                         }).toList(),
                       );

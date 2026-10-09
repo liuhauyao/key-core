@@ -102,7 +102,7 @@ class LanguagePackService {
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         final translations = Map<String, String>.from(
-          jsonData.map((key, value) => MapEntry(key, value.toString())),
+          jsonData.map((key, value) => MapEntry(key as String, value.toString())),
         );
         return translations;
       } else {
@@ -132,7 +132,7 @@ class LanguagePackService {
           if (response.statusCode == 200) {
             final jsonData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
             final translations = Map<String, String>.from(
-              jsonData.map((key, value) => MapEntry(key, value.toString())),
+              jsonData.map((key, value) => MapEntry(key as String, value.toString())),
             );
             return translations;
           }
@@ -150,7 +150,7 @@ class LanguagePackService {
       final jsonString = await rootBundle.loadString('assets/locales/$languageCode.json');
       final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
       final translations = Map<String, String>.from(
-        jsonData.map((key, value) => MapEntry(key, value.toString())),
+        jsonData.map((key, value) => MapEntry(key as String, value.toString())),
       );
       return translations;
     } catch (e) {
@@ -174,7 +174,7 @@ class LanguagePackService {
       final jsonString = await langFile.readAsString();
       final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
       final translations = Map<String, String>.from(
-        jsonData.map((key, value) => MapEntry(key, value.toString())),
+        jsonData.map((key, value) => MapEntry(key as String, value.toString())),
       );
       return translations;
     } catch (e) {

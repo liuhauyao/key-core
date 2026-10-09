@@ -5,8 +5,6 @@ import '../../services/crypt_service.dart';
 import '../../utils/password_generator.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
-import '../../viewmodels/providers_viewmodel.dart';
-import '../../services/provider_manager_service.dart';
 
 /// 主密码设置对话框
 class MasterPasswordDialog extends StatefulWidget {
@@ -97,9 +95,6 @@ class _MasterPasswordDialogState extends State<MasterPasswordDialog> {
         // 清除主密码
         await _authService.clearAuthData();
         if (mounted) {
-          try {
-            context.read<ProvidersViewModel>().load();
-          } catch (_) {}
           Navigator.pop(context, true);
           final localizations = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -123,8 +118,6 @@ class _MasterPasswordDialogState extends State<MasterPasswordDialog> {
         try {
           final viewModel = context.read<KeyManagerViewModel>();
           await viewModel.reEncryptAllPlaintextKeys();
-          // 供应商中心保存的 API Key 同样需要加密
-          await ProviderManagerService.instance.reEncryptPlaintextKeys();
         } catch (e) {
           print('重新加密已有密钥时出错: $e');
           // 即使重新加密失败，也不影响主密码设置成功
@@ -132,11 +125,6 @@ class _MasterPasswordDialogState extends State<MasterPasswordDialog> {
       }
 
       if (mounted) {
-        try {
-          context.read<ProvidersViewModel>().load();
-        } catch (_) {
-          // 供应商中心未挂载时忽略
-        }
         Navigator.pop(context, true);
         final localizations = AppLocalizations.of(context);
         final message = !hadPasswordBefore

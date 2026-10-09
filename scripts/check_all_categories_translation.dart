@@ -45,7 +45,7 @@ void main() {
     }
   }
 
-  print('\n${'=' * 50}');
+  print('\n' + '=' * 50);
   if (allComplete) {
     print('🎉 所有语言文件都有 all_categories 翻译！');
   } else {

@@ -94,8 +94,8 @@ class PlatformRegistry {
       // 如果是内置平台，更新其 categories 信息
       if (_platforms.containsKey(provider.platformType)) {
         // 保存/更新内置平台的分类信息
-        if (provider.categories.isNotEmpty) {
-          _platformCategories[provider.platformType] = provider.categories;
+        if (provider.categories != null && provider.categories!.isNotEmpty) {
+          _platformCategories[provider.platformType] = provider.categories!;
           updatedCategoriesCount++;
         } else {
           skippedCount++;
@@ -112,8 +112,8 @@ class PlatformRegistry {
         _platforms[platform.id] = platform;
 
         // 保存分类信息
-        if (provider.categories.isNotEmpty) {
-          _platformCategories[platform.id] = provider.categories;
+        if (provider.categories != null && provider.categories!.isNotEmpty) {
+          _platformCategories[platform.id] = provider.categories!;
         }
 
         addedCount++;

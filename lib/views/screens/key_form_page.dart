@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:intl/intl.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:provider/provider.dart';
+import 'dart:ui';
 import '../../models/ai_key.dart';
 import '../../models/model_info.dart';
 import '../../models/platform_type.dart';
 import '../../constants/app_constants.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/app_localizations.dart';
+import '../../utils/liquid_glass_decoration.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../config/provider_config.dart';
+import '../widgets/platform_category_tabs.dart';
 import '../widgets/icon_picker.dart';
 import '../../models/platform_category.dart';
 import '../../services/codex_config_service.dart';
@@ -21,9 +25,12 @@ import '../../services/key_cache_service.dart';
 import '../../services/region_filter_service.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../models/mcp_server.dart';
+import '../../models/validation_result.dart';
+import '../../utils/ime_friendly_formatter.dart';
 import '../widgets/ime_safe_text_field.dart';
 import '../widgets/key_validation_button.dart';
 import '../widgets/model_list_dialog.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// 密钥编辑表单页面
 class KeyFormPage extends StatefulWidget {
@@ -117,7 +124,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
 
   
   // 环境变量设置方式（永久）
-  final bool _envVarPermanent = true;
+  bool _envVarPermanent = true;
   
   // 管理地址是否为空（用于控制按钮显示）
   bool _hasManagementUrl = false;
@@ -1098,7 +1105,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.list_outlined, size: 16),
+                          Icon(Icons.list_outlined, size: 16),
                           const SizedBox(width: 6),
                           Text(localizations?.modelList ?? '模型列表'),
                         ],

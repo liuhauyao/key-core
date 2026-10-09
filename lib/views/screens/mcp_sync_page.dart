@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/mcp_server.dart';
 import '../../viewmodels/mcp_viewmodel.dart';
 import '../../viewmodels/settings_viewmodel.dart';
@@ -161,13 +162,9 @@ class _McpSyncPageState extends State<McpSyncPage> {
         // 如果都是两边都有的，identical 排在 different 前面
         if (aHasBoth && bHasBoth) {
           if (a.status == McpComparisonStatus.identical && 
-              b.status == McpComparisonStatus.different) {
-            return -1;
-          }
+              b.status == McpComparisonStatus.different) return -1;
           if (a.status == McpComparisonStatus.different && 
-              b.status == McpComparisonStatus.identical) {
-            return 1;
-          }
+              b.status == McpComparisonStatus.identical) return 1;
         }
         
         // 其他情况按 serverId 排序
@@ -623,30 +620,30 @@ class _McpSyncPageState extends State<McpSyncPage> {
                     color: shadTheme.colorScheme.foreground,
                   ),
                 ),
-                ...[
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: statusColor ?? Colors.transparent,
-                      width: 1,
+                if (statusLabel != null) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusColor?.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: statusColor ?? Colors.transparent,
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: shadTheme.textTheme.small.copyWith(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: (isPendingExport || isPendingImport || isPendingDelete || isOppositeSidePending)
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    statusLabel,
-                    style: shadTheme.textTheme.small.copyWith(
-                      color: statusColor,
-                      fontSize: 11,
-                      fontWeight: (isPendingExport || isPendingImport || isPendingDelete || isOppositeSidePending)
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                    ),
-                  ),
-                ),
-              ],
+                ],
               ],
             ),
           ),
@@ -1825,7 +1822,7 @@ class _McpSyncPageState extends State<McpSyncPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, size: 20, color: Colors.red),
+                    Icon(Icons.error_outline, size: 20, color: Colors.red),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1893,7 +1890,7 @@ class _McpSyncPageState extends State<McpSyncPage> {
                         ? null
                         : () => _saveChanges(closeAfterSave: false),
                     leading: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(

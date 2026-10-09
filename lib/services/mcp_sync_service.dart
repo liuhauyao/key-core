@@ -452,7 +452,7 @@ class McpSyncService {
         if (trimmed.startsWith('[mcp_servers.') && trimmed.endsWith(']')) {
           // 保存之前的服务器配置
           if (currentServerId != null && currentServerConfig != null) {
-            mcpServerSections[currentServerId] = currentServerConfig;
+            mcpServerSections[currentServerId] = currentServerConfig!;
           }
           
           // 开始新的服务器配置，使用统一的解析方法处理带引号的表名
@@ -466,7 +466,7 @@ class McpSyncService {
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           // 保存之前的服务器配置
           if (currentServerId != null && currentServerConfig != null) {
-            mcpServerSections[currentServerId] = currentServerConfig;
+            mcpServerSections[currentServerId] = currentServerConfig!;
           }
           
           currentServerId = null;
@@ -491,8 +491,8 @@ class McpSyncService {
             // 如果不是 MCP 服务器的有效字段，说明已经离开了 MCP 服务器节，应该保存当前配置并结束
             if (!validMcpFields.contains(key)) {
               // 保存当前的服务器配置
-              if (currentServerId != null) {
-                mcpServerSections[currentServerId] = currentServerConfig;
+              if (currentServerId != null && currentServerConfig != null) {
+                mcpServerSections[currentServerId] = currentServerConfig!;
               }
               // 结束 MCP 服务器节，将当前行作为非 MCP 配置行处理
               currentServerId = null;
@@ -511,16 +511,18 @@ class McpSyncService {
               
               // 保存 args
               if (result.$1.isNotEmpty) {
-                currentServerConfig[key] = result.$1;
+                currentServerConfig![key] = result.$1;
               }
               
               // 如果有环境变量，保存到 env
               if (result.$2.isNotEmpty) {
-                Map<String, String>? existingEnv = currentServerConfig['env'] as Map<String, String>?;
-                existingEnv ??= <String, String>{};
+                Map<String, String>? existingEnv = currentServerConfig!['env'] as Map<String, String>?;
+                if (existingEnv == null) {
+                  existingEnv = <String, String>{};
+                }
                 existingEnv.addAll(result.$2);
-                currentServerConfig['env'] = existingEnv;
-                print('修复服务器 $currentServerId：从 args 中提取环境变量: ${result.$2.keys.join(", ")}');
+                currentServerConfig!['env'] = existingEnv;
+                print('修复服务器 ${currentServerId}：从 args 中提取环境变量: ${result.$2.keys.join(", ")}');
               }
             }
             // 处理对象（env）
@@ -565,7 +567,7 @@ class McpSyncService {
               }
               
               if (envMap.isNotEmpty) {
-                currentServerConfig[key] = envMap;
+                currentServerConfig![key] = envMap;
               }
             }
             // 处理字符串（包括url字段）
@@ -575,7 +577,7 @@ class McpSyncService {
                   (value.startsWith("'") && value.endsWith("'"))) {
                 value = value.substring(1, value.length - 1);
               }
-              currentServerConfig[key] = value;
+              currentServerConfig![key] = value;
             }
           }
         } else if (!inMcpServerSection) {
@@ -586,7 +588,7 @@ class McpSyncService {
       
       // 保存最后一个服务器配置
       if (currentServerId != null && currentServerConfig != null) {
-        mcpServerSections[currentServerId] = currentServerConfig;
+        mcpServerSections[currentServerId] = currentServerConfig!;
       }
 
       // 更新或添加新的 MCP 服务器配置
@@ -616,7 +618,9 @@ class McpSyncService {
           // 合并 env（提取的环境变量 + 原有的 env）
           if (result.$2.isNotEmpty) {
             Map<String, String>? existingEnv = serverConfig['env'] as Map<String, String>?;
-            existingEnv ??= <String, String>{};
+            if (existingEnv == null) {
+              existingEnv = <String, String>{};
+            }
             existingEnv.addAll(result.$2);
             serverConfig['env'] = existingEnv;
           }
@@ -673,7 +677,7 @@ class McpSyncService {
       
       // 写入 MCP 服务器配置
       if (mcpServerSections.isNotEmpty) {
-        if (nonMcpLines.isNotEmpty && nonMcpLines.last.trim().isNotEmpty) {
+        if (nonMcpLines.isNotEmpty && !nonMcpLines.last.trim().isEmpty) {
           buffer.writeln('');
         }
         for (final entry in mcpServerSections.entries) {
@@ -837,7 +841,7 @@ class McpSyncService {
         if (trimmed.startsWith('[mcp_servers.') && trimmed.endsWith(']')) {
           // 保存之前的服务器配置
           if (currentServerId != null && currentServerConfig != null) {
-            mcpServers[currentServerId] = currentServerConfig;
+            mcpServers[currentServerId] = currentServerConfig!;
           }
           
           // 开始新的服务器配置，使用统一的解析方法处理带引号的表名
@@ -851,7 +855,7 @@ class McpSyncService {
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           // 保存之前的服务器配置
           if (currentServerId != null && currentServerConfig != null) {
-            mcpServers[currentServerId] = currentServerConfig;
+            mcpServers[currentServerId] = currentServerConfig!;
           }
           
           currentServerId = null;
@@ -876,16 +880,18 @@ class McpSyncService {
               
               // 保存 args
               if (result.$1.isNotEmpty) {
-                currentServerConfig[key] = result.$1;
+                currentServerConfig![key] = result.$1;
               }
               
               // 如果有环境变量，保存到 env
               if (result.$2.isNotEmpty) {
-                Map<String, String>? existingEnv = currentServerConfig['env'] as Map<String, String>?;
-                existingEnv ??= <String, String>{};
+                Map<String, String>? existingEnv = currentServerConfig!['env'] as Map<String, String>?;
+                if (existingEnv == null) {
+                  existingEnv = <String, String>{};
+                }
                 existingEnv.addAll(result.$2);
-                currentServerConfig['env'] = existingEnv;
-                print('修复服务器 $currentServerId：从 args 中提取环境变量: ${result.$2.keys.join(", ")}');
+                currentServerConfig!['env'] = existingEnv;
+                print('修复服务器 ${currentServerId}：从 args 中提取环境变量: ${result.$2.keys.join(", ")}');
               }
             }
             // 处理对象（env）
@@ -930,7 +936,7 @@ class McpSyncService {
               }
               
               if (envMap.isNotEmpty) {
-                currentServerConfig[key] = envMap;
+                currentServerConfig![key] = envMap;
               }
             }
             // 处理字符串
@@ -940,7 +946,7 @@ class McpSyncService {
                   (value.startsWith("'") && value.endsWith("'"))) {
                 value = value.substring(1, value.length - 1);
               }
-              currentServerConfig[key] = value;
+              currentServerConfig![key] = value;
             }
           }
         }
@@ -948,7 +954,7 @@ class McpSyncService {
       
       // 保存最后一个服务器配置
       if (currentServerId != null && currentServerConfig != null) {
-        mcpServers[currentServerId] = currentServerConfig;
+        mcpServers[currentServerId] = currentServerConfig!;
       }
 
       // 修复错误格式：
@@ -966,11 +972,13 @@ class McpSyncService {
             if (splitResult.$2.isNotEmpty) {
               // 合并到现有的 args（如果有）
               List<String>? existingArgs = config['args'] as List<String>?;
-              existingArgs ??= [];
+              if (existingArgs == null) {
+                existingArgs = [];
+              }
               // 将拆分出的 args 添加到前面
               existingArgs = [...splitResult.$2, ...existingArgs];
               config['args'] = existingArgs;
-              print('修复服务器 ${entry.key}：拆分 command "$commandStr" 为 command="${splitResult.$1}" 和 args=${splitResult.$2}');
+              print('修复服务器 ${entry.key}：拆分 command "${commandStr}" 为 command="${splitResult.$1}" 和 args=${splitResult.$2}');
             }
           }
         }
@@ -980,7 +988,9 @@ class McpSyncService {
           final args = config['args'] as List;
           final fixedArgs = <String>[];
           Map<String, String>? env = config['env'] as Map<String, String>?;
-          env ??= <String, String>{};
+          if (env == null) {
+            env = <String, String>{};
+          }
           
           bool hasChanges = false;
           for (final arg in args) {
@@ -1071,7 +1081,9 @@ class McpSyncService {
             // 合并 env（提取的环境变量 + 原有的 env）
             if (result.$2.isNotEmpty) {
               Map<String, String>? existingEnv = serverConfig['env'] as Map<String, String>?;
-              existingEnv ??= <String, String>{};
+              if (existingEnv == null) {
+                existingEnv = <String, String>{};
+              }
               existingEnv.addAll(result.$2);
               serverConfig['env'] = existingEnv;
             }
@@ -1499,7 +1511,7 @@ class McpSyncService {
         if (trimmed.startsWith('[mcp_servers.') || trimmed.startsWith('[mcp.servers.')) {
           // 保存上一个服务器配置
           if (currentServerId != null && currentServerConfig != null) {
-            mcpServerSections[currentServerId] = currentServerConfig;
+            mcpServerSections[currentServerId] = currentServerConfig!;
           }
           
           // 提取服务器ID，使用统一的解析方法处理带引号的表名
@@ -1534,7 +1546,7 @@ class McpSyncService {
         // 检查是否结束当前节
         if (trimmed.startsWith('[') && !trimmed.startsWith('[mcp')) {
           if (currentServerId != null && currentServerConfig != null) {
-            mcpServerSections[currentServerId] = currentServerConfig;
+            mcpServerSections[currentServerId] = currentServerConfig!;
           }
           currentServerId = null;
           currentServerConfig = null;
@@ -1559,16 +1571,18 @@ class McpSyncService {
               
               // 保存 args
               if (result.$1.isNotEmpty) {
-                currentServerConfig[key] = result.$1;
+                currentServerConfig![key] = result.$1;
               }
               
               // 如果有环境变量，保存到 env
               if (result.$2.isNotEmpty) {
-                Map<String, String>? existingEnv = currentServerConfig['env'] as Map<String, String>?;
-                existingEnv ??= <String, String>{};
+                Map<String, String>? existingEnv = currentServerConfig!['env'] as Map<String, String>?;
+                if (existingEnv == null) {
+                  existingEnv = <String, String>{};
+                }
                 existingEnv.addAll(result.$2);
-                currentServerConfig['env'] = existingEnv;
-                print('修复服务器 $currentServerId：从 args 中提取环境变量: ${result.$2.keys.join(", ")}');
+                currentServerConfig!['env'] = existingEnv;
+                print('修复服务器 ${currentServerId}：从 args 中提取环境变量: ${result.$2.keys.join(", ")}');
               }
             }
             // 处理对象（env）
@@ -1613,7 +1627,7 @@ class McpSyncService {
               }
               
               if (envMap.isNotEmpty) {
-                currentServerConfig[key] = envMap;
+                currentServerConfig![key] = envMap;
               }
             }
             // 处理字符串
@@ -1623,7 +1637,7 @@ class McpSyncService {
                   (value.startsWith("'") && value.endsWith("'"))) {
                 value = value.substring(1, value.length - 1);
               }
-              currentServerConfig[key] = value;
+              currentServerConfig![key] = value;
             }
           }
         }
@@ -1631,7 +1645,7 @@ class McpSyncService {
       
       // 保存最后一个服务器配置
       if (currentServerId != null && currentServerConfig != null) {
-        mcpServerSections[currentServerId] = currentServerConfig;
+        mcpServerSections[currentServerId] = currentServerConfig!;
       }
 
       // 删除指定的服务（使用容错比对）
@@ -1668,7 +1682,7 @@ class McpSyncService {
       
       // 写入剩余的 MCP 服务器配置
       if (mcpServerSections.isNotEmpty) {
-        if (nonMcpLines.isNotEmpty && nonMcpLines.last.trim().isNotEmpty) {
+        if (nonMcpLines.isNotEmpty && !nonMcpLines.last.trim().isEmpty) {
           buffer.writeln('');
         }
         for (final entry in mcpServerSections.entries) {

@@ -2,6 +2,7 @@ import 'dart:convert';
 import '../models/mcp_server.dart';
 import '../models/mcp_server_category.dart';
 import '../services/cloud_config_service.dart';
+import '../models/cloud_config.dart' as cloud;
 
 /// MCP 服务器模板配置
 class McpServerTemplate {
@@ -122,7 +123,7 @@ class McpServerPresets {
       } else {
         print('McpServerPresets: 配置数据为空或模板列表为空，使用默认配置');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('McpServerPresets: 加载MCP服务器模板配置失败: $e');
       // 加载失败时，缓存保持为 null，getter 会返回默认配置
     }

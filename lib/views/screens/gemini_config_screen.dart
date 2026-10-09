@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/key_card.dart';
 import '../widgets/official_key_card.dart';
@@ -163,7 +164,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                localizations?.geminiConfigNotFoundLoad(configDir ?? localizations.unknown ?? '未知') ?? '未找到 Gemini 配置文件，可能工具未安装或配置文件路径不正确。当前路径：${configDir ?? "未知"}',
+                localizations?.geminiConfigNotFoundLoad(configDir ?? localizations?.unknown ?? '未知') ?? '未找到 Gemini 配置文件，可能工具未安装或配置文件路径不正确。当前路径：${configDir ?? "未知"}',
               ),
               duration: const Duration(seconds: 4),
               backgroundColor: Colors.orange,
@@ -321,7 +322,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
               content: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -543,7 +544,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
             final isCurrent = _currentKey?.id == key.id;
             
             // Gemini 使用 .env 文件，不需要额外的环境变量命令
-            const needsEnvVar = false;
+            final needsEnvVar = false;
             
             return KeyCard(
               key: ValueKey('gemini_${key.id}_${isCurrent ? 'current' : 'inactive'}'),
@@ -1174,7 +1175,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.close, size: 16),
+                          Icon(Icons.close, size: 16),
                           const SizedBox(width: 6),
                           Text(localizations?.cancel ?? '取消'),
                         ],
@@ -1215,7 +1216,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.check, size: 16),
+                          Icon(Icons.check, size: 16),
                           const SizedBox(width: 6),
                           Text(localizations?.save ?? '保存'),
                         ],

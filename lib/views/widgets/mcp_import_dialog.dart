@@ -302,7 +302,7 @@ class _McpImportDialogState extends State<McpImportDialog> {
                     ShadButton(
                       onPressed: _isLoading ? null : _readFromTool,
                       leading: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
@@ -426,7 +426,7 @@ class _McpImportDialogState extends State<McpImportDialog> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, size: 20, color: Colors.red),
+                            Icon(Icons.error_outline, size: 20, color: Colors.red),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -468,7 +468,7 @@ class _McpImportDialogState extends State<McpImportDialog> {
                         ? null
                         : _syncToLocal,
                     leading: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(

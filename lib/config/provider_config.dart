@@ -175,7 +175,7 @@ class ProviderConfig {
       } else {
         print('ProviderConfig: 配置数据为空或供应商列表为空，使用默认配置');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('ProviderConfig: 加载供应商配置失败: $e');
       // 加载失败时，缓存保持为 null，getter 会返回默认配置
     }

@@ -148,7 +148,7 @@ class ModelCard extends StatelessWidget {
       message: allTagsText,
       waitDuration: const Duration(milliseconds: 500),
       preferBelow: false,
-      textStyle: const TextStyle(fontSize: 11),
+      textStyle: TextStyle(fontSize: 11),
       decoration: BoxDecoration(
         color: Colors.grey[900],
         borderRadius: BorderRadius.circular(4),
@@ -183,7 +183,7 @@ class ModelCard extends StatelessWidget {
   /// 优先显示最重要的信息，限制标签数量以保持紧凑
   List<Map<String, String>> _buildAllTags(ShadThemeData shadTheme, AppLocalizations? localizations) {
     final tags = <Map<String, String>>[];
-    const maxTags = 6; // 最多显示6个标签，保持紧凑
+    final maxTags = 6; // 最多显示6个标签，保持紧凑
 
     // 1. 上下文长度（最重要）
     if (model.contextLength != null && tags.length < maxTags) {
@@ -297,7 +297,7 @@ class ModelCard extends StatelessWidget {
   /// 优先显示最重要的信息，限制标签数量以保持紧凑
   List<Widget> _buildTags(ShadThemeData shadTheme, AppLocalizations? localizations) {
     final tags = <Widget>[];
-    const maxTags = 6; // 最多显示6个标签，保持紧凑
+    final maxTags = 6; // 最多显示6个标签，保持紧凑
 
     // 1. 上下文长度（最重要）
     if (model.contextLength != null && tags.length < maxTags) {
