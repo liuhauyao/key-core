@@ -1737,6 +1737,28 @@ class AppLocalizations {
   String get skillsRescan => translate('skills_rescan');
   String get skillsSyncAll => translate('skills_sync_all');
   String get skillsSyncAllDone => translate('skills_sync_all_done');
+  String get skillsAll => translate('skills_all');
+  String get skillsUncategorized => translate('skills_uncategorized');
+  String get skillsCollapse => translate('skills_collapse');
+  String get skillsExpand => translate('skills_expand');
+  String get skillsNoToolsEnabled => translate('skills_no_tools_enabled');
+  String get skillsSyncedStatus => translate('skills_synced_status');
+  String get skillsConflictStatus => translate('skills_conflict_status');
+  String get skillsOutdatedStatus => translate('skills_outdated_status');
+  String get skillsNotSyncedStatus => translate('skills_not_synced_status');
+  String get skillsFailedLoadContent => translate('skills_failed_load_content');
+  String get skillsActive => translate('skills_active');
+  String get skillsInactive => translate('skills_inactive');
+  String get skillsStartFromTemplate => translate('skills_start_from_template');
+  String skillsBatchDeleteTitle(int count) =>
+      translate('skills_batch_delete_title').replaceAll('{count}', count.toString());
+  String skillsBatchDeleteMessage() => translate('skills_batch_delete_message');
+  String skillsFullSyncComplete(int synced, int conflicts) =>
+      translate('skills_full_sync_complete')
+          .replaceAll('{synced}', synced.toString())
+          .replaceAll('{conflicts}', conflicts.toString());
+  String skillsSelectedCount(int count) =>
+      translate('skills_selected_count').replaceAll('{count}', count.toString());
 
   /// 清除所有已加载的语言包缓存（用于配置更新后重新加载）
   static void clearLoadedPacksCache() {

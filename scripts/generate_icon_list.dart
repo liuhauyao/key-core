@@ -19,8 +19,6 @@ void main() {
     configDir.createSync(recursive: true);
   }
 
-  print('扫描图标目录: ${iconsDir.path}');
-
   // 获取所有 SVG 文件
   final svgFiles = iconsDir
       .listSync(recursive: false)
@@ -32,8 +30,6 @@ void main() {
 
   // 排序
   svgFiles.sort();
-
-  print('找到 ${svgFiles.length} 个 SVG 文件');
 
   // 生成配置文件内容
   final configData = {
@@ -47,19 +43,7 @@ void main() {
   final configFile = File('${configDir.path}/icon_list.json');
   configFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(configData));
 
-  print('图标配置文件已生成: ${configFile.path}');
-  print('包含 ${svgFiles.length} 个图标');
-
-  // 验证前几个文件
-  if (svgFiles.isNotEmpty) {
-    print('\n前10个图标文件:');
-    for (var i = 0; i < svgFiles.length && i < 10; i++) {
-      print('  - ${svgFiles[i]}');
-    }
-    if (svgFiles.length > 10) {
-      print('  ... 还有 ${svgFiles.length - 10} 个文件');
-    }
-  }
+  print('图标配置已生成，共 ${svgFiles.length} 个图标');
 }
 
 

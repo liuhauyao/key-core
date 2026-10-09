@@ -134,6 +134,31 @@ class KeyValidationService {
         },
         successStatus: [200],
       );
+    } else if (platformType == PlatformType.npm) {
+      return ValidationConfig(
+        type: 'openai-compatible',
+        endpoint: '/-/whoami',
+        method: 'GET',
+        baseUrlSource: 'platform.apiEndpoint',
+        fallbackBaseUrl: 'https://registry.npmjs.org',
+        headers: {
+          'Authorization': 'Bearer {apiKey}',
+          'content-type': 'application/json',
+        },
+        successStatus: [200],
+      );
+    } else if (platformType == PlatformType.sensenova) {
+      return ValidationConfig(
+        type: 'openai-compatible',
+        endpoint: '/models',
+        method: 'GET',
+        baseUrlSource: 'platform.apiEndpoint',
+        fallbackBaseUrl: 'https://api.sensenova.cn/v1',
+        headers: {
+          'Authorization': 'Bearer {apiKey}',
+        },
+        successStatus: [200],
+      );
     }
 
     return null;

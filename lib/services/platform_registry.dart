@@ -67,6 +67,8 @@ class PlatformRegistry {
     _registerBuiltin(PlatformType.coze);
     _registerBuiltin(PlatformType.figma);
     _registerBuiltin(PlatformType.v0);
+    _registerBuiltin(PlatformType.npm);
+    _registerBuiltin(PlatformType.sensenova);
     _registerBuiltin(PlatformType.custom);
     
     _builtinInitialized = true;

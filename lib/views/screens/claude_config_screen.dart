@@ -21,7 +21,10 @@ class _EnvVarItem {
   _EnvVarItem({required this.name, required this.value});
 }
 
-/// ClaudeCode 配置管理页面
+/// Claude Code / Claude Desktop 切换
+enum _ClaudeSection { claudeCode, claudeDesktop }
+
+/// ClaudeCode / Claude Desktop 配置管理页面
 class ClaudeConfigScreen extends StatefulWidget {
   const ClaudeConfigScreen({super.key});
 
@@ -40,14 +43,24 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
   bool _configExists = true; // 配置文件是否存在
   String? _configDir; // 配置目录路径
   bool _hasLoadedOnce = false; // 标记是否已经加载过数据
+  bool _claudeCodeKeysLoaded = false;
+  bool _claudeDesktopKeysLoaded = false;
   final TextEditingController _searchController = TextEditingController();
-  KeyManagerViewModel? _viewModel; // 保存 ViewModel 引用，避免在 dispose 中访问 context
+  final TextEditingController _desktopSearchController = TextEditingController();
+  KeyManagerViewModel? _viewModel;
+
+  _ClaudeSection _selectedSection = _ClaudeSection.claudeCode;
+  List<AIKey> _claudeDesktopKeys = [];
+  List<AIKey> _filteredDesktopKeys = [];
+  AIKey? _currentDesktopKey;
+  bool _isDesktopOfficial = false;
 
   @override
   void initState() {
     super.initState();
     // 监听搜索框变化
     _searchController.addListener(_onSearchChanged);
+    _desktopSearchController.addListener(_onDesktopSearchChanged);
     // 不在 initState 中加载，等待页面真正可见时再加载
     // 通过外部调用 refresh() 来触发加载
   }
@@ -65,6 +78,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _desktopSearchController.dispose();
     // 移除 ViewModel 监听（使用保存的引用，避免访问已停用的 context）
     _viewModel?.removeListener(_onViewModelChanged);
     _viewModel = null;
@@ -105,6 +119,12 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     });
   }
 
+  void _onDesktopSearchChanged() {
+    setState(() {
+      _updateFilteredDesktopKeys();
+    });
+  }
+
   void _updateFilteredKeys() {
     final query = _searchController.text.toLowerCase();
     if (query.isEmpty) {
@@ -119,26 +139,38 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     }
   }
 
+  void _updateFilteredDesktopKeys() {
+    final query = _desktopSearchController.text.toLowerCase();
+    if (query.isEmpty) {
+      _filteredDesktopKeys = _claudeDesktopKeys;
+    } else {
+      _filteredDesktopKeys = _claudeDesktopKeys.where((key) {
+        return key.name.toLowerCase().contains(query) ||
+            key.platform.toLowerCase().contains(query) ||
+            (key.notes?.toLowerCase().contains(query) ?? false) ||
+            key.tags.any((tag) => tag.toLowerCase().contains(query));
+      }).toList();
+    }
+  }
+
   /// 公开的刷新方法，供外部调用
   /// [force] 是否强制刷新，即使已经加载过数据
   void refresh({bool force = false}) {
-    // 如果已经加载过数据且不是强制刷新，就不需要重新加载，避免切换页面时触发刷新
     if (mounted && !_isRefreshing && (force || !_hasLoadedOnce)) {
+      _isRefreshing = true;
       _loadKeys();
+      _loadDesktopKeys();
     }
   }
 
   Future<void> _loadKeys() async {
-    if (!mounted || _isRefreshing) return;
+    if (!mounted) return;
     
-    _isRefreshing = true;
+    _hasLoadedOnce = true;
     final viewModel = context.read<KeyManagerViewModel>();
     
-    // 只有在首次加载时才显示加载状态，避免切换页面时闪烁
-    if (!_hasLoadedOnce) {
-      setState(() {
-        _isLoading = true;
-      });
+    if (!_isLoading) {
+      setState(() { _isLoading = true; });
     }
 
     try {
@@ -155,14 +187,13 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
         if (mounted) {
         setState(() {
           _claudeCodeKeys = keys;
-          _updateFilteredKeys(); // 更新过滤后的列表
+          _updateFilteredKeys();
           _configExists = false;
           _configDir = configDir;
-          _currentKey = null; // 配置文件不存在，没有当前密钥
-          _isOfficial = false; // 配置文件不存在，不是官方配置
+          _currentKey = null;
+          _isOfficial = false;
           _isLoading = false;
-          _isRefreshing = false;
-          _hasLoadedOnce = true; // 标记已加载过
+          _claudeCodeKeysLoaded = true;
         });
           
           // 显示底部提示
@@ -187,14 +218,13 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
       if (mounted) {
         setState(() {
           _claudeCodeKeys = keys;
-          _updateFilteredKeys(); // 更新过滤后的列表
+          _updateFilteredKeys();
           _currentKey = currentKey;
           _isOfficial = isOfficial;
           _configExists = true;
           _configDir = configDir;
           _isLoading = false;
-          _isRefreshing = false;
-          _hasLoadedOnce = true; // 标记已加载过
+          _claudeCodeKeysLoaded = true;
         });
       }
     } catch (e) {
@@ -202,8 +232,47 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _isRefreshing = false;
-          _hasLoadedOnce = true; // 即使失败也标记为已加载，避免重复显示加载状态
+          _claudeCodeKeysLoaded = true;
+        });
+      }
+    }
+  }
+
+  /// 加载 Claude Desktop 密钥列表
+  Future<void> _loadDesktopKeys() async {
+    if (!mounted) return;
+    final viewModel = context.read<KeyManagerViewModel>();
+
+    try {
+      // 检测配置文件是否存在
+      final configCheck = await viewModel.checkClaudeDesktopConfigExists();
+
+      // 加载密钥列表
+      final keys = await viewModel.getClaudeDesktopKeys();
+
+      // 读取当前使用的密钥
+      final isOfficial = await viewModel.isOfficialClaudeDesktopConfig();
+      AIKey? currentKey;
+      if (!isOfficial) {
+        currentKey = await viewModel.getCurrentClaudeDesktopKey();
+      }
+
+      if (mounted) {
+        setState(() {
+          _claudeDesktopKeys = keys;
+          _updateFilteredDesktopKeys();
+          _currentDesktopKey = currentKey;
+          _isDesktopOfficial = isOfficial;
+          _claudeDesktopKeysLoaded = true;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('ClaudeConfigScreen: 加载 Claude Desktop 密钥失败: $e');
+      if (mounted) {
+        setState(() {
+          _claudeDesktopKeysLoaded = true;
+          _isLoading = false;
         });
       }
     }
@@ -374,30 +443,31 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                     allowDrawingOutsideViewBox: true,
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    localizations?.claudeCodeConfig ?? 'ClaudeCode 配置',
-                    style: shadTheme.textTheme.h4.copyWith(
-                      color: shadTheme.colorScheme.foreground,
-                    ),
-                  ),
+                  // Claude Code / Claude Desktop 切换按钮组
+                  _buildSectionToggle(shadTheme),
                   const Spacer(),
-                  // 搜索框
+                  // 搜索框（两个模式都显示）
                   SizedBox(
                     width: 300,
-                    height: 38, // 固定高度，避免输入时高度变化
+                    height: 38,
                     child: ClipRect(
                       clipBehavior: Clip.hardEdge,
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: ShadInput(
-                          controller: _searchController,
+                          controller: _selectedSection == _ClaudeSection.claudeCode
+                              ? _searchController
+                              : _desktopSearchController,
                           placeholder: Text(localizations?.search ?? '搜索密钥...'),
                           leading: Icon(
                             Icons.search,
                             size: 18,
                             color: shadTheme.colorScheme.mutedForeground,
                           ),
-                          trailing: _searchController.text.isNotEmpty
+                          trailing: (_selectedSection == _ClaudeSection.claudeCode
+                                  ? _searchController.text
+                                  : _desktopSearchController.text)
+                              .isNotEmpty
                               ? ShadButton(
                                   width: 20,
                                   height: 20,
@@ -406,8 +476,13 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                                   foregroundColor: shadTheme.colorScheme.mutedForeground,
                                   hoverBackgroundColor: Colors.transparent,
                                   onPressed: () {
-                                    _searchController.clear();
-                                    _updateFilteredKeys();
+                                    if (_selectedSection == _ClaudeSection.claudeCode) {
+                                      _searchController.clear();
+                                      _updateFilteredKeys();
+                                    } else {
+                                      _desktopSearchController.clear();
+                                      _updateFilteredDesktopKeys();
+                                    }
                                   },
                                   child: Icon(
                                     Icons.close,
@@ -421,9 +496,9 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  // 刷新按钮组（与密钥管理界面样式一致）
+                  // 刷新按钮组
                   Container(
-                    height: 38, // 与输入框高度一致
+                    height: 38,
                     decoration: BoxDecoration(
                       border: Border.all(
                         color: shadTheme.colorScheme.border,
@@ -434,16 +509,13 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // 刷新按钮
                         Tooltip(
                           message: localizations?.refreshKeyList ?? '刷新列表',
                           child: ShadButton.ghost(
                             width: 38,
                             height: 38,
                             padding: EdgeInsets.zero,
-                            onPressed: () {
-                              refresh(force: true);
-                            },
+                            onPressed: () => refresh(force: true),
                             child: Icon(
                               Icons.refresh,
                               size: 18,
@@ -457,11 +529,13 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                 ],
               ),
             ),
-            // 密钥列表（包含官方配置）
+            // 内容区：根据选择显示 Claude Code 或 Claude Desktop
             Expanded(
-              child: _filteredKeys.isEmpty && !_isOfficial && _searchController.text.isEmpty
-                  ? _buildEmptyState(shadTheme, localizations)
-                  : _buildKeyList(shadTheme, localizations),
+              child: _selectedSection == _ClaudeSection.claudeCode
+                  ? (_filteredKeys.isEmpty && !_isOfficial && _searchController.text.isEmpty
+                      ? _buildEmptyState(shadTheme, localizations)
+                      : _buildKeyList(shadTheme, localizations))
+                  : _buildDesktopContent(shadTheme, localizations),
             ),
           ],
         ),
@@ -651,6 +725,280 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
         ),
       ],
     );
+  }
+
+  /// 构建 Section 切换按钮组
+  Widget _buildSectionToggle(ShadThemeData shadTheme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: shadTheme.colorScheme.muted,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: shadTheme.colorScheme.border,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleTab(
+            label: 'Claude Code',
+            isActive: _selectedSection == _ClaudeSection.claudeCode,
+            onTap: () => setState(() {
+              _selectedSection = _ClaudeSection.claudeCode;
+              _desktopSearchController.clear();
+            }),
+            shadTheme: shadTheme,
+          ),
+          _buildToggleTab(
+            label: 'Claude Desktop',
+            isActive: _selectedSection == _ClaudeSection.claudeDesktop,
+            onTap: () => setState(() {
+              _selectedSection = _ClaudeSection.claudeDesktop;
+              _searchController.clear();
+            }),
+            shadTheme: shadTheme,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleTab({
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+    required ShadThemeData shadTheme,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive ? shadTheme.colorScheme.background : Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Text(
+          label,
+          style: shadTheme.textTheme.small.copyWith(
+            color: isActive
+                ? shadTheme.colorScheme.foreground
+                : shadTheme.colorScheme.mutedForeground,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 构建 Claude Desktop 内容区
+  Widget _buildDesktopContent(ShadThemeData shadTheme, AppLocalizations? localizations) {
+    if (!_claudeDesktopKeysLoaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_filteredDesktopKeys.isEmpty && _isDesktopOfficial && _desktopSearchController.text.isEmpty) {
+      return _buildDesktopEmptyState(shadTheme, localizations);
+    }
+
+    // 官方配置 + 过滤后的密钥列表
+    final totalItems = 1 + _filteredDesktopKeys.length;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double minCardWidth = 240;
+        const double cardSpacing = 10;
+        const double padding = 16;
+        const double cardHeight = 140;
+
+        final availableWidth = constraints.maxWidth - padding * 2;
+        int crossAxisCount = (availableWidth / (minCardWidth + cardSpacing)).floor();
+        crossAxisCount = crossAxisCount.clamp(1, 5);
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(padding),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: ((availableWidth - (crossAxisCount - 1) * cardSpacing) / crossAxisCount) / cardHeight,
+            crossAxisSpacing: cardSpacing,
+            mainAxisSpacing: cardSpacing,
+          ),
+          itemCount: totalItems,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return _buildDesktopOfficialCard(shadTheme, localizations);
+            }
+            final key = _filteredDesktopKeys[index - 1];
+            final isCurrent = _currentDesktopKey?.id == key.id;
+            return KeyCard(
+              key: ValueKey('claude_desktop_${key.id}_${isCurrent ? 'current' : 'inactive'}'),
+              aiKey: key,
+              isEditMode: false,
+              isCurrent: isCurrent,
+              cardMode: KeyCardMode.switchKey,
+              onTap: () => _switchDesktopProvider(key),
+              onView: () => _showKeyDetails(context, key),
+              onEdit: () => _showEditKeyPage(context, key),
+              onDelete: () {},
+              onOpenManagementUrl: () {
+                if (key.managementUrl != null) {
+                  UrlLauncherService().openUrl(key.managementUrl!);
+                }
+              },
+              onCopyApiEndpoint: () {
+                if (key.claudeDesktopBaseUrl != null) {
+                  ClipboardService().copyToClipboard(key.claudeDesktopBaseUrl!);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Base URL 已复制')),
+                  );
+                }
+              },
+              onCopyApiKey: () {
+                final viewModel = context.read<KeyManagerViewModel>();
+                if (key.id != null) {
+                  viewModel.copyKeyToClipboard(key.id!);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(localizations?.keyCopied ?? '密钥已复制')),
+                  );
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDesktopEmptyState(ShadThemeData shadTheme, AppLocalizations? localizations) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: shadTheme.colorScheme.muted,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.desktop_mac_outlined,
+              size: 64,
+              color: shadTheme.colorScheme.mutedForeground,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            '暂无 Claude Desktop 密钥',
+            style: shadTheme.textTheme.h4.copyWith(
+              color: shadTheme.colorScheme.foreground,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '请在密钥编辑页面启用 Claude Desktop 选项',
+            style: shadTheme.textTheme.p.copyWith(
+              color: shadTheme.colorScheme.mutedForeground,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建 Claude Desktop 官方配置卡片
+  Widget _buildDesktopOfficialCard(ShadThemeData shadTheme, AppLocalizations? localizations) {
+    return OfficialKeyCard(
+      key: ValueKey('desktop_official_${_isDesktopOfficial ? 'current' : 'inactive'}'),
+      isCurrent: _isDesktopOfficial,
+      icon: SvgPicture.asset(
+        'assets/icons/platforms/claude-color.svg',
+        width: 28,
+        height: 28,
+        allowDrawingOutsideViewBox: true,
+      ),
+      title: 'Claude Desktop Official',
+      subtitle: localizations?.officialConfig ?? '官方配置',
+      description: '使用 Claude Desktop 官方登录',
+      onTap: _switchToDesktopOfficial,
+      actions: [
+        Expanded(child: Container()),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildActionButton(
+              context,
+              icon: Icons.language,
+              tooltip: localizations?.openManagementUrl ?? '管理地址',
+              onPressed: () {
+                UrlLauncherService().openUrl('https://console.anthropic.com/');
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 切换 Claude Desktop 密钥
+  Future<void> _switchDesktopProvider(AIKey key) async {
+    if (key.id == null) return;
+    final viewModel = context.read<KeyManagerViewModel>();
+
+    final success = await viewModel.switchClaudeDesktopProvider(key.id!);
+    if (success) {
+      setState(() {
+        _currentDesktopKey = key;
+        _isDesktopOfficial = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('已切换到: ${key.name}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(viewModel.errorMessage ?? '切换失败'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 切换回 Claude Desktop 官方配置
+  Future<void> _switchToDesktopOfficial() async {
+    final viewModel = context.read<KeyManagerViewModel>();
+    final localizations = AppLocalizations.of(context);
+
+    final success = await viewModel.switchToOfficialClaudeDesktop();
+    if (success) {
+      setState(() {
+        _currentDesktopKey = null;
+        _isDesktopOfficial = true;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(localizations?.switchedToOfficial ?? '已切换到官方配置'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(viewModel.errorMessage ?? '切换失败'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildActionButton(

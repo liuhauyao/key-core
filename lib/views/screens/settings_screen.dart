@@ -923,6 +923,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
               AiToolType.claudecode,
               AiToolType.codex,
               AiToolType.gemini,
+              AiToolType.claudeDesktop,
               AiToolType.windsurf,
               AiToolType.openclaw,
             ];

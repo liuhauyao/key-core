@@ -27,17 +27,13 @@ echo ""
 echo "启用 Linux 桌面支持..."
 flutter config --enable-linux-desktop
 
-# 清理构建
-echo "清理构建..."
-flutter clean
-
 # 生成图标列表配置文件
 echo "生成图标列表配置文件..."
 dart scripts/generate_icon_list.dart
 
-# 获取依赖
-echo "获取依赖..."
-flutter pub get
+# 确保依赖已就绪
+echo "检查依赖..."
+flutter pub get > /dev/null 2>&1
 
 # 构建 Release 版本
 echo "构建 Linux Release 版本..."

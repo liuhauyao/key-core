@@ -409,6 +409,22 @@ class PlatformType {
     color: Colors.grey,
   );
 
+  // 包管理器平台
+  static const npm = PlatformType._(
+    id: 'npm',
+    value: 'npm',
+    iconName: 'npm',
+    color: Color(0xFFCB3837),
+  );
+
+  // 商汤科技
+  static const sensenova = PlatformType._(
+    id: 'sensenova',
+    value: 'SenseNova',
+    iconName: 'sensenova',
+    color: Color(0xFF5B2AD8),
+  );
+
   // ==================== 工具方法 ====================
   
   /// 获取图标数据
@@ -435,6 +451,8 @@ class PlatformType {
       supabase, notion,
       bytedance,
       github, githubCopilot, gitee, coze, figma, v0,
+      npm,
+      sensenova,
       custom,
     ];
     
@@ -500,6 +518,8 @@ class PlatformType {
       'business': Icons.business,
       'auto_fix_high': Icons.auto_fix_high,
       'design_services': Icons.design_services,
+      'npm': Icons.inventory_2,
+      'sensenova': Icons.auto_awesome,
     };
     
     return iconMap[name] ?? Icons.help_outline;

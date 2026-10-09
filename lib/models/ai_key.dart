@@ -52,6 +52,14 @@ class AIKey extends Equatable {
   final String? openclawBaseUrl; // OpenAI 兼容请求地址
   final String? openclawModel; // 写入 OpenClaw 配置时使用的模型
 
+  // Claude Desktop 相关配置
+  final bool enableClaudeDesktop;
+  final String? claudeDesktopBaseUrl;
+  final String? claudeDesktopModel; // 主模型映射（默认对应 sonnet 路由）
+  final String? claudeDesktopSonnetModel; // Sonnet 路由映射到哪个上游模型
+  final String? claudeDesktopHaikuModel;  // Haiku 路由映射到哪个上游模型
+  final String? claudeDesktopOpusModel;   // Opus 路由映射到哪个上游模型
+
   // 校验状态
   final bool isValidated; // 是否校验通过
 
@@ -92,6 +100,12 @@ class AIKey extends Equatable {
     this.enableOpenclaw = false,
     this.openclawBaseUrl,
     this.openclawModel,
+    this.enableClaudeDesktop = false,
+    this.claudeDesktopBaseUrl,
+    this.claudeDesktopModel,
+    this.claudeDesktopSonnetModel,
+    this.claudeDesktopHaikuModel,
+    this.claudeDesktopOpusModel,
     this.isValidated = false,
   });
 
@@ -132,6 +146,12 @@ class AIKey extends Equatable {
     bool? enableOpenclaw,
     String? openclawBaseUrl,
     String? openclawModel,
+    bool? enableClaudeDesktop,
+    String? claudeDesktopBaseUrl,
+    String? claudeDesktopModel,
+    String? claudeDesktopSonnetModel,
+    String? claudeDesktopHaikuModel,
+    String? claudeDesktopOpusModel,
     bool? isValidated,
   }) {
     return AIKey(
@@ -171,6 +191,12 @@ class AIKey extends Equatable {
       enableOpenclaw: enableOpenclaw ?? this.enableOpenclaw,
       openclawBaseUrl: openclawBaseUrl ?? this.openclawBaseUrl,
       openclawModel: openclawModel ?? this.openclawModel,
+      enableClaudeDesktop: enableClaudeDesktop ?? this.enableClaudeDesktop,
+      claudeDesktopBaseUrl: claudeDesktopBaseUrl ?? this.claudeDesktopBaseUrl,
+      claudeDesktopModel: claudeDesktopModel ?? this.claudeDesktopModel,
+      claudeDesktopSonnetModel: claudeDesktopSonnetModel ?? this.claudeDesktopSonnetModel,
+      claudeDesktopHaikuModel: claudeDesktopHaikuModel ?? this.claudeDesktopHaikuModel,
+      claudeDesktopOpusModel: claudeDesktopOpusModel ?? this.claudeDesktopOpusModel,
       isValidated: isValidated ?? this.isValidated,
     );
   }
@@ -214,6 +240,12 @@ class AIKey extends Equatable {
       'enable_openclaw': enableOpenclaw ? 1 : 0,
       'openclaw_base_url': openclawBaseUrl,
       'openclaw_model': openclawModel,
+      'enable_claude_desktop': enableClaudeDesktop ? 1 : 0,
+      'claude_desktop_base_url': claudeDesktopBaseUrl,
+      'claude_desktop_model': claudeDesktopModel,
+      'claude_desktop_sonnet_model': claudeDesktopSonnetModel,
+      'claude_desktop_haiku_model': claudeDesktopHaikuModel,
+      'claude_desktop_opus_model': claudeDesktopOpusModel,
       'is_validated': isValidated ? 1 : 0,
     };
   }
@@ -316,6 +348,12 @@ class AIKey extends Equatable {
       enableOpenclaw: (map['enable_openclaw']?.toInt() ?? 0) == 1,
       openclawBaseUrl: map['openclaw_base_url'],
       openclawModel: map['openclaw_model'],
+      enableClaudeDesktop: (map['enable_claude_desktop']?.toInt() ?? 0) == 1,
+      claudeDesktopBaseUrl: map['claude_desktop_base_url'],
+      claudeDesktopModel: map['claude_desktop_model'],
+      claudeDesktopSonnetModel: map['claude_desktop_sonnet_model'],
+      claudeDesktopHaikuModel: map['claude_desktop_haiku_model'],
+      claudeDesktopOpusModel: map['claude_desktop_opus_model'],
       isValidated: (map['is_validated']?.toInt() ?? 0) == 1,
     );
   }
@@ -400,6 +438,12 @@ class AIKey extends Equatable {
         enableOpenclaw,
         openclawBaseUrl,
         openclawModel,
+        enableClaudeDesktop,
+        claudeDesktopBaseUrl,
+        claudeDesktopModel,
+        claudeDesktopSonnetModel,
+        claudeDesktopHaikuModel,
+        claudeDesktopOpusModel,
         isValidated,
       ];
 }

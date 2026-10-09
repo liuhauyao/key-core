@@ -200,6 +200,12 @@ class ToolEnableService {
       case AiToolType.openclaw:
         // OpenClaw 的配置文件是可选的，此分支不会被调用（validateToolConfig 有特殊处理）
         return const JsonEncoder.withIndent('  ').convert(<String, dynamic>{});
+
+      case AiToolType.claudeDesktop:
+        // Claude Desktop 使用 claude_desktop_config.json 格式
+        return const JsonEncoder.withIndent('  ').convert({
+          'mcpServers': <String, dynamic>{},
+        });
     }
   }
 }

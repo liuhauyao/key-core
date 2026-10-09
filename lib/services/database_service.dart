@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -26,6 +27,15 @@ class DatabaseService {
     return _database!;
   }
 
+  /// 仅供测试：在给定数据库上执行建表逻辑
+  @visibleForTesting
+  Future<void> runCreateForTest(Database db, int version) => _onCreate(db, version);
+
+  /// 仅供测试：在给定数据库上执行升级迁移
+  @visibleForTesting
+  Future<void> runUpgradeForTest(Database db, int oldVersion, int newVersion) =>
+      _onUpgrade(db, oldVersion, newVersion);
+
   /// 初始化数据库
   Future<Database> _initDatabase() async {
     // 初始化FFI加载器（仅在macOS/Windows/Linux上需要）
@@ -42,7 +52,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 14,
+      version: 16,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -89,6 +99,12 @@ class DatabaseService {
         enable_openclaw INTEGER DEFAULT 0,
         openclaw_base_url TEXT,
         openclaw_model TEXT,
+        enable_claude_desktop INTEGER DEFAULT 0,
+        claude_desktop_base_url TEXT,
+        claude_desktop_model TEXT,
+        claude_desktop_sonnet_model TEXT,
+        claude_desktop_haiku_model TEXT,
+        claude_desktop_opus_model TEXT,
         is_validated INTEGER DEFAULT 0
       )
     ''');
@@ -138,7 +154,7 @@ class DatabaseService {
   /// 创建供应商表
   Future<void> _createProvidersTable(Database db) async {
     await db.execute('''
-      CREATE TABLE providers (
+      CREATE TABLE IF NOT EXISTS providers (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         name_zh TEXT,
@@ -162,9 +178,9 @@ class DatabaseService {
       )
     ''');
 
-    await db.execute('CREATE INDEX idx_providers_type ON providers(provider_type)');
-    await db.execute('CREATE INDEX idx_providers_active ON providers(is_active)');
-    await db.execute('CREATE INDEX idx_providers_region ON providers(region)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_providers_active ON providers(is_active)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_providers_region ON providers(region)');
   }
 
   Future<void> _createSkillsTable(Database db) async {
@@ -394,8 +410,26 @@ class DatabaseService {
     }
 
     if (oldVersion < 14) {
-      // 创建 providers 表
+      // 添加 Claude Desktop 相关字段
+      await _addColumnIfNotExists(db, 'ai_keys', 'enable_claude_desktop', 'INTEGER DEFAULT 0');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_base_url', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_model', 'TEXT');
+    }
+
+    // Claude Desktop 模型映射列（每次升级都尝试添加，_addColumnIfNotExists 内部会检查是否存在）
+    await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_sonnet_model', 'TEXT');
+    await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_haiku_model', 'TEXT');
+    await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_opus_model', 'TEXT');
+
+    if (oldVersion < 16) {
+      // 供应商表（CC Switch 风格供应商管理）。
+      // main 已占用 v14/v15，故在 v16 创建；IF NOT EXISTS 兼容曾运行过
+      // 早期分支构建（当时在 v14 建表）的数据库。
       await _createProvidersTable(db);
+      // 早期分支构建的 v14 没有执行 main 的 v14 迁移，这里幂等补齐。
+      await _addColumnIfNotExists(db, 'ai_keys', 'enable_claude_desktop', 'INTEGER DEFAULT 0');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_base_url', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_model', 'TEXT');
     }
   }
 
@@ -539,6 +573,18 @@ class DatabaseService {
     final maps = await db.query(
       'ai_keys',
       where: 'enable_gemini = ?',
+      whereArgs: [1],
+      orderBy: 'is_favorite DESC, updated_at DESC',
+    );
+    return maps.map((map) => AIKey.fromMap(map)).toList();
+  }
+
+  /// 获取启用了 Claude Desktop 的密钥列表
+  Future<List<AIKey>> getClaudeDesktopKeys() async {
+    final db = await database;
+    final maps = await db.query(
+      'ai_keys',
+      where: 'enable_claude_desktop = ?',
       whereArgs: [1],
       orderBy: 'is_favorite DESC, updated_at DESC',
     );

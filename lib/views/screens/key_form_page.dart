@@ -68,6 +68,12 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   late TextEditingController _openclawBaseUrlController;
   late TextEditingController _openclawModelController;
 
+  // Claude Desktop 配置控制器
+  late TextEditingController _claudeDesktopBaseUrlController;
+  late TextEditingController _claudeDesktopSonnetController;
+  late TextEditingController _claudeDesktopHaikuController;
+  late TextEditingController _claudeDesktopOpusController;
+
   PlatformType? _selectedPlatform;
   DateTime? _expiryDate;
   bool _isEditMode = false;
@@ -85,7 +91,8 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   bool _enableCodex = false;
   bool _enableGemini = false;
   bool _enableOpenclaw = false;
-  
+  bool _enableClaudeDesktop = false;
+
   // 图标选择
   String? _selectedIcon;
   
@@ -171,6 +178,20 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       text: widget.editingKey?.openclawModel ?? '',
     );
 
+    // Claude Desktop 配置控制器
+    _claudeDesktopBaseUrlController = TextEditingController(
+      text: widget.editingKey?.claudeDesktopBaseUrl ?? '',
+    );
+    _claudeDesktopSonnetController = TextEditingController(
+      text: widget.editingKey?.claudeDesktopSonnetModel ?? '',
+    );
+    _claudeDesktopHaikuController = TextEditingController(
+      text: widget.editingKey?.claudeDesktopHaikuModel ?? '',
+    );
+    _claudeDesktopOpusController = TextEditingController(
+      text: widget.editingKey?.claudeDesktopOpusModel ?? '',
+    );
+
     if (widget.editingKey != null) {
       _selectedPlatform = widget.editingKey!.platformType;
       _isCustomPlatform = widget.editingKey!.platformType == PlatformType.custom;
@@ -180,6 +201,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       _enableCodex = widget.editingKey!.enableCodex;
       _enableGemini = widget.editingKey!.enableGemini;
       _enableOpenclaw = widget.editingKey!.enableOpenclaw;
+      _enableClaudeDesktop = widget.editingKey!.enableClaudeDesktop;
       _selectedIcon = widget.editingKey!.icon;
     } else {
       _isCustomPlatform = true;
@@ -188,6 +210,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       _enableCodex = false;
       _enableGemini = false;
       _enableOpenclaw = false;
+      _enableClaudeDesktop = false;
       _selectedIcon = null;
       // 新建模式下：默认选择常用分组中的自定义模板
       _selectedCategory = PlatformCategory.popular;
@@ -485,6 +508,10 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     _codexBaseUrlController.dispose();
     _openclawBaseUrlController.dispose();
     _openclawModelController.dispose();
+    _claudeDesktopBaseUrlController.dispose();
+    _claudeDesktopSonnetController.dispose();
+    _claudeDesktopHaikuController.dispose();
+    _claudeDesktopOpusController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -610,6 +637,29 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
               _claudeCodeHaikuModelController.clear();
               _claudeCodeSonnetModelController.clear();
               _claudeCodeOpusModelController.clear();
+            }
+
+            // 自动填充 Claude Desktop 地址（与 Claude Code 使用相同的 Anthropic 兼容地址）
+            if (claudeCodeProvider != null && claudeCodeProvider.baseUrl.isNotEmpty) {
+              if (!_enableClaudeDesktop) {
+                _enableClaudeDesktop = true;
+              }
+              if (_claudeDesktopBaseUrlController.text.isEmpty) {
+                _claudeDesktopBaseUrlController.text = claudeCodeProvider.baseUrl;
+              }
+              // 自动填充模型映射
+              if (claudeCodeProvider.modelConfig.sonnetModel?.isNotEmpty == true &&
+                  _claudeDesktopSonnetController.text.isEmpty) {
+                _claudeDesktopSonnetController.text = claudeCodeProvider.modelConfig.sonnetModel!;
+              }
+              if (claudeCodeProvider.modelConfig.haikuModel?.isNotEmpty == true &&
+                  _claudeDesktopHaikuController.text.isEmpty) {
+                _claudeDesktopHaikuController.text = claudeCodeProvider.modelConfig.haikuModel!;
+              }
+              if (claudeCodeProvider.modelConfig.opusModel?.isNotEmpty == true &&
+                  _claudeDesktopOpusController.text.isEmpty) {
+                _claudeDesktopOpusController.text = claudeCodeProvider.modelConfig.opusModel!;
+              }
             }
 
             if (codexProvider != null) {
@@ -959,6 +1009,23 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                     return Column(
                       children: [
                         _buildOpenClawConfigSection(context, shadTheme, localizations),
+                        const SizedBox(height: 24),
+                      ],
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+
+              // Claude Desktop 配置区域（工具已启用且已选供应商时显示）
+              Consumer<SettingsViewModel>(
+                builder: (context, settingsViewModel, child) {
+                  final enabledTools = settingsViewModel.getEnabledTools();
+                  final isClaudeDesktopEnabled = enabledTools.contains(AiToolType.claudeDesktop);
+                  if (isClaudeDesktopEnabled && _selectedPlatform != null) {
+                    return Column(
+                      children: [
+                        _buildClaudeDesktopConfigSection(context, shadTheme, localizations),
                         const SizedBox(height: 24),
                       ],
                     );
@@ -1796,6 +1863,20 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
         openclawModel: _openclawModelController.text.trim().isNotEmpty
             ? _openclawModelController.text.trim()
             : null,
+        enableClaudeDesktop: _enableClaudeDesktop,
+        claudeDesktopBaseUrl: _claudeDesktopBaseUrlController.text.trim().isNotEmpty
+            ? _claudeDesktopBaseUrlController.text.trim()
+            : null,
+        claudeDesktopModel: null,
+        claudeDesktopSonnetModel: _claudeDesktopSonnetController.text.trim().isNotEmpty
+            ? _claudeDesktopSonnetController.text.trim()
+            : null,
+        claudeDesktopHaikuModel: _claudeDesktopHaikuController.text.trim().isNotEmpty
+            ? _claudeDesktopHaikuController.text.trim()
+            : null,
+        claudeDesktopOpusModel: _claudeDesktopOpusController.text.trim().isNotEmpty
+            ? _claudeDesktopOpusController.text.trim()
+            : null,
       );
 
       Navigator.of(context).pop(key);
@@ -2205,6 +2286,124 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                   isDark: Theme.of(context).brightness == Brightness.dark,
                 ),
               ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 构建 Claude Desktop 配置区域
+  Widget _buildClaudeDesktopConfigSection(
+    BuildContext context,
+    ShadThemeData shadTheme,
+    AppLocalizations? localizations,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            SvgPicture.asset(
+              'assets/icons/platforms/anthropic.svg',
+              width: 18,
+              height: 18,
+              allowDrawingOutsideViewBox: true,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Claude Desktop 配置',
+                    style: shadTheme.textTheme.p.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: shadTheme.colorScheme.foreground,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '通过 Claude Desktop 3-Profile 配置注入',
+                    style: shadTheme.textTheme.small.copyWith(
+                      color: shadTheme.colorScheme.mutedForeground,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Transform.scale(
+              scale: 0.75,
+              child: Switch(
+                value: _enableClaudeDesktop,
+                onChanged: (value) {
+                  setState(() {
+                    _enableClaudeDesktop = value;
+                    if (!value) {
+                      _claudeDesktopBaseUrlController.clear();
+                      _claudeDesktopSonnetController.clear();
+                      _claudeDesktopHaikuController.clear();
+                      _claudeDesktopOpusController.clear();
+                    }
+                  });
+                },
+                activeColor: shadTheme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+        if (_enableClaudeDesktop) ...[
+          const SizedBox(height: 16),
+          ImeSafeTextField(
+            controller: _claudeDesktopBaseUrlController,
+            labelText: localizations?.requestUrl ?? '请求地址',
+            hintText: 'https://api.anthropic.com',
+            prefixIcon: Icon(Icons.link, size: 18, color: shadTheme.colorScheme.mutedForeground),
+            keyboardType: TextInputType.url,
+            isDark: Theme.of(context).brightness == Brightness.dark,
+          ),
+          const SizedBox(height: 12),
+          // 模型映射：Sonnet / Haiku / Opus 路由，参考 Claude Code 的紧凑布局
+          Row(
+            children: [
+              Expanded(
+                child: ImeSafeTextField(
+                  controller: _claudeDesktopSonnetController,
+                  labelText: 'Sonnet →',
+                  hintText: 'deepseek-v4-pro',
+                  prefixIcon: Icon(Icons.swap_horiz, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  suffixIcon: _buildModelPickerButton(context, _claudeDesktopSonnetController),
+                  isDark: Theme.of(context).brightness == Brightness.dark,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ImeSafeTextField(
+                  controller: _claudeDesktopHaikuController,
+                  labelText: 'Haiku →',
+                  hintText: 'deepseek-v4-flash',
+                  prefixIcon: Icon(Icons.swap_horiz, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  suffixIcon: _buildModelPickerButton(context, _claudeDesktopHaikuController),
+                  isDark: Theme.of(context).brightness == Brightness.dark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ImeSafeTextField(
+                  controller: _claudeDesktopOpusController,
+                  labelText: 'Opus →',
+                  hintText: 'deepseek-v4-ultra',
+                  prefixIcon: Icon(Icons.swap_horiz, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                  suffixIcon: _buildModelPickerButton(context, _claudeDesktopOpusController),
+                  isDark: Theme.of(context).brightness == Brightness.dark,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(child: SizedBox()),
             ],
           ),
         ],

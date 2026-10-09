@@ -327,7 +327,7 @@ class SettingsViewModel extends BaseViewModel {
     _toolEnabledStates[tool] = enabled;
     
     // 通知状态栏菜单更新（claudecode、codex 和 gemini 开关改变时）
-    if (Platform.isMacOS && (tool == AiToolType.claudecode || tool == AiToolType.codex || tool == AiToolType.gemini)) {
+    if (Platform.isMacOS && (tool == AiToolType.claudecode || tool == AiToolType.codex || tool == AiToolType.gemini || tool == AiToolType.claudeDesktop)) {
       try {
         await StatusBarMenuBridge.updateStatusBarMenu();
       } catch (e) {

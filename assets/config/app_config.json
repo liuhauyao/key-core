@@ -1,7 +1,7 @@
 {
-  "version": "1.0.6",
+  "version": "1.0.7",
   "schemaVersion": 3,
-  "lastUpdated": "2026-03-27T08:00:00.000000",
+  "lastUpdated": "2026-04-04T12:00:00.000000",
   "config": {
     "supportedLanguages": [
       {
@@ -107,14 +107,20 @@
           "defaultName": "Anthropic API Key"
         },
         "validation": {
-          "type": "custom",
-          "endpoint": "/models",
-          "method": "GET",
+          "type": "anthropic",
+          "endpoint": "/v1/messages",
+          "method": "POST",
           "headers": {
             "x-api-key": "{apiKey}",
-            "anthropic-version": "2023-06-01"
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
           },
-          "successStatus": [200],
+          "body": {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 1,
+            "messages": []
+          },
+          "successStatus": [200, 400],
           "errorStatus": {
             "401": "API Key 无效或已过期",
             "403": "API Key 权限不足",
@@ -472,7 +478,7 @@
           }
         },
         "openclaw": {
-          "baseUrl": "https://api.minimax.io/anthropic",
+          "baseUrl": "https://api.minimaxi.com/anthropic",
           "model": "MiniMax-M2.7"
         },
         "platform": {
@@ -1046,7 +1052,7 @@
         "isPartner": false,
         "codex": {
           "baseUrl": "https://api.openai.com/v1",
-          "model": "codex-mini-latest"
+          "model": "gpt-4.1-codex"
         },
         "openclaw": {
           "baseUrl": "https://api.openai.com/v1",
@@ -1122,7 +1128,7 @@
           "llm"
         ],
         "providerCategory": "thirdParty",
-        "websiteUrl": "https://makersuite.google.com/app/apikey",
+        "websiteUrl": "https://aistudio.google.com/app/apikey",
         "isOfficial": false,
         "isPartner": false,
         "openclaw": {
@@ -1130,7 +1136,7 @@
           "model": "gemini-2.5-pro"
         },
         "platform": {
-          "managementUrl": "https://makersuite.google.com/app/apikey",
+          "managementUrl": "https://aistudio.google.com/app/apikey",
           "apiEndpoint": "https://generativelanguage.googleapis.com/v1",
           "defaultName": "Google AI API Key"
         },
@@ -1214,7 +1220,7 @@
         "id": "siliconFlow",
         "name": "SiliconFlow",
         "platformType": "siliconFlow",
-        "icon": "siliconcloud-color.svg",
+        "icon": "siliconflow-color.svg",
         "categories": [
           "claudeCode",
           "codex",
@@ -1791,15 +1797,15 @@
           "tools"
         ],
         "providerCategory": "thirdParty",
-        "websiteUrl": "https://ollama.ai/",
+        "websiteUrl": "https://ollama.com/",
         "isOfficial": false,
         "isPartner": false,
         "openclaw": {
           "baseUrl": "http://localhost:11434/v1",
-          "model": "llama3.2"
+          "model": "llama4"
         },
         "platform": {
-          "managementUrl": "https://ollama.ai/",
+          "managementUrl": "https://ollama.com/",
           "apiEndpoint": "http://localhost:11434/api",
           "defaultName": "Ollama API Key"
         },
@@ -2268,7 +2274,10 @@
         "name": "字节跳动 API Key",
         "platformType": "bytedance",
         "icon": "bytedance-color.svg",
-        "categories": [],
+        "categories": [
+          "cloud",
+          "llm"
+        ],
         "providerCategory": "thirdParty",
         "websiteUrl": "https://console.volcengine.com/",
         "isOfficial": false,
@@ -2573,7 +2582,7 @@
           "llm"
         ],
         "providerCategory": "cnOfficial",
-        "websiteUrl": "https://platform.xiaomimimo.com",
+        "websiteUrl": "https://mimo.mi.com",
         "isOfficial": false,
         "isPartner": false,
         "claudeCode": {
@@ -2618,6 +2627,182 @@
           "modelNameField": "id",
           "modelDescriptionField": null,
           "modelsBaseUrlSource": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
+        }
+      },
+      {
+        "id": "agnes",
+        "name": "Agnes AI",
+        "platformType": "agnes",
+        "icon": "agnes.svg",
+        "categories": [
+          "openclaw",
+          "codex",
+          "popular",
+          "llm"
+        ],
+        "providerCategory": "thirdParty",
+        "websiteUrl": "https://agnes-ai.com",
+        "apiKeyUrl": "https://platform.agnes-ai.com",
+        "isOfficial": false,
+        "isPartner": false,
+        "openclaw": {
+          "baseUrl": "https://apihub.agnes-ai.com/v1",
+          "model": "agnes-2.0-flash"
+        },
+        "codex": {
+          "baseUrl": "https://apihub.agnes-ai.com/v1",
+          "model": "agnes-2.0-flash"
+        },
+        "platform": {
+          "managementUrl": "https://platform.agnes-ai.com",
+          "apiEndpoint": "https://apihub.agnes-ai.com/v1",
+          "defaultName": "Agnes AI API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或额度不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
+        }
+      },
+      {
+        "id": "npm",
+        "name": "npm Registry",
+        "platformType": "npm",
+        "icon": "npm-color.svg",
+        "categories": [
+          "tools"
+        ],
+        "providerCategory": "official",
+        "websiteUrl": "https://www.npmjs.com",
+        "apiKeyUrl": "https://www.npmjs.com/settings/tokens",
+        "isOfficial": true,
+        "isPartner": false,
+        "platform": {
+          "managementUrl": "https://www.npmjs.com/settings/tokens",
+          "apiEndpoint": "https://registry.npmjs.org",
+          "defaultName": "npm Token"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/-/whoami",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "401": "npm Token 无效或已过期",
+            "403": "npm Token 权限不足"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "fallbackBaseUrl": "https://registry.npmjs.org",
+          "modelsEndpoint": null,
+          "modelsMethod": null,
+          "modelsResponsePath": null,
+          "modelIdField": null,
+          "modelNameField": null,
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": null,
+          "modelsFallbackBaseUrl": null,
+          "balanceEndpoint": null,
+          "balanceMethod": null,
+          "balanceBaseUrlSource": null,
+          "balanceFallbackBaseUrl": null
+        }
+      },
+      {
+        "id": "sensenova",
+        "name": "日日新 SenseNova",
+        "platformType": "sensenova",
+        "icon": "sensenova-color.svg",
+        "categories": [
+          "claudeCode",
+          "openclaw",
+          "codex",
+          "llm"
+        ],
+        "providerCategory": "cnOfficial",
+        "websiteUrl": "https://platform.sensenova.cn",
+        "apiKeyUrl": "https://platform.sensenova.cn/console/api-keys",
+        "isOfficial": true,
+        "isPartner": false,
+        "claudeCode": {
+          "baseUrl": "https://token.sensenova.cn",
+          "modelConfig": {
+            "mainModel": "SenseChat-5",
+            "haikuModel": "SenseChat-5",
+            "sonnetModel": "SenseChat-5",
+            "opusModel": "SenseChat-5"
+          },
+          "endpointCandidates": [
+            "https://token.sensenova.cn"
+          ]
+        },
+        "openclaw": {
+          "baseUrl": "https://api.sensenova.cn/v1",
+          "model": "SenseChat-5"
+        },
+        "codex": {
+          "baseUrl": "https://api.sensenova.cn/v1",
+          "model": "SenseChat-5"
+        },
+        "platform": {
+          "managementUrl": "https://platform.sensenova.cn/console/api-keys",
+          "apiEndpoint": "https://api.sensenova.cn/v1",
+          "defaultName": "日日新 SenseNova API Key"
+        },
+        "validation": {
+          "type": "openai-compatible",
+          "endpoint": "/models",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {apiKey}"
+          },
+          "successStatus": [200],
+          "errorStatus": {
+            "400": "请求参数错误",
+            "401": "API Key 无效或已过期",
+            "403": "API Key 权限不足",
+            "429": "请求频率超限或账户余额不足",
+            "500": "服务器错误",
+            "503": "服务暂时不可用，请稍后重试"
+          },
+          "baseUrlSource": "platform.apiEndpoint",
+          "modelsEndpoint": "/models",
+          "modelsMethod": "GET",
+          "modelsResponsePath": "data",
+          "modelIdField": "id",
+          "modelNameField": "id",
+          "modelDescriptionField": null,
+          "modelsBaseUrlSource": "platform.apiEndpoint",
           "balanceEndpoint": null,
           "balanceMethod": null,
           "balanceBaseUrlSource": null,
@@ -3346,7 +3531,8 @@
           "platformType": "siliconFlow",
           "baseUrlPatterns": [
             "siliconflow.cn",
-            "api.siliconflow.cn"
+            "api.siliconflow.cn",
+            "siliconflow.com"
           ],
           "supportsAuthJson": true,
           "requiresOpenaiAuth": true,

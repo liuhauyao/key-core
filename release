@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+# Key Core 发版主入口
+# 提供菜单选择，执行各构建/发布脚本
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPTS_DIR="$ROOT_DIR/scripts"
+# shellcheck source=scripts/lib/release-lib.sh
+source "$SCRIPTS_DIR/lib/release-lib.sh"
+
+# ──────────────────────────────────────────────
+# 版本号交互（供各构建选项调用）
+# ──────────────────────────────────────────────
+prompt_version_update() {
+  local current_version next_version manual_version
+  current_version="$(read_version)"
+  next_version="$(bump_patch_version "$current_version")"
+
+  echo ""
+  echo -e "${BLUE}当前项目版本: ${BOLD}${current_version}${NC}"
+  echo ""
+
+  select_menu "是否更新版本号？" \
+    "否，使用当前版本继续构建 (默认)" \
+    "是，自动递增修订号 → ${next_version}" \
+    "是，手动输入版本号"
+
+  case "$REPLY" in
+    1)
+      print_info "保持版本号: ${current_version}"
+      ;;
+    2)
+      set_version "$next_version"
+      print_info "版本号已更新: ${current_version} → ${next_version}"
+      ;;
+    3)
+      echo ""
+      read -r -p "请输入新版本号 (x.y.z 或 x.y.z+build): " manual_version
+      if [[ -z "$manual_version" ]]; then
+        print_error "未输入版本号，已取消"
+        exit 1
+      fi
+      set_version "$manual_version"
+      print_info "版本号已更新: ${current_version} → ${manual_version}"
+      ;;
+    *)
+      print_error "无效的选项"
+      exit 1
+      ;;
+  esac
+}
+
+# ──────────────────────────────────────────────
+# 选项 1：构建 macOS GitHub Release（含本地替换）
+# ──────────────────────────────────────────────
+build_macos_github() {
+  prompt_version_update
+  print_info "开始构建 macOS GitHub Release..."
+
+  # 检测正在运行的 Key Core
+  if is_keycore_running; then
+    print_info "检测到 Key Core 正在运行，构建完成后将自动替换应用"
+  fi
+
+  # 执行构建脚本（由 release 主脚本处理后续替换，子脚本跳过）
+  if ! NO_REPLACE=1 bash "$SCRIPTS_DIR/build_macos_github.sh"; then
+    print_error "构建失败"
+    exit 1
+  fi
+
+  # 读取构建产物路径
+  local version dmg_file
+  version="$(read_version)"
+  dmg_file="$(find "$ROOT_DIR/build/macos-github" -name "Key Core-${version}.dmg" 2>/dev/null | head -1)"
+
+  if [[ -z "$dmg_file" ]] || [[ ! -f "$dmg_file" ]]; then
+    dmg_file="$(find "$ROOT_DIR/build/macos-github" -name "*.dmg" 2>/dev/null | head -1)"
+  fi
+
+  if [[ -z "$dmg_file" ]] || [[ ! -f "$dmg_file" ]]; then
+    print_warning "未找到 DMG 构建产物，跳过本地替换"
+    return 0
+  fi
+
+  print_info "DMG 构建完成: ${dmg_file}"
+
+  # 自动替换本地 Application
+  if is_keycore_running; then
+    stop_keycore_graceful || {
+      print_error "无法终止 Key Core，请手动关闭后重试"
+      exit 1
+    }
+  fi
+
+  if package_and_replace "$dmg_file"; then
+    print_info "应用已更新至: /Applications/${APP_NAME}.app"
+    print_info "启动 Key Core..."
+    open -a "/Applications/${APP_NAME}.app"
+  else
+    print_error "应用替换失败"
+    exit 1
+  fi
+}
+
+# ──────────────────────────────────────────────
+# 选项 2：构建 macOS App Store 版本
+# ──────────────────────────────────────────────
+build_macos_appstore() {
+  prompt_version_update
+  print_info "准备 macOS App Store 构建环境..."
+  bash "$SCRIPTS_DIR/build_macos_appstore.sh"
+}
+
+# ──────────────────────────────────────────────
+# 选项 3：构建 Linux 版本
+# ──────────────────────────────────────────────
+build_linux() {
+  prompt_version_update
+  print_info "开始构建 Linux 版本..."
+  bash "$SCRIPTS_DIR/build_linux.sh"
+}
+
+# ──────────────────────────────────────────────
+# 选项 4：构建 Windows 版本
+# ──────────────────────────────────────────────
+build_windows() {
+  prompt_version_update
+  print_info "开始构建 Windows 版本..."
+  bash "$SCRIPTS_DIR/build_windows.sh"
+}
+
+# ──────────────────────────────────────────────
+# 选项 5：清理应用数据
+# ──────────────────────────────────────────────
+clean_data() {
+  # clean_app_data.sh 自带确认提示
+  bash "$SCRIPTS_DIR/clean_app_data.sh"
+}
+
+# ──────────────────────────────────────────────
+# 选项 6：更新图标列表
+# ──────────────────────────────────────────────
+update_icons() {
+  print_info "更新图标列表..."
+  bash "$SCRIPTS_DIR/update_icons.sh"
+}
+
+# ──────────────────────────────────────────────
+# 选项 7：检查本地化翻译
+# ──────────────────────────────────────────────
+check_localizations() {
+  print_info "检查本地化翻译..."
+  echo ""
+  echo -e "${BLUE}可用的检查脚本:${NC}"
+  echo "  1、检查所有分类翻译"
+  echo "  2、检查某个分类翻译"
+  echo "  3、对比本地化文件"
+  echo ""
+  select_menu "请选择检查类型" \
+    "检查所有分类翻译" \
+    "检查某个分类翻译" \
+    "对比本地化文件"
+
+  case "$REPLY" in
+    1) dart "$SCRIPTS_DIR/check_all_categories_translation.dart" ;;
+    2)
+      echo ""
+      read -r -p "请输入分类名称: " category
+      dart "$SCRIPTS_DIR/check_category_translations.dart" "$category"
+      ;;
+    3) dart "$SCRIPTS_DIR/compare_locales.dart" ;;
+  esac
+}
+
+# ──────────────────────────────────────────────
+# 主菜单
+# ──────────────────────────────────────────────
+main_menu() {
+  local version
+  version="$(read_version)"
+
+  echo ""
+  echo -e "${CYAN}${BOLD}Key Core 发版工具${NC}"
+  echo -e "${DIM}版本: ${version}${NC}"
+  echo ""
+
+  select_menu "请选择操作" \
+    "${GREEN}构建 macOS GitHub Release${NC} ${DIM}(→ DMG，可替换本地应用)${NC}" \
+    "构建 macOS App Store 版本 ${DIM}(→ Xcode Archive 准备)${NC}" \
+    "${DIM}构建 Linux 版本${NC} ${DIM}(已实现但未测试)${NC}" \
+    "${DIM}构建 Windows 版本${NC} ${DIM}(已实现但未测试)${NC}" \
+    "清理应用数据 ${DIM}(恢复到首次安装状态)${NC}" \
+    "更新图标列表 ${DIM}(重新扫描图标并生成配置)${NC}" \
+    "检查本地化翻译"
+
+  echo ""
+
+  case "$REPLY" in
+    1) build_macos_github ;;
+    2) build_macos_appstore ;;
+    3) build_linux ;;
+    4) build_windows ;;
+    5) clean_data ;;
+    6) update_icons ;;
+    7) check_localizations ;;
+    *)
+      print_error "无效选项"
+      exit 1
+      ;;
+  esac
+}
+
+# ──────────────────────────────────────────────
+# 入口
+# ──────────────────────────────────────────────
+main_menu

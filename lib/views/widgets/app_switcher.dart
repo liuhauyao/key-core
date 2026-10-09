@@ -29,7 +29,7 @@ enum AppType {
       case AppType.providers:
         return localizations?.navProviders ?? '供应商';
       case AppType.claudeCode:
-        return 'ClaudeCode';
+        return 'Claude';
       case AppType.codex:
         return 'Codex';
       case AppType.gemini:
@@ -150,9 +150,10 @@ class AppSwitcher extends StatelessWidget {
         if (app == AppType.keyManager || app == AppType.mcp || app == AppType.skills || app == AppType.settings) {
           return true;
         }
-        // ClaudeCode、Codex、Gemini 和 OpenClaw 根据启用状态显示
+        // Claude、Codex、Gemini 和 OpenClaw 根据启用状态显示
         if (app == AppType.claudeCode) {
-          return enabledTools.contains(AiToolType.claudecode);
+          return enabledTools.contains(AiToolType.claudecode) ||
+                 enabledTools.contains(AiToolType.claudeDesktop);
         }
         if (app == AppType.codex) {
           return enabledTools.contains(AiToolType.codex);
