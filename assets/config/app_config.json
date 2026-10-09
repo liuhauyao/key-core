@@ -1,7 +1,7 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "schemaVersion": 3,
-  "lastUpdated": "2026-10-09T12:00:00.000000",
+  "lastUpdated": "2026-10-10T12:00:00.000000",
   "config": {
     "supportedLanguages": [
       {
@@ -10736,11 +10736,12 @@
         "command": "npx",
         "args": [
           "-y",
-          "@supabase/mcp-server@latest"
+          "@supabase/mcp-server-supabase@latest",
+          "--read-only",
+          "--project-ref="
         ],
         "env": {
-          "SUPABASE_URL": "",
-          "SUPABASE_ANON_KEY": ""
+          "SUPABASE_ACCESS_TOKEN": ""
         },
         "icon": "supabase-icon.svg",
         "tags": [
@@ -10748,7 +10749,7 @@
           "api"
         ],
         "homepage": "https://supabase.com",
-        "docs": "https://supabase.com/docs"
+        "docs": "https://supabase.com/docs/guides/getting-started/mcp"
       },
       {
         "serverId": "n8n",
@@ -10759,81 +10760,40 @@
         "command": "npx",
         "args": [
           "-y",
-          "@n8n/mcp-server@latest"
+          "n8n-mcp"
         ],
         "icon": "n8n-color.svg",
         "tags": [
           "automation",
           "workflow"
         ],
-        "homepage": "https://n8n.io",
-        "docs": "https://docs.n8n.io"
+        "homepage": "https://github.com/czlonkowski/n8n-mcp",
+        "docs": "https://github.com/czlonkowski/n8n-mcp#readme",
+        "env": {
+          "MCP_MODE": "stdio",
+          "LOG_LEVEL": "error",
+          "DISABLE_CONSOLE_OUTPUT": "true",
+          "N8N_API_URL": "",
+          "N8N_API_KEY": ""
+        }
       },
       {
         "serverId": "github",
         "name": "GitHub",
         "description": "GitHub API MCP服务器",
         "category": "development",
-        "serverType": "stdio",
-        "command": "npx",
-        "args": [
-          "-y",
-          "@modelcontextprotocol/server-github@latest"
-        ],
-        "env": {
-          "GITHUB_PERSONAL_ACCESS_TOKEN": ""
-        },
+        "serverType": "http",
         "icon": "github.svg",
         "tags": [
           "git",
           "version-control"
         ],
         "homepage": "https://github.com",
-        "docs": "https://docs.github.com"
-      },
-      {
-        "serverId": "openai",
-        "name": "OpenAI",
-        "description": "OpenAI API MCP服务器",
-        "category": "ai",
-        "serverType": "stdio",
-        "command": "npx",
-        "args": [
-          "-y",
-          "@modelcontextprotocol/server-openai@latest"
-        ],
-        "env": {
-          "OPENAI_API_KEY": ""
-        },
-        "icon": "openai.svg",
-        "tags": [
-          "ai",
-          "llm"
-        ],
-        "homepage": "https://openai.com",
-        "docs": "https://platform.openai.com/docs"
-      },
-      {
-        "serverId": "anthropic",
-        "name": "Anthropic",
-        "description": "Anthropic Claude API MCP服务器",
-        "category": "ai",
-        "serverType": "stdio",
-        "command": "npx",
-        "args": [
-          "-y",
-          "@modelcontextprotocol/server-anthropic@latest"
-        ],
-        "env": {
-          "ANTHROPIC_API_KEY": ""
-        },
-        "icon": "anthropic.svg",
-        "tags": [
-          "ai",
-          "llm"
-        ],
-        "homepage": "https://anthropic.com",
-        "docs": "https://docs.anthropic.com"
+        "docs": "https://github.com/github/github-mcp-server",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "headers": {
+          "Authorization": "Bearer "
+        }
       },
       {
         "serverId": "alipay",
@@ -10844,12 +10804,12 @@
         "command": "npx",
         "args": [
           "-y",
-          "@alipay/mcp-server-alipay@latest"
+          "@alipay/mcp-server-alipay"
         ],
         "env": {
-          "ALIPAY_APP_ID": "",
-          "ALIPAY_PRIVATE_KEY": "",
-          "ALIPAY_PUBLIC_KEY": ""
+          "AP_APP_ID": "",
+          "AP_APP_KEY": "",
+          "AP_PUB_KEY": ""
         },
         "icon": "alipay.svg",
         "tags": [
@@ -10861,30 +10821,6 @@
         "docs": "https://opendocs.alipay.com"
       },
       {
-        "serverId": "unionpay",
-        "name": "银联",
-        "description": "银联官方MCP服务器，提供银联支付相关功能",
-        "category": "popular",
-        "serverType": "stdio",
-        "command": "npx",
-        "args": [
-          "-y",
-          "@UnionPay/unionpay-mcp-server@latest"
-        ],
-        "env": {
-          "UNIONPAY_MERCHANT_ID": "",
-          "UNIONPAY_SECRET_KEY": ""
-        },
-        "icon": "unionpay.svg",
-        "tags": [
-          "payment",
-          "finance",
-          "unionpay"
-        ],
-        "homepage": "https://open.unionpay.com",
-        "docs": "https://open.unionpay.com/ajweb/help"
-      },
-      {
         "serverId": "postgres",
         "name": "PostgreSQL",
         "description": "PostgreSQL数据库MCP服务器",
@@ -10893,11 +10829,9 @@
         "command": "npx",
         "args": [
           "-y",
-          "@modelcontextprotocol/server-postgres@latest"
+          "@modelcontextprotocol/server-postgres",
+          "postgresql://localhost/mydb"
         ],
-        "env": {
-          "POSTGRES_CONNECTION_STRING": ""
-        },
         "icon": "postgres.svg",
         "tags": [
           "database",
@@ -10912,14 +10846,12 @@
         "description": "SQLite数据库MCP服务器",
         "category": "database",
         "serverType": "stdio",
-        "command": "npx",
+        "command": "uvx",
         "args": [
-          "-y",
-          "@modelcontextprotocol/server-sqlite@latest"
+          "mcp-server-sqlite",
+          "--db-path",
+          "~/test.db"
         ],
-        "env": {
-          "SQLITE_DB_PATH": ""
-        },
         "icon": "sql-lite.svg",
         "tags": [
           "database",
@@ -10937,17 +10869,21 @@
         "command": "npx",
         "args": [
           "-y",
-          "@modelcontextprotocol/server-mysql@latest"
+          "@benborla29/mcp-server-mysql"
         ],
         "env": {
-          "MYSQL_CONNECTION_STRING": ""
+          "MYSQL_HOST": "127.0.0.1",
+          "MYSQL_PORT": "3306",
+          "MYSQL_USER": "root",
+          "MYSQL_PASS": "",
+          "MYSQL_DB": ""
         },
         "icon": "mysql.svg",
         "tags": [
           "database",
           "sql"
         ],
-        "homepage": "https://www.mysql.com",
+        "homepage": "https://github.com/benborla/mcp-server-mysql",
         "docs": "https://dev.mysql.com/doc"
       },
       {
@@ -10959,7 +10895,7 @@
         "command": "npx",
         "args": [
           "-y",
-          "@modelcontextprotocol/server-brave-search@latest"
+          "@brave/brave-search-mcp-server"
         ],
         "env": {
           "BRAVE_API_KEY": ""
@@ -10969,46 +10905,15 @@
           "search",
           "web"
         ],
-        "homepage": "https://brave.com/search",
+        "homepage": "https://github.com/brave/brave-search-mcp-server",
         "docs": "https://api.search.brave.com"
-      },
-      {
-        "serverId": "google-search",
-        "name": "Google Search",
-        "description": "Google搜索MCP服务器",
-        "category": "search",
-        "serverType": "stdio",
-        "command": "npx",
-        "args": [
-          "-y",
-          "@modelcontextprotocol/server-google-search@latest"
-        ],
-        "env": {
-          "GOOGLE_API_KEY": "",
-          "GOOGLE_CSE_ID": ""
-        },
-        "icon": "google-color.svg",
-        "tags": [
-          "search",
-          "web"
-        ],
-        "homepage": "https://www.google.com",
-        "docs": "https://developers.google.com/custom-search"
       },
       {
         "serverId": "zhipu-web-search",
         "name": "智谱联网搜索",
         "description": "智谱AI提供的联网搜索MCP服务器，支持实时互联网搜索",
         "category": "search",
-        "serverType": "stdio",
-        "command": "npx",
-        "args": [
-          "-y",
-          "@zhipuai/zhipu-web-search-mcp@latest"
-        ],
-        "env": {
-          "ZHIPU_API_KEY": ""
-        },
+        "serverType": "http",
         "icon": "zhipu-color.svg",
         "tags": [
           "search",
@@ -11016,7 +10921,11 @@
           "ai"
         ],
         "homepage": "https://www.zhipuai.cn",
-        "docs": "https://open.bigmodel.cn"
+        "docs": "https://docs.bigmodel.cn/cn/coding-plan/mcp/search-mcp-server",
+        "url": "https://open.bigmodel.cn/api/mcp/web_search_prime/mcp",
+        "headers": {
+          "Authorization": "Bearer "
+        }
       },
       {
         "serverId": "bing-cn",
@@ -11027,7 +10936,7 @@
         "command": "npx",
         "args": [
           "-y",
-          "@yan5236/bing-cn-mcp-server@latest"
+          "bing-cn-mcp"
         ],
         "icon": "bing-color.svg",
         "tags": [
@@ -11035,7 +10944,7 @@
           "web",
           "chinese"
         ],
-        "homepage": "https://www.bing.com",
+        "homepage": "https://github.com/yan5236/bing-cn-mcp-server",
         "docs": "https://modelscope.cn/mcp/servers/@yan5236/bing-cn-mcp-server"
       },
       {
@@ -11045,7 +10954,10 @@
         "category": "search",
         "serverType": "stdio",
         "command": "npx",
-        "args": ["-y", "@baidumap/mcp-server-baidu-map"],
+        "args": [
+          "-y",
+          "@baidumap/mcp-server-baidu-map"
+        ],
         "env": {
           "BAIDU_MAP_API_KEY": ""
         },
@@ -11067,11 +10979,9 @@
         "command": "npx",
         "args": [
           "-y",
-          "@modelcontextprotocol/server-filesystem@latest"
+          "@modelcontextprotocol/server-filesystem",
+          "~/Documents"
         ],
-        "env": {
-          "ALLOWED_DIRECTORIES": ""
-        },
         "icon": "filesystem.svg",
         "tags": [
           "filesystem",
@@ -11087,7 +10997,9 @@
         "category": "development",
         "serverType": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-git"],
+        "args": [
+          "mcp-server-git"
+        ],
         "icon": "git.svg",
         "tags": [
           "git",
@@ -11102,45 +11014,21 @@
         "description": "AWS服务MCP服务器",
         "category": "cloud",
         "serverType": "stdio",
-        "command": "npx",
+        "command": "uvx",
         "args": [
-          "-y",
-          "@modelcontextprotocol/server-aws@latest"
+          "awslabs.aws-api-mcp-server@latest"
         ],
         "env": {
-          "AWS_ACCESS_KEY_ID": "",
-          "AWS_SECRET_ACCESS_KEY": "",
-          "AWS_REGION": ""
+          "AWS_REGION": "us-east-1",
+          "AWS_API_MCP_PROFILE_NAME": "default"
         },
         "icon": "aws-color.svg",
         "tags": [
           "cloud",
           "aws"
         ],
-        "homepage": "https://aws.amazon.com",
-        "docs": "https://docs.aws.amazon.com"
-      },
-      {
-        "serverId": "gcp",
-        "name": "Google Cloud",
-        "description": "Google Cloud Platform MCP服务器",
-        "category": "cloud",
-        "serverType": "stdio",
-        "command": "npx",
-        "args": [
-          "-y",
-          "@modelcontextprotocol/server-gcp@latest"
-        ],
-        "env": {
-          "GOOGLE_APPLICATION_CREDENTIALS": ""
-        },
-        "icon": "google-color.svg",
-        "tags": [
-          "cloud",
-          "gcp"
-        ],
-        "homepage": "https://cloud.google.com",
-        "docs": "https://cloud.google.com/docs"
+        "homepage": "https://github.com/awslabs/mcp",
+        "docs": "https://awslabs.github.io/mcp/servers/aws-api-mcp-server"
       },
       {
         "serverId": "sequential-thinking",
@@ -11149,7 +11037,10 @@
         "category": "ai",
         "serverType": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-sequential-thinking"
+        ],
         "icon": "mcp.svg",
         "tags": [
           "ai",
@@ -11166,7 +11057,9 @@
         "category": "development",
         "serverType": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-time"],
+        "args": [
+          "mcp-server-time"
+        ],
         "icon": "mcp.svg",
         "tags": [
           "time",
@@ -11185,10 +11078,11 @@
         "command": "npx",
         "args": [
           "-y",
-          "@modelcontextprotocol/server-slack@latest"
+          "@modelcontextprotocol/server-slack"
         ],
         "env": {
-          "SLACK_BOT_TOKEN": ""
+          "SLACK_BOT_TOKEN": "",
+          "SLACK_TEAM_ID": ""
         },
         "icon": "slack.svg",
         "tags": [
@@ -11205,7 +11099,10 @@
         "category": "automation",
         "serverType": "stdio",
         "command": "npx",
-        "args": ["-y", "@notionhq/notion-mcp-server"],
+        "args": [
+          "-y",
+          "@notionhq/notion-mcp-server"
+        ],
         "env": {
           "NOTION_TOKEN": ""
         },
@@ -11218,15 +11115,15 @@
         "docs": "https://developers.notion.com"
       },
       {
-        "serverId": "puppeteer",
-        "name": "Puppeteer",
-        "description": "Puppeteer浏览器自动化MCP服务器",
+        "serverId": "playwright",
+        "name": "Playwright",
+        "description": "Microsoft 官方 Playwright MCP 服务器，提供浏览器自动化（替代已废弃的 Puppeteer 服务器）",
         "category": "development",
         "serverType": "stdio",
         "command": "npx",
         "args": [
           "-y",
-          "@modelcontextprotocol/server-puppeteer@latest"
+          "@playwright/mcp@latest"
         ],
         "icon": "mcp.svg",
         "tags": [
@@ -11234,8 +11131,8 @@
           "automation",
           "web-scraping"
         ],
-        "homepage": "https://pptr.dev",
-        "docs": "https://pptr.dev"
+        "homepage": "https://github.com/microsoft/playwright-mcp",
+        "docs": "https://github.com/microsoft/playwright-mcp#readme"
       },
       {
         "serverId": "fetch",
@@ -11244,7 +11141,9 @@
         "category": "development",
         "serverType": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-fetch"],
+        "args": [
+          "mcp-server-fetch"
+        ],
         "icon": "mcp.svg",
         "tags": [
           "http",
@@ -11283,11 +11182,12 @@
         "command": "npx",
         "args": [
           "-y",
-          "@open-dingtalk/dingtalk-mcp@latest"
+          "dingtalk-mcp@latest"
         ],
         "env": {
-          "DINGTALK_APP_KEY": "",
-          "DINGTALK_APP_SECRET": ""
+          "DINGTALK_Client_ID": "",
+          "DINGTALK_Client_Secret": "",
+          "ACTIVE_PROFILES": "dingtalk-contacts,dingtalk-calendar"
         },
         "icon": "dingding.svg",
         "tags": [
@@ -11295,7 +11195,7 @@
           "communication",
           "collaboration"
         ],
-        "homepage": "https://open.dingtalk.com",
+        "homepage": "https://github.com/open-dingtalk/dingtalk-mcp",
         "docs": "https://open.dingtalk.com/document"
       }
     ],
