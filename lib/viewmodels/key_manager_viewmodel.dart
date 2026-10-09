@@ -15,6 +15,8 @@ import '../services/gemini_config_service.dart';
 import '../services/settings_service.dart';
 import '../services/status_bar_menu_bridge.dart';
 import '../services/region_filter_service.dart';
+import '../services/openclaw_config_service.dart';
+import '../services/tool_providers/tool_provider_service.dart';
 import 'dart:io';
 import 'base_viewmodel.dart';
 
@@ -435,6 +437,16 @@ class KeyManagerViewModel extends BaseViewModel {
       }
       // 如果没有设置主密码，则明文存储
 
+      // 表单不管理的字段沿用数据库中的值，避免编辑时被清空：
+      // - toolConfigs（新工具的按密钥设置，由工具页写入）；
+      // - claudeDesktopModel（旧版 Desktop 兜底模型，表单不再展示）；
+      // - 关闭 Gemini 时表单会把 geminiModel/geminiBaseUrl 置空，重新开启后应能恢复。
+      final existing = await _databaseService.getKeyById(key.id!);
+      final toolConfigs = key.toolConfigs.isNotEmpty ? key.toolConfigs : (existing?.toolConfigs ?? const {});
+      final claudeDesktopModel = key.claudeDesktopModel ?? existing?.claudeDesktopModel;
+      final geminiModel = key.geminiModel ?? (key.enableGemini ? null : existing?.geminiModel);
+      final geminiBaseUrl = key.geminiBaseUrl ?? (key.enableGemini ? null : existing?.geminiBaseUrl);
+
       // 创建更新后的密钥对象，保持原有的 updatedAt，不改变排序位置
       // ⚠️ 重要：不要使用 copyWith，因为它会覆盖用户修改的字段！
       // 直接使用从表单返回的 key 对象，只更新加密后的 keyValue
@@ -470,18 +482,19 @@ class KeyManagerViewModel extends BaseViewModel {
         codexConfig: key.codexConfig,
         enableGemini: key.enableGemini,
         geminiApiEndpoint: key.geminiApiEndpoint,
-        geminiModel: key.geminiModel,
-        geminiBaseUrl: key.geminiBaseUrl,
+        geminiModel: geminiModel,
+        geminiBaseUrl: geminiBaseUrl,
         enableOpenclaw: key.enableOpenclaw,
         openclawBaseUrl: key.openclawBaseUrl,
         openclawModel: key.openclawModel,
         enableClaudeDesktop: key.enableClaudeDesktop,
         claudeDesktopBaseUrl: key.claudeDesktopBaseUrl,
-        claudeDesktopModel: key.claudeDesktopModel,
+        claudeDesktopModel: claudeDesktopModel,
         claudeDesktopSonnetModel: key.claudeDesktopSonnetModel,
         claudeDesktopHaikuModel: key.claudeDesktopHaikuModel,
         claudeDesktopOpusModel: key.claudeDesktopOpusModel,
         claudeCodeConfig: key.claudeCodeConfig,
+        toolConfigs: toolConfigs,
         isValidated: key.isValidated,
       );
 
@@ -501,7 +514,7 @@ class KeyManagerViewModel extends BaseViewModel {
       await _databaseService.updateKey(updatedKey);
 
       // 检查该密钥是否是当前激活的密钥，如果是则立即触发配置更新
-      await _refreshActiveConfigIfNeeded(updatedKey);
+      await _refreshActiveConfigIfNeeded(updatedKey, previous: existing);
 
       return true;
     } catch (e) {
@@ -515,6 +528,10 @@ class KeyManagerViewModel extends BaseViewModel {
   /// 删除密钥
   Future<bool> deleteKey(int id) async {
     return await executeAsync(() async {
+          // 先把这把密钥从累加型工具（OpenCode/Hermes/Pi/MiniMax Code/OpenClaw）的配置里移除，
+          // 避免删除后密钥仍残留在工具配置文件中（孤儿配置）。清理失败不阻断删除。
+          final existing = await _databaseService.getKeyById(id);
+          if (existing != null) await _removeKeyFromAdditiveTools(existing);
           await _databaseService.secureDeleteKey(id);
           await loadKeys();
           return true;
@@ -738,6 +755,7 @@ class KeyManagerViewModel extends BaseViewModel {
         claudeDesktopHaikuModel: key.claudeDesktopHaikuModel,
         claudeDesktopOpusModel: key.claudeDesktopOpusModel,
         claudeCodeConfig: key.claudeCodeConfig,
+        toolConfigs: key.toolConfigs,
         isValidated: key.isValidated,
       );
     } catch (e) {
@@ -1279,7 +1297,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
   /// 检查密钥是否是当前激活的密钥，如果是则刷新配置
   /// 这个方法在更新密钥后调用，确保配置文件与保存后的密钥值保持同步
-  Future<void> _refreshActiveConfigIfNeeded(AIKey key) async {
+  Future<void> _refreshActiveConfigIfNeeded(AIKey key, {AIKey? previous}) async {
     if (key.id == null) return;
 
     try {
@@ -1382,6 +1400,7 @@ class KeyManagerViewModel extends BaseViewModel {
       // 配置刷新失败不应该影响密钥保存的成功
       print('KeyManagerViewModel: 刷新激活配置失败: $e');
     }
+    await _refreshToolProvidersIfApplied(key, previous: previous);
   }
 
   /// 检测 Gemini 配置文件是否存在
@@ -1511,6 +1530,155 @@ class KeyManagerViewModel extends BaseViewModel {
   }
 
   /// 通知状态栏菜单更新
+  // ---------------------------------------------------------------------------
+  // 新工具（OpenCode / Grok Build / Hermes / Pi / MiniMax Code）的密钥切换
+  // ---------------------------------------------------------------------------
+
+  final ToolProviderService _toolProviderService = ToolProviderService();
+
+  /// 最近一次新工具写入失败的原因（供 UI 提示）
+  String? lastToolProviderError;
+
+  /// 对某个新工具启用的密钥
+  List<AIKey> keysForTool(AiToolType tool) => _allKeys.where((k) => k.isToolEnabled(tool.value)).toList();
+
+  /// 设置密钥对某个新工具的启用状态与覆盖项（只改数据库，不写工具配置）
+  Future<bool> setKeyToolConfig(int keyId, AiToolType tool, {required bool enabled, String? baseUrl, String? model}) async {
+    final key = await _databaseService.getKeyById(keyId);
+    if (key == null) return false;
+    final configs = {for (final e in key.toolConfigs.entries) e.key: Map<String, dynamic>.from(e.value)};
+    final cfg = configs[tool.value] ?? <String, dynamic>{};
+    cfg['enabled'] = enabled;
+    if (baseUrl != null) baseUrl.trim().isEmpty ? cfg.remove('baseUrl') : cfg['baseUrl'] = baseUrl.trim();
+    if (model != null) model.trim().isEmpty ? cfg.remove('model') : cfg['model'] = model.trim();
+    configs[tool.value] = cfg;
+    final updated = key.copyWith(toolConfigs: configs);
+    await _databaseService.updateKey(updated);
+    final i = _allKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) _allKeys[i] = updated;
+    notifyListeners();
+    return true;
+  }
+
+  /// 把密钥写入新工具（[makeDefault]：同时设为该工具默认；Grok Build 总是切换）
+  Future<bool> applyKeyToTool(AiToolType tool, int keyId, {bool makeDefault = true}) async {
+    lastToolProviderError = null;
+    try {
+      final key = await _databaseService.getKeyById(keyId);
+      if (key == null) throw ToolProviderException('密钥不存在');
+      final plain = await decryptKeyValue(key.keyValue);
+      if (plain == null || plain.isEmpty) throw ToolProviderException('无法解密密钥');
+      await _toolProviderService.apply(tool, key, plain, makeDefault: makeDefault);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      lastToolProviderError = e.toString();
+      return false;
+    }
+  }
+
+  /// 从新工具配置中移除密钥（Grok Build：若正在使用则切回官方）
+  Future<bool> removeKeyFromTool(AiToolType tool, int keyId) async {
+    lastToolProviderError = null;
+    try {
+      final key = await _databaseService.getKeyById(keyId);
+      if (key == null) return false;
+      await _toolProviderService.remove(tool, key, decryptedKey: await decryptKeyValue(key.keyValue));
+      notifyListeners();
+      return true;
+    } catch (e) {
+      lastToolProviderError = e.toString();
+      return false;
+    }
+  }
+
+  /// Grok Build 切回官方登录
+  Future<bool> switchGrokBuildToOfficial() async {
+    try {
+      await _toolProviderService.switchGrokToOfficial();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      lastToolProviderError = e.toString();
+      return false;
+    }
+  }
+
+  /// 已写入某个累加型工具的密钥 id
+  Future<Set<int>> getToolAppliedKeyIds(AiToolType tool) => _toolProviderService.appliedKeyIds(tool);
+
+  /// 某个新工具当前默认使用的密钥 id（Grok Build 按 api_key 反查；官方态返回 null）
+  Future<int?> getToolDefaultKeyId(AiToolType tool) async {
+    if (tool != AiToolType.grokBuild) return _toolProviderService.defaultKeyId(tool);
+    final current = await _toolProviderService.currentGrokApiKey();
+    if (current == null || current.isEmpty) return null;
+    for (final key in _allKeys) {
+      if (await decryptKeyValue(key.keyValue) == current) return key.id;
+    }
+    return null;
+  }
+
+  /// 编辑密钥后：已写入新工具的，按新值重写（保持原有“是否默认”状态）
+  Future<void> _refreshToolProvidersIfApplied(AIKey key, {AIKey? previous}) async {
+    if (key.id == null) return;
+    final plain = await decryptKeyValue(key.keyValue);
+    if (plain == null || plain.isEmpty) return;
+    for (final tool in ToolProviderService.tools) {
+      try {
+        if (tool == AiToolType.grokBuild) {
+          final current = await _toolProviderService.currentGrokApiKey();
+          final before = previous == null ? null : await decryptKeyValue(previous.keyValue);
+          if (current != null && (current == plain || (before != null && current == before))) {
+            await _toolProviderService.apply(tool, key, plain);
+          }
+          continue;
+        }
+        if (!(await _toolProviderService.appliedKeyIds(tool)).contains(key.id)) continue;
+        final isDefault = await _toolProviderService.defaultKeyId(tool) == key.id;
+        await _toolProviderService.apply(tool, key, plain, makeDefault: isDefault);
+      } catch (e) {
+        print('KeyManagerViewModel: 刷新 ${tool.value} 配置失败: $e');
+      }
+    }
+    // OpenClaw：该密钥正被应用时，按新值重写
+    try {
+      final oc = OpenClawConfigService();
+      final applied = await oc.getAppliedKeyIds();
+      if (applied.values.contains(key.id) && key.enableOpenclaw) {
+        await oc.applyProviderKey(
+          keyId: key.id!,
+          decryptedKey: plain,
+          platformId: key.platformType.id,
+          openclawBaseUrl: key.openclawBaseUrl,
+          openclawModel: key.openclawModel,
+        );
+      }
+    } catch (e) {
+      print('KeyManagerViewModel: 刷新 OpenClaw 配置失败: $e');
+    }
+  }
+
+  /// 删除密钥前：从累加型工具中移除（新工具 + OpenClaw）
+  Future<void> _removeKeyFromAdditiveTools(AIKey key) async {
+    final plain = await decryptKeyValue(key.keyValue);
+    for (final tool in ToolProviderService.tools) {
+      try {
+        await _toolProviderService.remove(tool, key, decryptedKey: plain);
+      } catch (e) {
+        print('KeyManagerViewModel: 从 ${tool.value} 移除密钥失败: $e');
+      }
+    }
+    try {
+      final oc = OpenClawConfigService();
+      final applied = await oc.getAppliedKeyIds();
+      if (applied.values.contains(key.id)) {
+        await oc.removeProviderKey(platformId: key.platformType.id);
+      }
+    } catch (e) {
+      print('KeyManagerViewModel: 从 OpenClaw 移除密钥失败: $e');
+    }
+  }
+
   Future<void> _notifyStatusBarMenuUpdate() async {
     if (Platform.isMacOS) {
       try {

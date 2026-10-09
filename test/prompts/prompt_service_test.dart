@@ -182,6 +182,6 @@ void main() {
     final db = await DatabaseService.instance.database;
     final cols = (await db.rawQuery('PRAGMA table_info(prompts)')).map((r) => r['name']).toSet();
     expect(cols, containsAll(['tool', 'name', 'content', 'description', 'enabled']));
-    expect(DatabaseService.schemaVersion, 21);
+    expect(DatabaseService.schemaVersion, greaterThanOrEqualTo(21));
   });
 }

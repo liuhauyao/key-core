@@ -456,11 +456,16 @@ class CloudConfig {
   final String lastUpdated;
   final CloudConfigData config;
 
+  /// 原始 JSON（来自 fromJson）。缓存时原样写回，避免当前版本未建模的字段
+  /// （例如更新版本新增的预设块）在 toJson 往返中丢失。
+  final Map<String, dynamic>? rawJson;
+
   CloudConfig({
     required this.version,
     required this.schemaVersion,
     required this.lastUpdated,
     required this.config,
+    this.rawJson,
   });
 
   factory CloudConfig.fromJson(Map<String, dynamic> json) {
@@ -469,10 +474,12 @@ class CloudConfig {
       schemaVersion: json['schemaVersion'] as int,
       lastUpdated: json['lastUpdated'] as String,
       config: CloudConfigData.fromJson(json['config'] as Map<String, dynamic>),
+      rawJson: json,
     );
   }
 
   Map<String, dynamic> toJson() {
+    if (rawJson != null) return rawJson!;
     return {
       'version': version,
       'schemaVersion': schemaVersion,

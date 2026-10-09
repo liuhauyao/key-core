@@ -633,13 +633,34 @@ class OpenClawConfigService {
   /// 查找平台对应的 OpenClaw 供应商信息：
   /// 先查内置映射（官方内置 provider，含精确模型定义），否则由供应商预设的 `openclaw` 块动态生成，
   /// 这样新增的预设（app_config.json）无需改代码即可应用到 OpenClaw。
+  ///
+  /// 内置映射只提供 OpenClaw 认识的 provider id / 环境变量名（例如 `google` + `GEMINI_API_KEY`）；
+  /// 预设里有 `openclaw` 块时，地址、协议与模型列表以预设为准——预设随 app_config.json
+  /// 远程更新，而内置映射里的模型写死在代码中，很快会过时。
   static OpenClawPlatformInfo? platformInfoFor(String platformId) {
-    final builtin = platformMapping[platformId];
-    if (builtin != null) return builtin;
+    final builtin = platformMapping[platformId] ?? platformMapping[platformAliases[platformId]];
     final preset = ProviderConfig.getPresetByPlatformId(platformId);
-    if (preset == null) return null;
-    return platformInfoFromPreset(preset);
+    final fromPreset = preset == null ? null : platformInfoFromPreset(preset);
+    if (builtin == null) return fromPreset;
+    if (fromPreset == null || fromPreset.models.isEmpty) return builtin;
+    return OpenClawPlatformInfo(
+      envKey: builtin.envKey,
+      openclawProviderId: builtin.openclawProviderId,
+      isBuiltin: builtin.isBuiltin,
+      baseUrl: fromPreset.baseUrl,
+      apiType: fromPreset.apiType,
+      displayName: builtin.displayName,
+      models: fromPreset.models,
+    );
   }
+
+  /// key-core 平台 id（PlatformType.id）→ 内置映射键。
+  /// 内置映射早期按预设 id 命名，而密钥上存的是 platformType（Google 预设为 `gemini`，
+  /// Kimi 预设为 `moonshot`），不加别名时这两个内置 provider 永远匹配不到。
+  static const Map<String, String> platformAliases = {
+    'gemini': 'google',
+    'moonshot': 'kimi',
+  };
 
   /// 由供应商预设生成 OpenClaw 供应商信息（纯函数）
   static OpenClawPlatformInfo? platformInfoFromPreset(UnifiedProviderConfig preset) {
@@ -677,11 +698,13 @@ class OpenClawConfigService {
 
   /// 所有可用的 OpenClaw 供应商信息（内置映射 + 预设）
   static Iterable<OpenClawPlatformInfo> get _allPlatformInfos sync* {
-    yield* platformMapping.values;
+    final seen = <String>{};
     for (final p in ProviderConfig.allPresets) {
-      if (platformMapping.containsKey(p.platformType)) continue;
-      final info = platformInfoFromPreset(p);
-      if (info != null) yield info;
+      final info = platformInfoFor(p.platformType);
+      if (info != null && seen.add(info.envKey)) yield info;
+    }
+    for (final info in platformMapping.values) {
+      if (seen.add(info.envKey)) yield info;
     }
   }
 
