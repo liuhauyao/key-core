@@ -110,7 +110,7 @@ void main() {
   final service = DatabaseService.instance;
 
   test('schema version is 19', () {
-    expect(DatabaseService.schemaVersion, 20);
+    expect(DatabaseService.schemaVersion, 21);
   });
 
   test('upgrade v18 -> v19 creates mcp_server_apps (idempotent)', () async {
@@ -122,6 +122,18 @@ void main() {
     await service.runUpgradeForTest(db, 18, 19);
     expect(await _tables(db), contains('mcp_server_apps'));
     expect(await _columns(db, 'mcp_server_apps'), {'server_id', 'tool', 'created_at'});
+    await db.close();
+  });
+
+  test('upgrade v20 -> v21 creates prompts (idempotent)', () async {
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, 15);
+    await db.execute('DROP TABLE prompts');
+    await service.runUpgradeForTest(db, 20, 21);
+    await service.runUpgradeForTest(db, 20, 21);
+    expect(await _tables(db), contains('prompts'));
+    expect(await _columns(db, 'prompts'),
+        {'id', 'tool', 'name', 'content', 'description', 'enabled', 'created_at', 'updated_at'});
     await db.close();
   });
 
