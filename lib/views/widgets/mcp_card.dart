@@ -203,7 +203,7 @@ class _McpCardState extends State<McpCard> {
                 _buildActionButton(
                   context,
                   icon: Icons.apps_outlined,
-                  tooltip: '按工具启用',
+                  tooltip: localizations?.mcpEnablePerTool ?? 'Enable per tool',
                   onPressed: widget.onManageApps,
                 ),
               if (widget.server.docs != null && widget.server.docs!.isNotEmpty)

@@ -9,9 +9,13 @@ import '../services/crypt_service.dart';
 import '../services/auth_service.dart';
 import '../services/mcp_database_service.dart';
 import '../services/settings_service.dart';
+import 'backup/backup_extras.dart';
 
 /// 导入服务
 class ImportService {
+  ImportService({BackupExtras? extras}) : _extras = extras;
+
+  final BackupExtras? _extras;
   final DatabaseService _databaseService = DatabaseService.instance;
   final McpDatabaseService _mcpDatabaseService = McpDatabaseService();
   final CryptService _cryptService = CryptService();
@@ -83,9 +87,13 @@ class ImportService {
 
       final keysData = jsonData['keys'] as List<dynamic>?;
       final mcpServersData = jsonData['mcp_servers'] as List<dynamic>?;
-      
+      final extras = _extras ?? BackupExtras();
+
       // 兼容旧版本导出文件（可能没有mcp_servers字段）
-      if (keysData == null && (mcpServersData == null || mcpServersData.isEmpty)) {
+      if (keysData == null &&
+          (mcpServersData == null || mcpServersData.isEmpty) &&
+          jsonData['prompts'] == null &&
+          jsonData['skills'] == null) {
         throw Exception('文件中没有密钥或MCP服务数据');
       }
 
@@ -131,9 +139,15 @@ class ImportService {
           // 优先使用 platform 字段（平台名称）来恢复，因为它更可靠
           // 如果 platform 字段无法匹配，再尝试使用 platform_type 索引
           PlatformType platformType = PlatformType.custom;
-          
-          // 方法1：优先使用 platform 字段（平台名称）恢复
-          if (keyMap['platform'] != null) {
+
+          // 方法0：新版导出带 platform_type_id（稳定 ID），最可靠
+          final typeId = keyMap['platform_type_id'];
+          if (typeId is String && typeId.isNotEmpty) {
+            platformType = PlatformRegistry.get(typeId) ?? PlatformType.custom;
+          }
+
+          // 方法1：使用 platform 字段（平台名称）恢复
+          if (platformType == PlatformType.custom && keyMap['platform'] != null) {
             final platformName = keyMap['platform'] as String;
             if (platformName.isNotEmpty) {
               final platformTypeByName = PlatformRegistry.fromString(platformName);
@@ -143,8 +157,8 @@ class ImportService {
             }
           }
           
-          // 方法2：如果 platform 字段无法匹配，尝试使用 platform_type 索引
-          if (platformType == PlatformType.custom && keyMap['platform_type'] != null) {
+          // 方法2：旧版导出文件只有 platform_type 索引（索引随平台注册表变化，可能不准，最后才用）
+          if (platformType == PlatformType.custom && typeId == null && keyMap['platform_type'] is int) {
             final typeIndex = keyMap['platform_type'] as int;
             if (typeIndex >= 0) {
               final allPlatforms = PlatformRegistry.values;
@@ -378,12 +392,18 @@ class ImportService {
               await _mcpDatabaseService.addMcpServer(server);
               importedMcpServers.add(server);
             }
+            // 按工具启用关系（只记录，不直接写工具配置）
+            await extras.importMcpEnabledTools(serverId, serverMap['enabled_tools']);
           } catch (e) {
             final serverName = serverData is Map ? (serverData['name'] ?? '未知') : '未知';
             errors.add('导入MCP服务失败: $serverName: ${e.toString()}');
           }
         }
       }
+
+      // 提示词 / Skills（新版导出文件才有）
+      final promptCount = await extras.importPrompts(jsonData['prompts'], errors);
+      final skillsResult = await extras.importSkills(jsonData['skills'], errors);
 
       // 处理官方 API Key 配置（如果存在）
       final officialApiKeysData = jsonData['official_api_keys'] as Map<String, dynamic>?;
@@ -425,6 +445,9 @@ class ImportService {
         updatedCount: updatedKeys.length,
         mcpImportedCount: importedMcpServers.length,
         mcpUpdatedCount: updatedMcpServers.length,
+        promptCount: promptCount,
+        skillCount: skillsResult.skills,
+        skillRepoCount: skillsResult.repos,
         errorCount: errors.length,
         errors: errors,
       );
@@ -446,6 +469,9 @@ class ImportResult {
   final int updatedCount; // 更新的密钥数量
   final int mcpImportedCount; // 新增的MCP服务数量
   final int mcpUpdatedCount; // 更新的MCP服务数量
+  final int promptCount; // 新增的提示词数量
+  final int skillCount; // 恢复的 Skill 记录数量
+  final int skillRepoCount; // 新增的 Skills 仓库数量
   final int errorCount;
   final List<String> errors;
 
@@ -455,6 +481,9 @@ class ImportResult {
     this.updatedCount = 0,
     this.mcpImportedCount = 0,
     this.mcpUpdatedCount = 0,
+    this.promptCount = 0,
+    this.skillCount = 0,
+    this.skillRepoCount = 0,
     required this.errorCount,
     required this.errors,
   });
@@ -473,6 +502,10 @@ class ImportResult {
         if (mcpImportedCount > 0) mcpParts.add('新增 $mcpImportedCount 个MCP服务');
         if (mcpUpdatedCount > 0) mcpParts.add('更新 $mcpUpdatedCount 个MCP服务');
         parts.add(mcpParts.join('，'));
+      }
+      if (promptCount > 0) parts.add('新增 $promptCount 条提示词');
+      if (skillCount > 0 || skillRepoCount > 0) {
+        parts.add('恢复 $skillCount 个 Skill 记录、$skillRepoCount 个仓库');
       }
       if (errorCount > 0) {
         parts.add('$errorCount 个失败');
