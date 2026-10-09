@@ -1285,7 +1285,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
       return;
     }
 
-    showDialog(
+    showKeyDetailsSheet(
       context: context,
       builder: (context) => KeyDetailsDialog(
         aiKey: decryptedKey,

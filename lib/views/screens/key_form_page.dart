@@ -10,7 +10,6 @@ import '../../models/platform_type.dart';
 import '../../constants/app_constants.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/app_localizations.dart';
-import '../../utils/liquid_glass_decoration.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../config/provider_config.dart';
 import '../widgets/platform_category_tabs.dart';
@@ -31,6 +30,10 @@ import '../widgets/ime_safe_text_field.dart';
 import '../widgets/key_validation_button.dart';
 import '../widgets/model_list_dialog.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../theme/kc_tokens.dart';
+import '../../viewmodels/key_manager_viewmodel.dart';
+import '../widgets/kc_logo.dart';
+import '../widgets/key_card.dart' show toolConfigPathHint;
 
 /// 密钥编辑表单页面
 class KeyFormPage extends StatefulWidget {
@@ -99,6 +102,8 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   bool _enableGemini = false;
   bool _enableOpenclaw = false;
   bool _enableClaudeDesktop = false;
+  bool _submitAttempted = false;
+  AiToolType? _toolTab;
 
   // 图标选择
   String? _selectedIcon;
@@ -707,60 +712,18 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     final localizations = AppLocalizations.of(context);
     final shadTheme = ShadTheme.of(context);
     final iconColor = shadTheme.colorScheme.foreground;
+    final errors = _submitAttempted ? _formErrors(localizations) : const <String, String>{};
 
-    return Scaffold(
-      backgroundColor: shadTheme.colorScheme.background,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        toolbarHeight: 0,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
-      body: SafeArea(
-        top: false, // macOS 沉浸式标题栏：不预留顶部安全区域
-        bottom: false,
-        left: false,
-        right: false,
-        child: Column(
-          children: [
-            // macOS 26 风格：沉浸式标题栏（与界面融为一体）
-            // 供应商分组位于标题栏内，高度与主页页面切换栏完全一致
-            _buildImmersiveTitleBar(context),
-            // 表单内容
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-
-              // 密钥名称和供应商（同一行）
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: ImeSafeTextField(
+    // ── 左栏：平台预设 + 基本信息（ui_redesign_plan §5.4 / mockup 04） ──
+    final nameField = _withFieldError(ImeSafeTextField(
                       controller: _nameController,
                       labelText: localizations?.keyNameLabel ?? '密钥名称 *',
                       hintText: localizations?.keyNameHint ?? '请输入密钥名称',
                       prefixIcon: _buildClickableIcon(context, shadTheme),
                       isDark: Theme.of(context).brightness == Brightness.dark,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildProviderDropdown(context, shadTheme, localizations),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // 管理地址和API地址（同一行）
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: ImeSafeTextField(
+                    ), errors['name']);
+    final providerField = _buildProviderDropdown(context, shadTheme, localizations);
+    final managementUrlField = ImeSafeTextField(
                       controller: _managementUrlController,
                       labelText: localizations?.managementUrlLabel ?? '管理地址',
                       hintText: localizations?.managementUrlHint ?? 'https://example.com',
@@ -784,25 +747,16 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                             )
                           : null,
                       isDark: Theme.of(context).brightness == Brightness.dark,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ImeSafeTextField(
+                    );
+    final apiEndpointField = ImeSafeTextField(
                       controller: _apiEndpointController,
                       labelText: localizations?.apiEndpointLabel ?? 'API地址',
                       hintText: localizations?.apiEndpointHint ?? 'https://api.example.com',
                       prefixIcon: Icon(Icons.code, size: 18, color: shadTheme.colorScheme.mutedForeground),
                       keyboardType: TextInputType.url,
                       isDark: Theme.of(context).brightness == Brightness.dark,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // 密钥值
-              ImeSafeTextField(
+                    );
+    final keyValueField = _withFieldError(ImeSafeTextField(
                 controller: _keyValueController,
                 labelText: localizations?.keyValueLabelForm ?? '密钥值 *',
                 hintText: localizations?.keyValueHint ?? '请输入密钥值',
@@ -826,25 +780,15 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                   constraints: const BoxConstraints(),
                 ),
                 isDark: Theme.of(context).brightness == Brightness.dark,
-              ),
-              const SizedBox(height: 16),
-
-              // 标签和过期日期（同一行）
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: ImeSafeTextField(
+              ), errors['key']);
+    final tagsField = _withFieldError(ImeSafeTextField(
                       controller: _tagsController,
                       labelText: localizations?.tagsLabel ?? '标签',
                       hintText: localizations?.tagsHint ?? '多个标签用逗号分隔',
                       prefixIcon: Icon(Icons.local_offer, size: 18, color: shadTheme.colorScheme.mutedForeground),
                       isDark: Theme.of(context).brightness == Brightness.dark,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ImeSafeTextField(
+                    ), errors['tags']);
+    final expiryField = ImeSafeTextField(
                       controller: _expiryDateController,
                       labelText: localizations?.expiryDateLabel ?? '过期日期',
                       hintText: localizations?.expiryDateHint ?? '选择日期（可选）',
@@ -940,111 +884,114 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                               ),
                             ),
                       isDark: Theme.of(context).brightness == Brightness.dark,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // 备注（单行100字符）
-              ImeSafeTextField(
+                    );
+    final notesField = ImeSafeTextField(
                 controller: _notesController,
                 labelText: localizations?.notesLabel ?? '备注',
                 hintText: localizations?.notesHint ?? '请输入备注信息',
                 prefixIcon: Icon(Icons.notes, size: 18, color: shadTheme.colorScheme.mutedForeground),
                 isDark: Theme.of(context).brightness == Brightness.dark,
-              ),
-              const SizedBox(height: 24),
-              
-              // ClaudeCode 配置区域（仅在工具启用时显示）
-              Consumer<SettingsViewModel>(
-                builder: (context, settingsViewModel, child) {
-                  final enabledTools = settingsViewModel.getEnabledTools();
-                  final isClaudeCodeEnabled = enabledTools.contains(AiToolType.claudecode);
-                  if (_selectedPlatform != null && isClaudeCodeEnabled) {
-                    return Column(
-                      children: [
-                _buildClaudeCodeConfigSection(context, shadTheme, localizations),
-                const SizedBox(height: 24),
-                      ],
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
-              
-              // Codex 配置区域（仅在工具启用时显示）
-              Consumer<SettingsViewModel>(
-                builder: (context, settingsViewModel, child) {
-                  final enabledTools = settingsViewModel.getEnabledTools();
-                  final isCodexEnabled = enabledTools.contains(AiToolType.codex);
-                  if (_selectedPlatform != null && isCodexEnabled) {
-                    return Column(
-                      children: [
-                _buildCodexConfigSection(context, shadTheme, localizations),
-                const SizedBox(height: 24),
-                    ],
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
-              
-              // Gemini 配置区域（仅在工具启用时显示）
-              Consumer<SettingsViewModel>(
-                builder: (context, settingsViewModel, child) {
-                  final enabledTools = settingsViewModel.getEnabledTools();
-                  final isGeminiEnabled = enabledTools.contains(AiToolType.gemini);
-                  if (_selectedPlatform != null && isGeminiEnabled) {
-                    return Column(
-                      children: [
-                        _buildGeminiConfigSection(context, shadTheme, localizations),
-                        const SizedBox(height: 24),
-                      ],
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
+              );
 
-              // OpenClaw 配置区域（工具已启用且已选供应商时显示）
-              Consumer<SettingsViewModel>(
-                builder: (context, settingsViewModel, child) {
-                  final enabledTools = settingsViewModel.getEnabledTools();
-                  final isOpenClawEnabled = enabledTools.contains(AiToolType.openclaw);
-                  if (isOpenClawEnabled && _selectedPlatform != null) {
-                    return Column(
-                      children: [
-                        _buildOpenClawConfigSection(context, shadTheme, localizations),
-                        const SizedBox(height: 24),
-                      ],
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
+    final showPresets = !_isEditMode || _showProviderList;
+    final leftColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showPresets) ...[
+          _formSectionTitle(context, localizations?.platformPresets ?? '平台预设'),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            primary: false,
+            child: _buildCategorySwitcher(context, shadTheme),
+          ),
+          const SizedBox(height: KcSpace.x3),
+          _buildPlatformChips(context, shadTheme),
+          const SizedBox(height: KcSpace.x6),
+        ],
+        _formSectionTitle(context, localizations?.basicInfo ?? '基本信息'),
+        nameField,
+        const SizedBox(height: KcSpace.x4),
+        providerField,
+        const SizedBox(height: KcSpace.x4),
+        keyValueField,
+        const SizedBox(height: KcSpace.x4),
+        apiEndpointField,
+        const SizedBox(height: KcSpace.x4),
+        managementUrlField,
+        const SizedBox(height: KcSpace.x4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: expiryField),
+            const SizedBox(width: KcSpace.x3),
+            Expanded(child: tagsField),
+          ],
+        ),
+        const SizedBox(height: KcSpace.x4),
+        notesField,
+      ],
+    );
 
-              // Claude Desktop 配置区域（工具已启用且已选供应商时显示）
-              Consumer<SettingsViewModel>(
-                builder: (context, settingsViewModel, child) {
-                  final enabledTools = settingsViewModel.getEnabledTools();
-                  final isClaudeDesktopEnabled = enabledTools.contains(AiToolType.claudeDesktop);
-                  if (isClaudeDesktopEnabled && _selectedPlatform != null) {
-                    return Column(
+    final rightColumn = _buildToolConfigPanel(context, shadTheme, localizations);
+
+    return Scaffold(
+      backgroundColor: shadTheme.colorScheme.background,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        toolbarHeight: 0,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+      ),
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        left: false,
+        right: false,
+        child: Column(
+          children: [
+            _buildFormHeader(context, shadTheme, localizations),
+            Divider(height: 1, thickness: 1, color: shadTheme.colorScheme.border),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // 宽屏：左 380 基本信息 / 右 工具配置；窄屏上下排
+                  if (constraints.maxWidth >= 860) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildClaudeDesktopConfigSection(context, shadTheme, localizations),
-                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: 380,
+                          child: SingleChildScrollView(
+                            key: const ValueKey('keyForm.left'),
+                            primary: false,
+                            padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.page),
+                            child: leftColumn,
+                          ),
+                        ),
+                        VerticalDivider(width: 1, thickness: 1, color: shadTheme.colorScheme.border),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            key: const ValueKey('keyForm.right'),
+                            primary: false,
+                            padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.page),
+                            child: rightColumn,
+                          ),
+                        ),
                       ],
                     );
                   }
-                  return const SizedBox.shrink();
+                  return SingleChildScrollView(
+                    primary: false,
+                    padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.page),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [leftColumn, const SizedBox(height: KcSpace.x6), rightColumn],
+                    ),
+                  );
                 },
-              ),
-                    ],
-                ),
               ),
             ),
-            // 底部按钮区域 - Shadcn 风格
+            // 底部操作栏（固定）
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               decoration: BoxDecoration(
@@ -1059,6 +1006,14 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (_submitAttempted && _formErrors(localizations).isNotEmpty)
+                    Text(
+                      localizations?.nFieldsNeedFix(_formErrors(localizations).length) ??
+                          '${_formErrors(localizations).length} 处需要修改',
+                      key: const ValueKey('keyForm.errorCount'),
+                      style: KcType.caption.copyWith(color: context.kc.dangerText, fontWeight: FontWeight.w500),
+                    ),
+                  const Spacer(),
                   // 校验按钮（如果支持则显示，密钥值为空时禁用）
                   if (_supportsValidation && _selectedPlatform != null) ...[
                     ShadButton.outline(
@@ -1121,6 +1076,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 12),
                   ShadButton(
+                    key: const ValueKey('keyForm.submit'),
                     onPressed: _handleSubmit,
                     leading: Icon(
                       _isEditMode ? Icons.save : Icons.add,
@@ -1141,101 +1097,211 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     );
   }
 
-  /// macOS 26 风格：沉浸式标题栏（与界面融为一体）
-  /// 供应商分组位于标题栏内，高度与主页页面切换栏完全一致
-  Widget _buildImmersiveTitleBar(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    
+
+  /// 当前表单里需要修改的字段（key → 错误文案）。只在点过「保存」后展示
+  Map<String, String> _formErrors(AppLocalizations? localizations) {
+    final errors = <String, String>{};
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      errors['name'] = localizations?.keyNameRequired ?? '请输入密钥名称';
+    } else if (name.length > AppConstants.maxNameLength) {
+      errors['name'] = localizations?.keyNameTooLong(AppConstants.maxNameLength) ??
+          '密钥名称不能超过 ${AppConstants.maxNameLength} 个字符';
+    }
+    if (_keyValueController.text.trim().isEmpty) {
+      errors['key'] = localizations?.keyValueRequired ?? '请输入密钥值';
+    }
+    if (_tagsController.text.trim().length > 200) {
+      errors['tags'] = localizations?.tagsTooLong ?? '标签不能超过 200 个字符';
+    }
+    return errors;
+  }
+
+  Widget _withFieldError(Widget field, String? error) {
+    if (error == null) return field;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          height: 56, // 与主页标题栏高度完全一致
-          padding: const EdgeInsets.only(top: 20, left: 20), // 与主页 padding top 一致
-          decoration: BoxDecoration(
-            color: shadTheme.colorScheme.background,
-            // 移除底部边框
-          ),
-          child: Stack(
-            children: [
-              // 新建模式：显示供应商分组切换滑块（居中，与主页AppSwitcher一致）
-              // 编辑模式：点击切换供应商按钮后显示供应商分组切换滑块，否则显示"编辑密钥"标题
-              Center(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(
-                        scale: Tween<double>(begin: 0.95, end: 1.0).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeInOutCubic,
-                          ),
-                        ),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: (!_isEditMode || _showProviderList)
-                      ? _buildCategorySwitcher(context, shadTheme)
-                      : Text(
-                          localizations?.editKey ?? '编辑密钥',
-                          key: const ValueKey('edit_title'),
-                          style: shadTheme.textTheme.p.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: shadTheme.colorScheme.foreground,
-                          ),
-                        ),
-                ),
-              ),
-              // 右侧：关闭按钮，垂直居中
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: ShadButton.ghost(
-                    width: 30,
-                    height: 30,
-                    padding: const EdgeInsets.all(0),
-                    child: Icon(
-                      Icons.close,
-                      size: 20,
-                      color: shadTheme.colorScheme.mutedForeground,
-                    ),
-                    onPressed: () {
-                      Navigator.of(context).popUntil((route) => route.isFirst);
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // 供应商选择标签区域 - 仅在显示供应商分组时显示，带丝滑动画
-        AnimatedSize(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOutCubic,
-          child: (!_isEditMode || _showProviderList)
-              ? Container(
-                  padding: const EdgeInsets.only(top: 12, bottom: 12, left: 24, right: 24),
-                  decoration: BoxDecoration(
-                    color: shadTheme.colorScheme.background,
-                    border: Border(
-                      bottom: BorderSide(
-                        color: shadTheme.colorScheme.border,
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  alignment: Alignment.centerLeft,
-                  child: _buildPlatformChips(context, shadTheme),
-                )
-              : const SizedBox.shrink(),
+        field,
+        Padding(
+          padding: const EdgeInsets.only(top: 4, left: 2),
+          child: Text(error, style: KcType.caption.copyWith(color: context.kc.dangerText)),
         ),
       ],
     );
   }
+
+  Widget _formSectionTitle(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: KcSpace.x3),
+        child: Text(text, style: KcType.section.copyWith(color: ShadTheme.of(context).colorScheme.foreground)),
+      );
+
+  /// 顶部标题栏：标题 + 平台 · 名称 + 关闭
+  Widget _buildFormHeader(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations) {
+    final platform = _selectedPlatform;
+    final subtitle = [
+      if (platform != null) platform == PlatformType.custom ? (localizations?.custom ?? '自定义') : platform.value,
+      if (_nameController.text.trim().isNotEmpty) _nameController.text.trim(),
+    ].join(' · ');
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.only(left: KcSpace.page, right: KcSpace.x4),
+      child: Row(
+        children: [
+          if (platform != null) ...[
+            KcPlatformLogo(platform: platform, customIconFileName: _selectedIcon, name: _nameController.text, size: 32, logoSize: 20),
+            const SizedBox(width: KcSpace.x3),
+          ],
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _isEditMode ? (localizations?.editKeyTitle ?? '编辑密钥') : (localizations?.addKeyTitle ?? '添加密钥'),
+                  key: const ValueKey('keyForm.title'),
+                  style: KcType.title.copyWith(color: shadTheme.colorScheme.foreground),
+                ),
+                if (subtitle.isNotEmpty)
+                  Text(subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KcType.caption.copyWith(color: shadTheme.colorScheme.mutedForeground)),
+              ],
+            ),
+          ),
+          ShadButton.ghost(
+            key: const ValueKey('keyForm.close'),
+            width: 32,
+            height: 32,
+            padding: EdgeInsets.zero,
+            child: Icon(Icons.close, size: 20, color: shadTheme.colorScheme.mutedForeground),
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _toolEnabledInForm(AiToolType t) {
+    switch (t) {
+      case AiToolType.claudecode:
+        return _enableClaudeCode;
+      case AiToolType.claudeDesktop:
+        return _enableClaudeDesktop;
+      case AiToolType.codex:
+        return _enableCodex;
+      case AiToolType.gemini:
+        return _enableGemini;
+      case AiToolType.openclaw:
+        return _enableOpenclaw;
+      default:
+        return false;
+    }
+  }
+
+  Widget _toolSection(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations, AiToolType t) {
+    switch (t) {
+      case AiToolType.claudecode:
+        return _buildClaudeCodeConfigSection(context, shadTheme, localizations);
+      case AiToolType.claudeDesktop:
+        return _buildClaudeDesktopConfigSection(context, shadTheme, localizations);
+      case AiToolType.codex:
+        return _buildCodexConfigSection(context, shadTheme, localizations);
+      case AiToolType.gemini:
+        return _buildGeminiConfigSection(context, shadTheme, localizations);
+      case AiToolType.openclaw:
+        return _buildOpenClawConfigSection(context, shadTheme, localizations);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  /// 右栏：工具页签（已用的打 ✓）+ 当前工具的配置区 + 「开启 / 生效中」后果说明
+  Widget _buildToolConfigPanel(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations) {
+    final cs = shadTheme.colorScheme;
+    final kc = context.kc;
+    return Consumer<SettingsViewModel>(
+      builder: (context, settingsViewModel, _) {
+        final enabledTools = settingsViewModel.getEnabledTools();
+        final tools = kcKeyTools.where(enabledTools.contains).toList();
+        if (_selectedPlatform == null || tools.isEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _formSectionTitle(context, localizations?.toolConfig ?? '工具配置'),
+              Text(
+                _selectedPlatform == null
+                    ? (localizations?.selectPlatformFirst ?? '先在左侧选择平台预设')
+                    : (localizations?.noToolsEnabled ?? '设置里还没有开启任何工具'),
+                style: KcType.body.copyWith(color: cs.mutedForeground),
+              ),
+            ],
+          );
+        }
+        final tab = tools.contains(_toolTab) ? _toolTab! : tools.first;
+        Map<AiToolType, int?> currentIds = const {};
+        try {
+          currentIds = Provider.of<KeyManagerViewModel>(context, listen: false).currentKeyIds;
+        } catch (_) {}
+        final editingId = widget.editingKey?.id;
+        final isActive = editingId != null && currentIds[tab] == editingId && _toolEnabledInForm(tab);
+        final name = kcToolName(tab);
+        final note = isActive
+            ? (localizations?.useForToolActiveHint(name, toolConfigPathHint(tab)) ??
+                '这把密钥正在 $name 生效，保存后会同步写入 ${toolConfigPathHint(tab)}')
+            : (localizations?.useForToolHint(name) ?? '开启后出现在 $name 的候选列表；在工具页或卡片上「设为当前」才会写入配置');
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _formSectionTitle(context, localizations?.toolConfig ?? '工具配置'),
+            Wrap(
+              spacing: KcSpace.x1_5,
+              runSpacing: KcSpace.x1_5,
+              children: [
+                for (final t in tools)
+                  _ToolTab(
+                    key: ValueKey('keyForm.toolTab.${t.value}'),
+                    tool: t,
+                    selected: t == tab,
+                    used: _toolEnabledInForm(t),
+                    onTap: () => setState(() => _toolTab = t),
+                  ),
+              ],
+            ),
+            const SizedBox(height: KcSpace.x4),
+            Container(
+              padding: const EdgeInsets.all(KcSpace.x4),
+              decoration: BoxDecoration(
+                color: cs.card,
+                border: Border.all(color: cs.border),
+                borderRadius: BorderRadius.circular(KcRadius.panel),
+              ),
+              child: _toolSection(context, shadTheme, localizations, tab),
+            ),
+            const SizedBox(height: KcSpace.x2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(isActive ? Icons.bolt : Icons.info_outline, size: 14, color: isActive ? kc.okText : kc.text2),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(note,
+                      key: const ValueKey('keyForm.toolNote'),
+                      style: KcType.caption.copyWith(color: isActive ? kc.okText : kc.text2)),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 
   /// 构建分类切换滑块（与主页AppSwitcher样式一致）
   Widget _buildCategorySwitcher(BuildContext context, ShadThemeData shadTheme) {
@@ -1327,8 +1393,8 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     return Wrap(
       alignment: WrapAlignment.start,
       crossAxisAlignment: WrapCrossAlignment.start,
-      spacing: 10,
-      runSpacing: 10,
+      spacing: KcSpace.x1_5,
+      runSpacing: KcSpace.x1_5,
       children: [
         // 自定义选项
         _buildPlatformChip(
@@ -1492,53 +1558,30 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
             }
           }
         },
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(KcRadius.control),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          key: ValueKey('keyForm.preset.${platform.id}'),
+          duration: KcMotion.of(context, KcMotion.fast),
+          height: 32,
+          padding: const EdgeInsets.only(left: 6, right: 10),
           decoration: BoxDecoration(
-            color: isSelected
-                ? platform.color.withOpacity(0.9)
-                : (isDark 
-                    ? Colors.white.withOpacity(0.08) 
-                    : Colors.white.withOpacity(0.5)),
-            borderRadius: BorderRadius.circular(8),
+            color: isSelected ? context.kc.actionSoft : shadTheme.colorScheme.card,
+            borderRadius: BorderRadius.circular(KcRadius.control),
             border: Border.all(
-              color: isSelected
-                  ? platform.color
-                  : (isDark 
-                      ? Colors.white.withOpacity(0.15) 
-                      : Colors.black.withOpacity(0.1)),
+              color: isSelected ? shadTheme.colorScheme.primary : shadTheme.colorScheme.border,
               width: isSelected ? 1.5 : 1,
             ),
-            boxShadow: isSelected ? [
-              BoxShadow(
-                color: platform.color.withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ] : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              PlatformIconService.buildIcon(
-                platform: platform,
-                size: 16,
-                color: isSelected ? Colors.white : null,
-              ),
+              KcPlatformLogo(platform: platform, name: displayLabel, size: 20, logoSize: 14),
               const SizedBox(width: 6),
               Text(
                 displayLabel,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isSelected 
-                      ? Colors.white 
-                      : (isDark 
-                          ? Colors.white.withOpacity(0.7) 
-                          : Colors.black.withOpacity(0.7)),
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                style: KcType.body.copyWith(
+                  color: isSelected ? context.kc.actionText : shadTheme.colorScheme.foreground,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
             ],
@@ -1773,34 +1816,12 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   void _handleSubmit() {
     final localizations = AppLocalizations.of(context);
     
-    // ⚠️ 手动验证必填字段和长度（替代 validator 以避免输入时重建导致 IME 卡住）
-    if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations?.keyNameRequired ?? '请输入密钥名称')),
-      );
+    // ⚠️ 手动验证必填字段和长度（替代 validator 以避免输入时重建导致 IME 卡住）。错误就地显示在字段下方，底栏显示「n 处需要修改」
+    if (_formErrors(localizations).isNotEmpty) {
+      setState(() => _submitAttempted = true);
       return;
     }
-    if (_keyValueController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations?.keyValueRequired ?? '请输入密钥值')),
-      );
-      return;
-    }
-    
-    // 手动验证长度（替代 maxLength 以避免 IME 冲突）
-    if (_nameController.text.trim().length > AppConstants.maxNameLength) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations?.keyNameTooLong(AppConstants.maxNameLength) ?? '密钥名称不能超过 ${AppConstants.maxNameLength} 个字符')),
-      );
-      return;
-    }
-    if (_tagsController.text.trim().length > 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations?.tagsTooLong ?? '标签不能超过 200 个字符')),
-      );
-      return;
-    }
-    
+
       // 解析标签
       final tags = _tagsController.text
           .split(',')
@@ -2671,3 +2692,49 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   }
 }
 
+/// 表单右栏的工具页签：logo + 名称，已用于该工具时带 ✓
+class _ToolTab extends StatelessWidget {
+  final AiToolType tool;
+  final bool selected;
+  final bool used;
+  final VoidCallback onTap;
+
+  const _ToolTab({super.key, required this.tool, required this.selected, required this.used, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(KcRadius.control),
+        child: Container(
+          height: KcSize.control,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: selected ? kc.actionSoft : cs.card,
+            borderRadius: BorderRadius.circular(KcRadius.control),
+            border: Border.all(color: selected ? cs.primary : cs.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              KcToolLogo(tool: tool, size: 16),
+              const SizedBox(width: 6),
+              Text(kcToolName(tool),
+                  style: KcType.body.copyWith(
+                      color: selected ? kc.actionText : cs.foreground,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+              if (used) ...[
+                const SizedBox(width: 4),
+                Icon(Icons.check, size: 14, color: kc.okText),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

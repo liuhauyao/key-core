@@ -100,6 +100,16 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
     return true;
   }
 
+  final List<AIKey> updateCalls = [];
+
+  @override
+  Future<bool> updateKey(AIKey key) async {
+    updateCalls.add(key);
+    _all = [for (final k in _all) k.id == key.id ? key : k];
+    notifyListeners();
+    return true;
+  }
+
   @override
   Future<AIKey?> getDecryptedKey(int id) async {
     decryptCalls.add(id);

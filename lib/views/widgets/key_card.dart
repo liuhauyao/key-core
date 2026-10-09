@@ -1433,7 +1433,8 @@ class _ToolStatusChips extends StatelessWidget {
         ),
     ];
 
-    final showPlus = onEnableTool != null && notEnabled.isNotEmpty && (cardHovered || enabled.isEmpty);
+    final hasPlus = onEnableTool != null && notEnabled.isNotEmpty;
+    final showPlus = hasPlus && (cardHovered || enabled.isEmpty);
     return Row(
       children: [
         Expanded(
@@ -1445,8 +1446,15 @@ class _ToolStatusChips extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (final c in chips) Padding(padding: const EdgeInsets.only(right: 5), child: c),
-                  if (showPlus)
-                    _PlusMenu(tools: notEnabled, onSelected: onEnableTool!, withLabel: enabled.isEmpty),
+                  // 菜单弹出后鼠标离开卡片（hover 消失）时按钮必须仍然挂载，否则选中项会被 PopupMenuButton 丢弃
+                  if (hasPlus)
+                    Visibility(
+                      visible: showPlus,
+                      maintainState: true,
+                      maintainAnimation: true,
+                      maintainSize: true,
+                      child: _PlusMenu(tools: notEnabled, onSelected: onEnableTool!, withLabel: enabled.isEmpty),
+                    ),
                   if (!showPlus && enabled.isEmpty)
                     Text(l?.segmentUnused ?? '未用到工具', style: KcType.caption.copyWith(color: cs.mutedForeground)),
                 ],
@@ -1573,8 +1581,12 @@ class _PlusMenu extends StatelessWidget {
             child: Row(children: [
               KcToolLogo(tool: t, size: 18),
               const SizedBox(width: 8),
-              Text(l?.enableForTool(kcToolName(t)) ?? '启用到 ${kcToolName(t)}',
-                  style: KcType.body.copyWith(color: cs.popoverForeground)),
+              Flexible(
+                child: Text(l?.enableForTool(kcToolName(t)) ?? '启用到 ${kcToolName(t)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: KcType.body.copyWith(color: cs.popoverForeground)),
+              ),
             ]),
           ),
       ],

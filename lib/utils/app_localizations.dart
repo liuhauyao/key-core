@@ -494,6 +494,31 @@ class AppLocalizations {
       'category_third_party': '第三方',
       'category_aggregator': '聚合平台',
       'undo': '撤销',
+      'no_tools_enabled': '设置里还没有开启任何工具',
+      'select_platform_first': '先在左侧选择平台预设，再配置要用到的工具',
+      'n_fields_need_fix': '{n} 处需要修改',
+      'use_for_tool_hint': '开启后出现在 {tool} 的候选列表；在工具页或卡片上「设为当前」才会写入配置',
+      'use_for_tool_active_hint': '这把密钥正在 {tool} 生效，保存后会同步写入 {path}',
+      'use_for_tool': '用于 {tool}',
+      'tool_config': '工具配置',
+      'basic_info': '基本信息',
+      'platform_presets': '平台预设',
+      'add_key_title': '添加密钥',
+      'edit_key_title': '编辑密钥',
+      'tool_disabled_for': '已从 {tool} 的候选列表移除',
+      'tool_enabled_for': '已启用到 {tool}',
+      'tool_model_missing': '{tool} 还缺少请求地址或模型，请先在编辑页补全',
+      'updated_on': '更新于 {date}',
+      'created_on': '创建于 {date}',
+      'env_vars_copied': '环境变量已复制（含密钥，请勿外传）',
+      'copy_as_env': '复制为环境变量',
+      'delete_key': '删除密钥',
+      'enabled_short': '已启用',
+      'not_enabled': '未启用',
+      'set_as_current': '设为当前',
+      'used_in_tools_hint': '开关 = 出现在该工具的候选列表；「设为当前」才会写入该工具的配置文件',
+      'used_in_tools_summary': '{n} 个已启用 · {m} 个生效中',
+      'used_in_tools': '用在哪些工具',
       'status_active': '生效中',
       'undo_switch_restored': '已恢复：{tool} 使用 {name}',
       'no_keys_match_filter': '没有符合条件的密钥',
@@ -994,6 +1019,31 @@ class AppLocalizations {
       'category_third_party': 'Third-party',
       'category_aggregator': 'Aggregator',
       'undo': 'Undo',
+      'no_tools_enabled': 'No tools are enabled in Settings yet',
+      'select_platform_first': 'Pick a platform preset on the left first, then configure tools',
+      'n_fields_need_fix': '{n} fields need attention',
+      'use_for_tool_hint': 'When on, the key shows up in {tool}\'s list; it is only written to the config when you set it as current',
+      'use_for_tool_active_hint': 'This key is active in {tool}; saving also writes {path}',
+      'use_for_tool': 'Use for {tool}',
+      'tool_config': 'Tool settings',
+      'basic_info': 'Basics',
+      'platform_presets': 'Platform presets',
+      'add_key_title': 'Add key',
+      'edit_key_title': 'Edit key',
+      'tool_disabled_for': 'Removed from {tool}\'s list',
+      'tool_enabled_for': 'Enabled for {tool}',
+      'tool_model_missing': '{tool} still needs a base URL or model. Fill it in on the edit page first.',
+      'updated_on': 'Updated {date}',
+      'created_on': 'Created {date}',
+      'env_vars_copied': 'Env vars copied (contains the key; keep it private)',
+      'copy_as_env': 'Copy as env vars',
+      'delete_key': 'Delete key',
+      'enabled_short': 'Enabled',
+      'not_enabled': 'Not enabled',
+      'set_as_current': 'Set as current',
+      'used_in_tools_hint': 'The switch adds the key to that tool\'s list; only "Set as current" writes the tool\'s config file',
+      'used_in_tools_summary': '{n} enabled · {m} active',
+      'used_in_tools': 'Used in tools',
       'status_active': 'Active',
       'undo_switch_restored': 'Restored: {tool} uses {name}',
       'no_keys_match_filter': 'No keys match the filter',
@@ -1254,6 +1304,31 @@ class AppLocalizations {
   String get requestAddress => translate('request_address');
   // ---- UI-2：反馈与文案 ----
   String get undo => translate('undo');
+  String get noToolsEnabled => translate('no_tools_enabled');
+  String get selectPlatformFirst => translate('select_platform_first');
+  String nFieldsNeedFix(int n) => translate('n_fields_need_fix').replaceAll('{n}', '$n');
+  String useForToolHint(String tool) => translate('use_for_tool_hint').replaceAll('{tool}', tool);
+  String useForToolActiveHint(String tool, String path) => translate('use_for_tool_active_hint').replaceAll('{tool}', tool).replaceAll('{path}', path);
+  String useForTool(String tool) => translate('use_for_tool').replaceAll('{tool}', tool);
+  String get toolConfig => translate('tool_config');
+  String get basicInfo => translate('basic_info');
+  String get platformPresets => translate('platform_presets');
+  String get addKeyTitle => translate('add_key_title');
+  String get editKeyTitle => translate('edit_key_title');
+  String toolDisabledFor(String tool) => translate('tool_disabled_for').replaceAll('{tool}', tool);
+  String toolEnabledFor(String tool) => translate('tool_enabled_for').replaceAll('{tool}', tool);
+  String toolModelMissing(String tool) => translate('tool_model_missing').replaceAll('{tool}', tool);
+  String updatedOn(String date) => translate('updated_on').replaceAll('{date}', date);
+  String createdOn(String date) => translate('created_on').replaceAll('{date}', date);
+  String get envVarsCopied => translate('env_vars_copied');
+  String get copyAsEnv => translate('copy_as_env');
+  String get deleteKey => translate('delete_key');
+  String get enabledShort => translate('enabled_short');
+  String get notEnabled => translate('not_enabled');
+  String get setAsCurrent => translate('set_as_current');
+  String get usedInToolsHint => translate('used_in_tools_hint');
+  String usedInToolsSummary(int n, int m) => translate('used_in_tools_summary').replaceAll('{n}', '$n').replaceAll('{m}', '$m');
+  String get usedInTools => translate('used_in_tools');
   String get statusActive => translate('status_active');
   String undoSwitchRestored(String tool, String name) => translate('undo_switch_restored').replaceAll('{tool}', tool).replaceAll('{name}', name);
   String get noKeysMatchFilter => translate('no_keys_match_filter');

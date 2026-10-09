@@ -816,7 +816,7 @@ class _MainScreenState extends State<MainScreen> {
             },
             currentKeyIds: currentIds,
             onSwitchTool: (tool) => _switchToolFromCard(key, tool),
-            onEnableTool: (tool) => _showEditKeyPage(context, key, viewModel),
+            onEnableTool: (tool) => _enableToolFromCard(context, viewModel, key, tool),
             onMoveToTop: () async {
               final success = await viewModel.moveKeyToTop(key.id!);
               if (success) {
@@ -925,7 +925,7 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    showDialog(
+    showKeyDetailsSheet(
       context: context,
       builder: (context) => KeyDetailsDialog(
         aiKey: decryptedKey,
@@ -949,8 +949,53 @@ class _MainScreenState extends State<MainScreen> {
             UrlLauncherService().openUrl(decryptedKey.managementUrl!);
           }
         },
+        onSwitchTool: (tool) => _switchToolFromCard(decryptedKey, tool),
+        onToggleTool: (k, tool, enabled) => _toggleToolForKey(context, viewModel, k, tool, enabled),
+        onDelete: () {
+          Navigator.pop(context);
+          _deleteKey(this.context, key, viewModel);
+        },
+        onCopyEnv: (text) {
+          ClipboardService().copyToClipboard(text);
+          _showSnackBar(context, AppLocalizations.of(context)?.envVarsCopied ?? '环境变量已复制（含密钥，请勿外传）');
+        },
       ),
     );
+  }
+
+  /// 卡片「＋」菜单里选「启用到 X」：直接打开 enable 标志（缺模型时转编辑页）
+  Future<void> _enableToolFromCard(BuildContext context, KeyManagerViewModel viewModel, AIKey key, AiToolType tool) async {
+    if (key.id == null) return;
+    final decrypted = await viewModel.getDecryptedKey(key.id!);
+    if (!context.mounted) return;
+    if (decrypted == null) {
+      _showSnackBar(context, AppLocalizations.of(context)?.cannotDecryptKey ?? '无法解密密钥', isError: true);
+      return;
+    }
+    await _toggleToolForKey(context, viewModel, decrypted, tool, true, inSheet: false);
+  }
+
+  /// 详情抽屉里的工具开关：只改 enableXxx（不写工具配置）。开启时若该工具还缺请求地址 / 模型，转去编辑页补全
+  Future<AIKey?> _toggleToolForKey(
+      BuildContext context, KeyManagerViewModel viewModel, AIKey key, AiToolType tool, bool enabled,
+      {bool inSheet = true}) async {
+    final l = AppLocalizations.of(context);
+    final name = kcToolName(tool);
+    if (enabled && toolNeedsSetup(key, tool)) {
+      _showSnackBar(context, l?.toolModelMissing(name) ?? '$name 还缺少请求地址或模型，请先在编辑页补全', isError: true);
+      if (inSheet) Navigator.pop(context);
+      _showEditKeyPage(this.context, key, viewModel);
+      return null;
+    }
+    final updated = withToolEnabled(key, tool, enabled);
+    final ok = await viewModel.updateKey(updated);
+    if (!context.mounted) return ok ? updated : null;
+    if (ok) {
+      _showSnackBar(context, enabled ? (l?.toolEnabledFor(name) ?? '已启用到 $name') : (l?.toolDisabledFor(name) ?? '已从 $name 的候选列表移除'));
+      return updated;
+    }
+    _showSnackBar(context, viewModel.errorMessage ?? (l?.updateFailed ?? '更新失败'), isError: true);
+    return null;
   }
 
   Future<void> _showAddKeyPage(BuildContext context) async {
