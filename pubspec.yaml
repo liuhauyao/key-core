@@ -67,3 +67,8 @@ flutter:
     - assets/icons/platforms/
     - assets/config/
     - assets/locales/
+
+# lucide_icons_flutter 3.1.6（shadcn_ui 0.39 传递依赖）在当前 Flutter stable 上无法编译：
+# IconData 已是 final class。3.1.23 起改为不再继承 IconData。
+dependency_overrides:
+  lucide_icons_flutter: 3.1.23
