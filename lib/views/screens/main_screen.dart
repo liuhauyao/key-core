@@ -50,7 +50,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final PageController _pageController = PageController();
+  /// 访问过的页面才构建（懒加载 + 保活）；未访问的中间页永远不会被构建
+  final Set<AppType> _visited = {AppType.keyManager};
   final GlobalKey<ClaudeConfigScreenState> _claudeConfigScreenKey = GlobalKey<ClaudeConfigScreenState>();
   final GlobalKey<ClaudeConfigScreenState> _claudeDesktopConfigScreenKey = GlobalKey<ClaudeConfigScreenState>();
   final GlobalKey<CodexConfigScreenState> _codexConfigScreenKey = GlobalKey<CodexConfigScreenState>();
@@ -147,7 +148,6 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _pageController.dispose();
     _keyListScrollController.dispose();
     _edgeScrollTimer?.cancel();
     super.dispose();
@@ -171,60 +171,14 @@ class _MainScreenState extends State<MainScreen> {
       _activeApp = app;
     });
     
-    // 执行页面切换动画
-    _pageController.animateToPage(
-      pageIndex,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    ).then((_) {
-      // 动画完成后，不需要刷新目标页面
-      // 所有页面都会在首次进入时自动加载（通过 initState）
-      // 只有在需要强制刷新时才调用 refresh(force: true)
-      if (mounted && _targetPageIndex == pageIndex && _pageController.hasClients) {
-        final currentPage = _pageController.page?.round();
-        if (currentPage == pageIndex) {
-          _lastRefreshedPageIndex = pageIndex;
-          // 动画结束再兜底触发一次首次加载：PageView 不保活，页面滑出后 State 会被重建，
-          // 只靠 onPageChanged 时可能拿到旧的 / 尚未挂载的 State，导致工具页显示「暂无密钥」直到手动刷新。
-          // refresh() 在已加载过时是空操作，不会重复读取。
-          _triggerPageLoad(pageIndex);
-        }
-      }
-      // 只有当这是最新的目标页面时才清除标记
-      if (_targetPageIndex == pageIndex) {
-        _targetPageIndex = null;
-      }
-    }).catchError((error) {
-      // 动画被中断或出错时，清除目标页面标记
-      if (_targetPageIndex == pageIndex) {
-        _targetPageIndex = null;
-      }
+    // 侧栏导航：直接切到目标页（IndexedStack 保活），不再横向滑动经过中间页
+    _visited.add(app);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _lastRefreshedPageIndex = pageIndex;
+      _triggerPageLoad(pageIndex);
+      if (_targetPageIndex == pageIndex) _targetPageIndex = null;
     });
-  }
-  
-  void _onPageChanged(int index) {
-    // 获取可见的应用列表，然后找到对应的应用
-    final visibleApps = _getVisibleApps(context);
-    if (index >= 0 && index < visibleApps.length) {
-    setState(() {
-        _activeApp = visibleApps[index];
-    });
-    }
-    
-    // 页面切换时，只有在真正切换到目标页面时才触发首次加载
-    // 这样可以避免路过页面时触发不必要的加载
-    if (_targetPageIndex == null) {
-      // 用户手动滑动的情况，触发目标页面的首次加载
-      if (_lastRefreshedPageIndex != index) {
-        _lastRefreshedPageIndex = index;
-        _triggerPageLoad(index);
-      }
-    } else if (_targetPageIndex == index) {
-      // 这是目标页面，触发首次加载
-      _lastRefreshedPageIndex = index;
-      _triggerPageLoad(index);
-    }
-    // 如果 _targetPageIndex != null 且 _targetPageIndex != index，说明是中间页面，不加载
   }
 
   /// 触发页面的首次加载（仅在页面真正可见时）
@@ -331,40 +285,16 @@ class _MainScreenState extends State<MainScreen> {
                   child: Consumer<SettingsViewModel>(
                     builder: (context, settingsViewModel, child) {
                       final visibleApps = _getVisibleApps(context);
-                      final settingsIndex = visibleApps.indexOf(AppType.settings);
                       
-                      // 如果当前在设置页面，确保PageView保持在设置页面
-                      // 必须在 postFrameCallback 中执行，避免在 build 过程中调用 setState
-                      // 注意：只有在工具状态变化导致页面列表重建时才使用 jumpToPage
-                      // 用户主动切换时应该使用 animateToPage（通过 _onAppSwitched）
-                      if (_activeApp == AppType.settings && settingsIndex != -1) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted && _pageController.hasClients) {
-                            final currentPage = _pageController.page?.round();
-                            // 如果当前页面索引不是设置页面的索引，且没有正在进行的动画，才跳转
-                            if (currentPage != settingsIndex && _targetPageIndex == null) {
-                              // 只有在没有动画进行时才使用 jumpToPage（工具状态变化导致的重建）
-                              // 如果有动画进行（_targetPageIndex != null），说明是用户主动切换，不干扰
-                              _pageController.jumpToPage(settingsIndex);
-                              _lastRefreshedPageIndex = settingsIndex;
-                            }
-                          }
-                        });
-                      }
-                      
-                      return PageView(
-                        controller: _pageController,
-                        onPageChanged: (index) {
-                          // 如果当前在设置页面，且工具状态变化导致页面列表重建，
-                          // 但用户仍然在设置页面，不要触发 onPageChanged 中的状态更新
-                          if (_activeApp == AppType.settings && index == settingsIndex) {
-                            // 只更新刷新索引，不更新 _activeApp，避免触发其他逻辑
-                            _lastRefreshedPageIndex = settingsIndex;
-                            return;
-                          }
-                          _onPageChanged(index);
-                        },
+                      _visited.add(_activeApp);
+                      final activeIndex = visibleApps.indexOf(_activeApp).clamp(0, visibleApps.length - 1);
+                      // 即时切换（无横向滑动、无手势翻页）；只构建访问过的页面，其余占位
+                      return IndexedStack(
+                        key: const ValueKey('main.pages'),
+                        index: activeIndex,
+                        sizing: StackFit.expand,
                         children: visibleApps.map((app) {
+                          if (!_visited.contains(app)) return const SizedBox.shrink();
                           switch (app) {
                             case AppType.keyManager:
                               return _buildKeyManagerPage(context, viewModel);
