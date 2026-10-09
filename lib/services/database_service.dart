@@ -939,8 +939,9 @@ class DatabaseService {
     final expiringMaps = await db.rawQuery(
       '''SELECT COUNT(*) as count FROM ai_keys
          WHERE expiry_date IS NOT NULL
-         AND expiry_date <= "${cutoff.toIso8601String()}"
-         AND expiry_date >= "${now.toIso8601String()}"''',
+         AND expiry_date <= ?
+         AND expiry_date >= ?''',
+      [cutoff.toIso8601String(), now.toIso8601String()],
     );
     final expiring = expiringMaps.first['count'] as int;
 
@@ -948,7 +949,8 @@ class DatabaseService {
     final expiredMaps = await db.rawQuery(
       '''SELECT COUNT(*) as count FROM ai_keys
          WHERE expiry_date IS NOT NULL
-         AND expiry_date < "${now.toIso8601String()}"''',
+         AND expiry_date < ?''',
+      [now.toIso8601String()],
     );
     final expired = expiredMaps.first['count'] as int;
 
