@@ -598,5 +598,20 @@
   "models_search_hint": "搜尋模型 ID",
   "refresh": "重新整理",
   "models_count_hint": "共 {n} 個模型 · 點擊複製 ID",
-  "models_match_hint": "符合 {n} / {total}"
+  "models_match_hint": "符合 {n} / {total}",
+  "mcp_enable_per_tool": "依工具啟用",
+  "mcp_enable_summary": "已在 {n} / {total} 個工具啟用 · 切換後立即寫入該工具設定",
+  "write_failed": "寫入失敗",
+  "mcp_enable_footer": "停用會從該工具的設定中移除此服務",
+  "done": "完成",
+  "more": "更多",
+  "menu_group_sync": "同步",
+  "menu_group_import": "匯入",
+  "mcp_menu_diff": "比對與同步…",
+  "mcp_menu_rewrite": "重新寫入全部已啟用的服務",
+  "mcp_menu_import": "從已啟用的工具匯入",
+  "mcp_import_result": "新增 {a} 個服務，記錄 {b} 條啟用關係",
+  "mcp_import_failed_suffix": "，失敗 {n} 個",
+  "mcp_written_n": "已寫入 {n} 個工具",
+  "n_tools": "{n} 個工具"
 }

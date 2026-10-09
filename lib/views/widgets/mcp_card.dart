@@ -21,6 +21,9 @@ class McpCard extends StatefulWidget {
   /// 按工具启用（打开工具开关列表）
   final VoidCallback? onManageApps;
 
+  /// 已在哪些工具启用（v3 工具图标行）；null 表示不显示该行
+  final Set<AiToolType>? enabledTools;
+
   const McpCard({
     super.key,
     required this.server,
@@ -33,6 +36,7 @@ class McpCard extends StatefulWidget {
     this.onOpenDocs,
     this.onViewDetails,
     this.onManageApps,
+    this.enabledTools,
   });
 
   @override
@@ -174,6 +178,28 @@ class _McpCardState extends State<McpCard> {
             ),
           ),
         ),
+        if (widget.enabledTools != null) ...[
+          const SizedBox(height: KcSpace.x2),
+          SizedBox(
+            key: const ValueKey('mcpCard.tools'),
+            height: 20,
+            child: Row(children: [
+              for (final t in widget.enabledTools!.take(6))
+                Padding(padding: const EdgeInsets.only(right: 4), child: Tooltip(message: kcToolName(t), child: KcToolLogo(tool: t, size: 20))),
+              const SizedBox(width: 2),
+              Expanded(
+                child: Text(
+                  widget.enabledTools!.isEmpty
+                      ? (localizations?.tr('mcp_no_tools', '未在任何工具启用') ?? '未在任何工具启用')
+                      : (localizations?.tr('n_tools', '{n} 个工具') ?? '{n} 个工具').replaceAll('{n}', '${widget.enabledTools!.length}'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: KcType.caption.copyWith(color: kc.text2),
+                ),
+              ),
+            ]),
+          ),
+        ],
         const Spacer(),
         // 底栏 34：查看 / 主页 / 文档 … 编辑（排序模式下加删除）
         Container(
@@ -181,49 +207,57 @@ class _McpCardState extends State<McpCard> {
           decoration: BoxDecoration(border: Border(top: BorderSide(color: cs.border))),
           child: Row(
             children: [
+              // v3 定宽槽位（form_v3.md §7）：缺失的入口只置灰、不隐藏，管理模式不位移
               _buildActionButton(
                 context,
+                key: const ValueKey('mcpCard.details'),
                 icon: Icons.visibility_outlined,
                 tooltip: localizations?.mcpViewDetails ?? '查看详情',
                 onPressed: widget.onViewDetails,
               ),
-              if (widget.server.homepage != null && widget.server.homepage!.isNotEmpty)
-                _buildActionButton(
-                  context,
-                  icon: Icons.language,
-                  tooltip: localizations?.openManagementUrl ?? '管理地址',
-                  onPressed: widget.onOpenHomepage,
-                ),
-              // 数据栈新增：按工具启用（移入新版底栏）
-              if (widget.onManageApps != null)
-                _buildActionButton(
-                  context,
-                  icon: Icons.apps_outlined,
-                  tooltip: localizations?.mcpEnablePerTool ?? 'Enable per tool',
-                  onPressed: widget.onManageApps,
-                ),
-              if (widget.server.docs != null && widget.server.docs!.isNotEmpty)
-                _buildActionButton(
-                  context,
-                  icon: Icons.description_outlined,
-                  tooltip: localizations?.mcpOpenDocs ?? '文档地址',
-                  onPressed: widget.onOpenDocs,
-                ),
+              _buildActionButton(
+                context,
+                key: const ValueKey('mcpCard.apps'),
+                icon: Icons.apps_outlined,
+                tooltip: localizations?.tr('mcp_enable_per_tool', '按工具启用') ?? '按工具启用',
+                onPressed: widget.isEditMode ? null : widget.onManageApps,
+              ),
+              _buildActionButton(
+                context,
+                key: const ValueKey('mcpCard.homepage'),
+                icon: Icons.language,
+                tooltip: localizations?.openManagementUrl ?? '管理地址',
+                onPressed: (widget.server.homepage?.isNotEmpty ?? false) ? widget.onOpenHomepage : null,
+              ),
+              _buildActionButton(
+                context,
+                key: const ValueKey('mcpCard.docs'),
+                icon: Icons.description_outlined,
+                tooltip: localizations?.mcpOpenDocs ?? '文档地址',
+                onPressed: (widget.server.docs?.isNotEmpty ?? false) ? widget.onOpenDocs : null,
+              ),
               const Spacer(),
               _buildActionButton(
                 context,
+                key: const ValueKey('mcpCard.edit'),
                 icon: Icons.edit_outlined,
                 tooltip: localizations?.edit ?? '编辑',
                 onPressed: widget.onEdit,
               ),
-              if (widget.isEditMode)
-                _buildActionButton(
+              Visibility(
+                visible: widget.isEditMode,
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: _buildActionButton(
                   context,
+                  key: const ValueKey('mcpCard.delete'),
                   icon: Icons.delete_outline,
                   tooltip: localizations?.deleteTooltip ?? '删除',
-                  onPressed: widget.onDelete,
+                  onPressed: widget.isEditMode ? widget.onDelete : null,
                   color: kc.dangerText,
                 ),
+              ),
             ],
           ),
         ),
@@ -242,12 +276,15 @@ class _McpCardState extends State<McpCard> {
 
   Widget _buildActionButton(
     BuildContext context, {
+    Key? key,
     required IconData icon,
     required String tooltip,
     required VoidCallback? onPressed,
     Color? color,
   }) {
+    final c = color ?? context.kc.text2;
     return Tooltip(
+      key: key,
       message: tooltip,
       child: Material(
         color: Colors.transparent,
@@ -259,7 +296,7 @@ class _McpCardState extends State<McpCard> {
           child: SizedBox(
             width: 26,
             height: 26,
-            child: Icon(icon, size: 15, color: color ?? context.kc.text2),
+            child: Icon(icon, size: 15, color: onPressed == null ? c.withValues(alpha: 0.35) : c),
           ),
         ),
       ),

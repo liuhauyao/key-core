@@ -81,6 +81,19 @@ void main() {
     expect(find.byKey(const ValueKey('mcpCard.toggle')), findsNothing);
   });
 
+  testWidgets('MCP 卡片 v3：工具图标行 + 定宽槽位，管理模式槽位不位移、缺失入口置灰', (tester) async {
+    Rect r(String k) => tester.getRect(find.byKey(ValueKey(k)));
+    await _pump(tester, _grid([McpCard(server: _mcp('github', 'GitHub'), enabledTools: const {AiToolType.claudecode, AiToolType.codex}, onEdit: () {}, onViewDetails: () {})], 140));
+    expect(find.byKey(const ValueKey('mcpCard.tools')), findsOneWidget);
+    expect(find.text('2 个工具'), findsOneWidget);
+    final before = {for (final k in ['details', 'apps', 'homepage', 'docs', 'edit']) k: r('mcpCard.$k')};
+    await _pump(tester, _grid([McpCard(server: _mcp('github', 'GitHub'), isEditMode: true, enabledTools: const {AiToolType.claudecode, AiToolType.codex}, onEdit: () {}, onDelete: () {})], 140));
+    for (final e in before.entries) {
+      expect(r('mcpCard.${e.key}'), e.value, reason: e.key);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Skill 卡片：显示名称与描述，无溢出', (tester) async {
     await _pump(tester, _grid([SkillCard(skill: _skill('pdf', 'PDF Tools'))], 160));
     expect(find.text('PDF Tools'), findsOneWidget);
@@ -95,7 +108,7 @@ void main() {
           Column(children: [
             Expanded(
                 child: _grid([
-              McpCard(server: _mcp('github', 'GitHub')),
+              McpCard(server: _mcp('github', 'GitHub'), enabledTools: const {AiToolType.claudecode, AiToolType.codex, AiToolType.cursor}),
               McpCard(server: _mcp('context7', 'Context7', type: McpServerType.http)),
               McpCard(server: _mcp('fetch', 'Fetch', active: false)),
             ], 140)),
