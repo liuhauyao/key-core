@@ -166,9 +166,8 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
             icon: Icons.notes_outlined,
             tip: t('skills_prompts_tooltip', '系统提示词（CLAUDE.md / AGENTS.md 等）'),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PromptsPage()))),
-        Padding(
-          padding: const EdgeInsets.only(left: KcSpace.x2),
-          child: PopupMenuButton<String>(
+        // iconButton 自带左间距 8，这里不再额外加
+        PopupMenuButton<String>(
             key: const ValueKey('skills.moreMenu'),
             tooltip: t('more', '更多'),
             position: PopupMenuPosition.under,
@@ -185,7 +184,6 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
             ],
             child: IgnorePointer(child: icon(context, icon: Icons.more_horiz, tip: t('more', '更多'), onPressed: () {})),
           ),
-        ),
       ],
       primary: _isEditMode
           ? ShadButton(
@@ -241,14 +239,14 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
         if (cats.isNotEmpty)
           KcFilterMenuButton<String?>(
             key: const ValueKey('skills.categoryFilter'),
-            label: viewModel.activeCategory == null ? t('all_categories', '全部分类') : catName(viewModel.activeCategory!),
+            label: viewModel.activeCategory == null ? t('skills_all_categories', '全部分类') : catName(viewModel.activeCategory!),
             selected: viewModel.activeCategory,
             onSelected: (c) {
               viewModel.setActiveCategory(c);
               _clearSelection();
             },
             items: [
-              (null, t('all_categories', '全部分类'), viewModel.allSkills.length),
+              (null, t('skills_all_categories', '全部分类'), viewModel.allSkills.length),
               for (final c in cats) (c, catName(c), viewModel.getSkillsByCategory(c).length),
             ],
           ),

@@ -119,9 +119,8 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
             active: _isEditMode,
             onPressed: () => _isEditMode ? _exitManage() : setState(() => _isEditMode = true)),
         icon(context, key: const ValueKey('mcp.diff'), icon: Icons.compare_arrows, tip: l?.mcpSync ?? '对比与同步', onPressed: () => _showSyncDialog(context)),
-        Padding(
-          padding: const EdgeInsets.only(left: KcSpace.x2),
-          child: PopupMenuButton<String>(
+        // iconButton 自带左间距 8，这里不再额外加
+        PopupMenuButton<String>(
             key: const ValueKey('mcp.moreMenu'),
             tooltip: t('more', '更多'),
             position: PopupMenuPosition.under,
@@ -149,7 +148,6 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
             ],
             child: IgnorePointer(child: icon(context, icon: Icons.more_horiz, tip: '', onPressed: () {})),
           ),
-        ),
       ],
       primary: _isEditMode
           ? ShadButton(
@@ -776,7 +774,7 @@ class _McpDetailsDialog extends StatelessWidget {
         subtitle: Text('${server.serverId} · ${server.serverType.value.toUpperCase()}'),
       ),
       body: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.x6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -946,29 +944,28 @@ class _McpDetailsDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(BuildContext context, String label, String value, {bool isMonospace = false}) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
+  /// 统一键值行（与密钥抽屉一致）：左 112 标签 + 右值
+  Widget _kv(BuildContext context, String label, Widget value) {
+    final cs = ShadTheme.of(context).colorScheme;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 28),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(
+          width: 112,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(label.replaceAll(RegExp(r'[:：]$'), ''), style: KcType.caption.copyWith(color: cs.mutedForeground)),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: shadTheme.textTheme.small.copyWith(
-            color: shadTheme.colorScheme.foreground,
-            fontFamily: isMonospace ? 'monospace' : null,
-            fontSize: isMonospace ? 13 : null,
-          ),
-        ),
-      ],
+        Expanded(child: value),
+      ]),
     );
+  }
+
+  Widget _buildDetailRow(BuildContext context, String label, String value, {bool isMonospace = false}) {
+    final cs = ShadTheme.of(context).colorScheme;
+    return _kv(context, label,
+        SelectableText(value, style: (isMonospace ? KcType.mono.copyWith(fontSize: 12.5) : KcType.body).copyWith(color: cs.foreground)));
   }
 
   Widget _buildActionRow(
@@ -980,101 +977,36 @@ class _McpDetailsDialog extends StatelessWidget {
     VoidCallback onPressed, {
     bool isMonospace = false,
   }) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                value,
-                style: shadTheme.textTheme.small.copyWith(
-                  color: shadTheme.colorScheme.primary,
-                  fontFamily: isMonospace ? 'monospace' : null,
-                  fontSize: isMonospace ? 13 : null,
-                ),
-              ),
-            ),
-            Tooltip(
-              message: tooltip,
-              child: ShadButton.ghost(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(6),
-                onPressed: onPressed,
-                child: Icon(icon, size: 18, color: shadTheme.colorScheme.mutedForeground),
-              ),
-            ),
-          ],
-        ),
-      ],
+    return _kv(
+      context,
+      label,
+      InkWell(
+        onTap: onPressed,
+        child: Text(value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: (isMonospace ? KcType.mono.copyWith(fontSize: 12.5) : KcType.body).copyWith(color: context.kc.actionText)),
+      ),
     );
   }
 
   Widget _buildJsonConfigRow(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
+    final cs = ShadTheme.of(context).colorScheme;
     final localizations = AppLocalizations.of(context);
-    
-    final jsonConfig = _generateJsonConfig();
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${localizations?.mcpJsonConfigLabel ?? 'JSON配置'}:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const SizedBox(height: KcSpace.x3),
+      Text(localizations?.mcpJsonConfigLabel ?? 'JSON 配置', style: KcType.section.copyWith(color: cs.foreground)),
+      const SizedBox(height: KcSpace.x2),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cs.card,
+          borderRadius: BorderRadius.circular(KcRadius.panel),
+          border: Border.all(color: cs.border),
         ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: shadTheme.colorScheme.muted,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: SelectableText(
-                  jsonConfig,
-                  style: shadTheme.textTheme.small.copyWith(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: shadTheme.colorScheme.foreground,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: localizations?.mcpCopyJson ?? '复制JSON配置',
-              child: ShadButton.ghost(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(6),
-                onPressed: onCopyJson,
-                child: Icon(
-                  Icons.copy_outlined,
-                  size: 18,
-                  color: shadTheme.colorScheme.mutedForeground,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+        child: SelectableText(_generateJsonConfig(), style: KcType.mono.copyWith(fontSize: 12, height: 1.5, color: cs.foreground)),
+      ),
+    ]);
   }
 
   Widget _buildTimeRow(
@@ -1084,26 +1016,8 @@ class _McpDetailsDialog extends StatelessWidget {
     String updatedLabel,
     String updatedValue,
   ) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$createdLabel / $updatedLabel:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '$createdValue / $updatedValue',
-          style: shadTheme.textTheme.small.copyWith(
-            color: shadTheme.colorScheme.foreground,
-          ),
-        ),
-      ],
-    );
+    final cs = ShadTheme.of(context).colorScheme;
+    return Text('$createdLabel $createdValue  ·  $updatedLabel $updatedValue', style: KcType.caption.copyWith(color: cs.mutedForeground));
   }
 
   String _generateJsonConfig() {

@@ -896,5 +896,6 @@
   "not_encrypted": "未加密",
   "mcp_template": "从模板开始",
   "mcp_config_json": "服务配置（JSON）",
-  "mcp_form_footer_hint": "保存后在卡片上「按工具启用」写入各工具配置"
+  "mcp_form_footer_hint": "保存后在卡片上「按工具启用」写入各工具配置",
+  "skills_all_categories": "全部分类"
 }

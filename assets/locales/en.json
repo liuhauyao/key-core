@@ -896,5 +896,6 @@
   "not_encrypted": "Not encrypted",
   "mcp_template": "Start from a template",
   "mcp_config_json": "Server config (JSON)",
-  "mcp_form_footer_hint": "After saving, use \"Enable per tool\" on the card to write it into each tool"
+  "mcp_form_footer_hint": "After saving, use \"Enable per tool\" on the card to write it into each tool",
+  "skills_all_categories": "All categories"
 }
