@@ -286,7 +286,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
               tool: AiToolType.openclaw,
               subtitle: _hasLoadedOnce && _dirExists
                   ? (l?.openclawEnabledSummary(written, toolConfigPathHint(AiToolType.openclaw)) ??
-                      '$written 个已启用  ·  写入 ${toolConfigPathHint(AiToolType.openclaw)}')
+                      '$written 个已写入  ·  写入 ${toolConfigPathHint(AiToolType.openclaw)}')
                   : null,
             ),
           ),

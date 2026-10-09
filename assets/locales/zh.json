@@ -701,7 +701,7 @@
   "also_used_in": "也用于",
   "base_url_copied": "Base URL 已复制",
   "api_url_copied": "API 地址已复制",
-  "openclaw_enabled_summary": "{n} 个已启用  ·  写入 {path}",
+  "openclaw_enabled_summary": "{n} 个已写入  ·  写入 {path}",
   "openclaw_dir_missing": "未找到 OpenClaw 配置目录（~/.openclaw），可能还没有安装 OpenClaw。",
   "openclaw_not_detected": "未检测到 OpenClaw",
   "openclaw_install_hint": "请先安装 OpenClaw 并运行初始化（openclaw onboard）",

@@ -701,7 +701,7 @@
   "also_used_in": "Also in",
   "base_url_copied": "Base URL copied",
   "api_url_copied": "API URL copied",
-  "openclaw_enabled_summary": "{n} enabled  ·  writes {path}",
+  "openclaw_enabled_summary": "{n} written  ·  writes {path}",
   "openclaw_dir_missing": "OpenClaw config folder (~/.openclaw) not found. OpenClaw may not be installed.",
   "openclaw_not_detected": "OpenClaw not detected",
   "openclaw_install_hint": "Install OpenClaw and run `openclaw onboard` first",
