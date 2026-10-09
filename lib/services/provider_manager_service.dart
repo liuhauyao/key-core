@@ -148,6 +148,13 @@ class ProviderManagerService {
       }
     }
 
+    if (stored == null) {
+      // 未提供新 Key（例如仅修改启用状态，或 Key 暂时无法解密）时保留数据库中已有的密文，
+      // 避免因为解密失败而把已保存的 Key 覆盖为空
+      final existing = await _dbService.getProviderById(provider.id);
+      stored = existing?['api_key_encrypted'] as String?;
+    }
+
     await _dbService.insertOrUpdateProvider(toDbMap(provider, storedApiKey: stored));
   }
 
