@@ -102,6 +102,32 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
 
   final List<AIKey> updateCalls = [];
 
+  /// 工具页：配置文件是否存在（false 时页面显示常驻提示条）
+  bool toolConfigExists = true;
+
+  Map<String, dynamic> _configCheck() =>
+      {'anyExists': toolConfigExists, 'configExists': toolConfigExists, 'configDir': '/home/test/.tool'};
+
+  @override
+  Future<Map<String, dynamic>> checkClaudeCodeConfigExists() async => _configCheck();
+  @override
+  Future<Map<String, dynamic>> checkCodexConfigExists() async => _configCheck();
+  @override
+  Future<Map<String, dynamic>> checkGeminiConfigExists() async => _configCheck();
+  @override
+  Future<Map<String, dynamic>> checkClaudeDesktopConfigExists() async => _configCheck();
+
+  @override
+  Future<List<AIKey>> getClaudeCodeKeys() async => _all.where((k) => k.enableClaudeCode).toList();
+  @override
+  Future<List<AIKey>> getCodexKeys() async => _all.where((k) => k.enableCodex).toList();
+  @override
+  Future<List<AIKey>> getGeminiKeys() async => _all.where((k) => k.enableGemini).toList();
+  @override
+  Future<List<AIKey>> getClaudeDesktopKeys() async => _all.where((k) => k.enableClaudeDesktop).toList();
+  @override
+  Future<bool> isOfficialClaudeDesktopConfig() async => current[AiToolType.claudeDesktop] == null;
+
   @override
   Future<bool> updateKey(AIKey key) async {
     updateCalls.add(key);

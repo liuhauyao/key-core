@@ -11,6 +11,9 @@ import '../widgets/key_card.dart';
 import '../widgets/key_details_dialog.dart';
 import 'key_form_page.dart';
 import '../widgets/kc_toast.dart';
+import '../../theme/kc_tokens.dart';
+import '../widgets/kc_tool_lens.dart';
+import '../../models/mcp_server.dart';
 import '../../utils/app_localizations.dart';
 
 /// 某个钥匙包密钥与 OpenClaw 供应商的关联信息
@@ -252,7 +255,13 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
                   : !_dirExists
                       ? _buildNotInstalled(shadTheme)
                       : _compatibleKeys.isEmpty
-                          ? _buildEmptyState(shadTheme)
+                          ? ListView(
+                              primary: false,
+                              children: [
+                                SizedBox(height: 320, child: _buildEmptyState(shadTheme)),
+                                _buildUnenabledSection(),
+                              ],
+                            )
                           : _buildKeyGrid(shadTheme),
             ),
           ],
@@ -262,49 +271,51 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
   }
 
   Widget _buildHeader(ShadThemeData shadTheme) {
+    final l = AppLocalizations.of(context);
+    final written = _compatibleKeys.where((k) => k.isEnabled).length;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, KcSpace.x3),
       decoration: BoxDecoration(
         color: shadTheme.colorScheme.background,
-        border: Border(
-          bottom: BorderSide(color: shadTheme.colorScheme.border, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: shadTheme.colorScheme.border, width: 1)),
       ),
       child: Row(
         children: [
-          SvgPicture.asset(
-            'assets/icons/platforms/openclaw-color.svg',
-            width: 20,
-            height: 20,
-            allowDrawingOutsideViewBox: true,
-          ),
-          const SizedBox(width: 12),
-          Text(
-            'OpenClaw',
-            style: shadTheme.textTheme.h4.copyWith(
-              color: shadTheme.colorScheme.foreground,
+          Expanded(
+            child: KcToolPageTitle(
+              tool: AiToolType.openclaw,
+              subtitle: _hasLoadedOnce && _dirExists
+                  ? (l?.openclawEnabledSummary(written, toolConfigPathHint(AiToolType.openclaw)) ??
+                      '$written 个已写入  ·  写入 ${toolConfigPathHint(AiToolType.openclaw)}')
+                  : null,
             ),
           ),
-          const Spacer(),
-          Container(
-            height: 38,
-            decoration: BoxDecoration(
-              border: Border.all(color: shadTheme.colorScheme.border, width: 1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Tooltip(
-              message: '刷新列表',
-              child: ShadButton.ghost(
-                width: 38,
-                height: 38,
-                padding: EdgeInsets.zero,
-                onPressed: () => refresh(force: true),
-                child: Icon(Icons.refresh, size: 18, color: shadTheme.colorScheme.primary),
-              ),
+          Tooltip(
+            message: l?.refreshKeyList ?? '刷新列表',
+            child: ShadButton.outline(
+              width: 32,
+              height: 32,
+              padding: EdgeInsets.zero,
+              onPressed: () => refresh(force: true),
+              child: Icon(Icons.refresh, size: 16, color: context.kc.text2),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// 「未启用到 OpenClaw 的密钥」紧凑区
+  Widget _buildUnenabledSection() {
+    final vm = context.read<KeyManagerViewModel>();
+    final keys = vm.allKeys.where((k) => k.isActive && !k.enableOpenclaw).toList();
+    return KcUnenabledSection(
+      tool: AiToolType.openclaw,
+      keys: keys,
+      onEnable: (k) async {
+        final ok = await enableKeyForTool(context, k, AiToolType.openclaw, openEditor: (d) => _showEditKeyPage(context, d));
+        if (ok && mounted) refresh(force: true);
+      },
     );
   }
 
@@ -328,17 +339,17 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-            '未检测到 OpenClaw',
+            AppLocalizations.of(context)?.openclawNotDetected ?? '未检测到 OpenClaw',
             style: shadTheme.textTheme.h4.copyWith(color: shadTheme.colorScheme.foreground),
           ),
           const SizedBox(height: 8),
           Text(
-            '请先安装 OpenClaw 并运行初始化（openclaw onboard）',
+            AppLocalizations.of(context)?.openclawInstallHint ?? '请先安装 OpenClaw 并运行初始化（openclaw onboard）',
             style: shadTheme.textTheme.p.copyWith(color: shadTheme.colorScheme.mutedForeground),
           ),
           const SizedBox(height: 4),
           Text(
-            '配置目录：$_configDir',
+            AppLocalizations.of(context)?.configDirLabel(_configDir) ?? '配置目录：$_configDir',
             style: shadTheme.textTheme.small.copyWith(
               color: shadTheme.colorScheme.mutedForeground,
               fontFamily: 'monospace',
@@ -350,24 +361,24 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
             children: [
               ShadButton.outline(
                 onPressed: () => UrlLauncherService().openUrl('https://openclaw.ai'),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.language, size: 16),
-                    SizedBox(width: 6),
-                    Text('官网'),
+                    const Icon(Icons.language, size: 16),
+                    const SizedBox(width: 6),
+                    Text(AppLocalizations.of(context)?.officialWebsite ?? '官网'),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
               ShadButton(
                 onPressed: () => refresh(force: true),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.refresh, size: 16),
-                    SizedBox(width: 6),
-                    Text('重新检测'),
+                    const Icon(Icons.refresh, size: 16),
+                    const SizedBox(width: 6),
+                    Text(AppLocalizations.of(context)?.detectAgain ?? '重新检测'),
                   ],
                 ),
               ),
@@ -397,12 +408,12 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-            '暂未配置密钥',
+            AppLocalizations.of(context)?.openclawNoKeys ?? '还没有启用到 OpenClaw 的密钥',
             style: shadTheme.textTheme.h4.copyWith(color: shadTheme.colorScheme.foreground),
           ),
           const SizedBox(height: 8),
           Text(
-            '请先在密钥管理中添加密钥，并在编辑密钥时开启 OpenClaw',
+            AppLocalizations.of(context)?.openclawNoKeysHint ?? '在下方「未启用到 OpenClaw 的密钥」里点「启用」，或在编辑密钥时打开 OpenClaw',
             style: shadTheme.textTheme.p.copyWith(color: shadTheme.colorScheme.mutedForeground),
             textAlign: TextAlign.center,
           ),
@@ -416,7 +427,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
       builder: (context, constraints) {
         const double minCardWidth = 240;
         const double cardSpacing = 10;
-        const double padding = 16;
+        const double padding = KcSpace.page;
         const double cardHeight = 140;
 
         final availableWidth = constraints.maxWidth - padding * 2;
@@ -428,16 +439,20 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
           crossAxisCount -= 1;
         }
 
-        return GridView.builder(
-          padding: const EdgeInsets.all(padding),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        return CustomScrollView(
+          primary: false,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(padding),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             childAspectRatio: cardWidth / cardHeight,
             crossAxisSpacing: cardSpacing,
             mainAxisSpacing: cardSpacing,
           ),
-          itemCount: _compatibleKeys.length,
-          itemBuilder: (context, index) {
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
             final item = _compatibleKeys[index];
             return KeyCard(
               key: ValueKey('openclaw_${item.aiKey.id}_${item.isEnabled ? 'on' : 'off'}'),
@@ -445,6 +460,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
               isEditMode: false,
               isCurrent: item.isEnabled,
               cardMode: KeyCardMode.switchKey,
+              lens: AiToolType.openclaw,
               onTap: () => _toggleKey(item),
               onToggle: (_) => _toggleKey(item),
               onView: () => _showKeyDetails(context, item.aiKey),
@@ -458,23 +474,25 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
               onCopyApiEndpoint: () {
                 if (item.aiKey.apiEndpoint != null) {
                   ClipboardService().copyToClipboard(item.aiKey.apiEndpoint!);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('API Endpoint 已复制')),
-                  );
+                  showKcToast(context, AppLocalizations.of(context)?.apiUrlCopied ?? 'API Endpoint 已复制', kind: KcToastKind.success);
                 }
               },
               onCopyApiKey: () {
                 final vm = context.read<KeyManagerViewModel>();
                 if (item.aiKey.id != null) {
                   vm.copyKeyToClipboard(item.aiKey.id!);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('密钥已复制')),
-                  );
+                  showKcToast(context, AppLocalizations.of(context)?.keyCopied ?? '密钥已复制', kind: KcToastKind.success);
                 }
               },
               onCopyEnvVarCommand: null,
             );
           },
+                  childCount: _compatibleKeys.length,
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(child: _buildUnenabledSection()),
+          ],
         );
       },
     );
@@ -485,9 +503,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
     final decryptedKey = await vm.getDecryptedKey(key.id!);
     if (decryptedKey == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法解密密钥'), backgroundColor: Colors.red),
-        );
+        showKcToast(context, AppLocalizations.of(context)?.cannotDecryptKey ?? '无法解密密钥', kind: KcToastKind.error);
       }
       return;
     }
@@ -503,9 +519,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
         },
         onCopyKey: () {
           vm.copyKeyToClipboard(decryptedKey.id!);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('密钥已复制到剪贴板')),
-          );
+          showKcToast(context, AppLocalizations.of(context)?.keyCopiedToClipboard ?? '密钥已复制到剪贴板', kind: KcToastKind.success);
         },
         onOpenManagementUrl: () {
           if (decryptedKey.managementUrl != null) {
@@ -522,9 +536,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
     final decryptedKey = await vm.getDecryptedKey(key.id!);
     if (decryptedKey == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法解密密钥'), backgroundColor: Colors.red),
-        );
+        showKcToast(context, AppLocalizations.of(context)?.cannotDecryptKey ?? '无法解密密钥', kind: KcToastKind.error);
       }
       return;
     }
@@ -535,12 +547,12 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
     if (result != null) {
       final success = await vm.updateKey(result);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? '密钥更新成功' : (vm.errorMessage ?? '更新失败')),
-            backgroundColor: success ? Colors.green : Colors.red,
-          ),
-        );
+        showKcToast(
+            context,
+            success
+                ? (AppLocalizations.of(context)?.keyUpdatedSuccess ?? '密钥更新成功')
+                : (vm.errorMessage ?? (AppLocalizations.of(context)?.updateFailed ?? '更新失败')),
+            kind: success ? KcToastKind.success : KcToastKind.error);
         if (success) refresh();
       }
     }

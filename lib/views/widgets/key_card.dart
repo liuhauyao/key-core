@@ -53,6 +53,9 @@ class KeyCard extends StatefulWidget {
   /// 各工具当前生效的密钥 id；不传时从 KeyManagerViewModel 读取
   final Map<AiToolType, int?>? currentKeyIds;
 
+  /// 工具页 lens（§5.5）：底栏改为「该工具下的模型 + 也用于」。为 null 时是钥匙包的工具状态 chip
+  final AiToolType? lens;
+
   const KeyCard({
     super.key,
     required this.aiKey,
@@ -71,6 +74,7 @@ class KeyCard extends StatefulWidget {
     this.onToggle,
     this.onSwitchTool,
     this.onEnableTool,
+    this.lens,
     this.currentKeyIds,
   });
 
@@ -1019,7 +1023,9 @@ class _KeyCardState extends State<KeyCard> {
         Container(
           height: 34,
           decoration: BoxDecoration(border: Border(top: BorderSide(color: cs.border))),
-          child: widget.isEditMode ? _buildManageBar(context, localizations) : _buildToolBar(context),
+          child: widget.isEditMode
+              ? _buildManageBar(context, localizations)
+              : (widget.lens != null ? _LensBar(aiKey: widget.aiKey, lens: widget.lens!) : _buildToolBar(context)),
         ),
       ],
     );
@@ -1389,6 +1395,76 @@ class _StatusBadge extends StatelessWidget {
           Text(text, style: KcType.badge.copyWith(color: fg)),
         ],
       ),
+    );
+  }
+}
+
+/// 某个工具上这把密钥的模型（展示用）
+String? toolModelOf(AIKey k, AiToolType t) {
+  switch (t) {
+    case AiToolType.claudecode:
+      return k.claudeCodeModel;
+    case AiToolType.claudeDesktop:
+      return k.claudeDesktopModel ?? k.claudeDesktopSonnetModel;
+    case AiToolType.codex:
+      return k.codexModel;
+    case AiToolType.gemini:
+      return k.geminiModel;
+    case AiToolType.openclaw:
+      return k.openclawModel;
+    default:
+      return null;
+  }
+}
+
+/// lens 卡片底栏：左边是这把密钥在该工具下的模型，右边「也用于」其他工具的 logo
+class _LensBar extends StatelessWidget {
+  const _LensBar({required this.aiKey, required this.lens});
+  final AIKey aiKey;
+  final AiToolType lens;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final l = AppLocalizations.of(context);
+    final model = toolModelOf(aiKey, lens);
+    final others = enabledToolsOf(aiKey).where((t) => t != lens).toList();
+    return Row(
+      children: [
+        if (model != null && model.trim().isNotEmpty)
+          Flexible(
+            child: Container(
+              key: const ValueKey('lens.model'),
+              height: 20,
+              padding: const EdgeInsets.symmetric(horizontal: 7),
+              decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(KcRadius.control)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.memory_rounded, size: 12, color: kc.text2),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(model,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KcType.mono.copyWith(fontSize: 11, color: cs.foreground)),
+                ),
+              ]),
+            ),
+          )
+        else
+          Text(lens == AiToolType.gemini ? (l?.officialApiShort ?? '官方 API') : (l?.defaultModel ?? '默认模型'),
+              style: KcType.caption.copyWith(color: cs.mutedForeground)),
+        const Spacer(),
+        if (others.isNotEmpty) ...[
+          Text(l?.alsoUsedIn ?? '也用于', key: const ValueKey('lens.alsoUsed'), style: KcType.caption.copyWith(color: cs.mutedForeground)),
+          const SizedBox(width: 4),
+          for (final t in others.take(4))
+            Padding(
+              padding: const EdgeInsets.only(left: 2),
+              child: Tooltip(message: kcToolName(t), child: KcToolLogo(tool: t, size: 16)),
+            ),
+        ],
+      ],
     );
   }
 }

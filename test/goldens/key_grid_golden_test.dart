@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:key_core/models/mcp_server.dart';
 import 'package:key_core/utils/platform_icon_service.dart';
 import 'package:key_core/viewmodels/settings_viewmodel.dart';
+import 'package:key_core/views/screens/codex_config_screen.dart';
 import 'package:key_core/views/screens/key_form_page.dart';
 import 'package:key_core/views/screens/main_screen.dart';
 import 'package:key_core/views/widgets/key_card.dart';
@@ -88,4 +89,18 @@ void main() {
     await settle(tester, rounds: 2);
     await expectLater(find.byType(KeyFormPage), matchesGoldenFile('key_form_edit.png'));
   }, skip: skip);
+
+  for (final b in Brightness.values) {
+    testWidgets('Codex lens · ${b.name}', (tester) async {
+      await setSurface(tester, const Size(1280, 820));
+      final vm = FakeKeyManagerViewModel(buildFakeKeys());
+      vm.current[AiToolType.codex] = 1;
+      final key = GlobalKey<CodexConfigScreenState>();
+      await tester.pumpWidget(buildTestApp(viewModel: vm, home: CodexConfigScreen(key: key), brightness: b));
+      await settle(tester);
+      key.currentState!.refresh(force: true);
+      await settle(tester, rounds: 6);
+      await expectLater(find.byType(CodexConfigScreen), matchesGoldenFile('tool_lens_codex_${b.name}.png'));
+    }, skip: skip);
+  }
 }

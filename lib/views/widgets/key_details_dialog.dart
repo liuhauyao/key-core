@@ -9,7 +9,9 @@ import '../../theme/kc_tokens.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import 'kc_logo.dart';
-import 'key_card.dart' show enabledToolsOf, toolConfigPathHint;
+import 'key_card.dart' show enabledToolsOf, toolConfigPathHint, toolModelOf;
+
+export 'key_card.dart' show toolModelOf;
 
 /// 以右侧抽屉形式打开详情（遮罩 overlay，150ms 滑入；减少动态效果时无动画）
 Future<T?> showKeyDetailsSheet<T>({required BuildContext context, required WidgetBuilder builder}) {
@@ -30,24 +32,6 @@ Future<T?> showKeyDetailsSheet<T>({required BuildContext context, required Widge
       child: child,
     ),
   );
-}
-
-/// 某个工具上这把密钥的模型（展示用）
-String? toolModelOf(AIKey k, AiToolType t) {
-  switch (t) {
-    case AiToolType.claudecode:
-      return k.claudeCodeModel;
-    case AiToolType.claudeDesktop:
-      return k.claudeDesktopModel ?? k.claudeDesktopSonnetModel;
-    case AiToolType.codex:
-      return k.codexModel;
-    case AiToolType.gemini:
-      return k.geminiModel;
-    case AiToolType.openclaw:
-      return k.openclawModel;
-    default:
-      return null;
-  }
 }
 
 /// 开启某个工具前是否还需要先在编辑页补全配置（请求地址 / 模型）。Gemini 只用官方 API，无需配置
