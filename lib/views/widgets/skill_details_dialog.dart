@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../theme/kc_tokens.dart';
+import 'key_details_dialog.dart' show showKeyDetailsSheet;
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../models/skill.dart';
@@ -107,7 +109,8 @@ class SkillDetailsDialog extends StatelessWidget {
 
     if (!context.mounted) return;
 
-    await showDialog<void>(
+    // 右侧抽屉（与密钥 / MCP 详情一致，form_v3.md §8）
+    await showKeyDetailsSheet<void>(
       context: context,
       builder: (_) => SkillDetailsDialog(skill: skill),
     );
@@ -119,16 +122,22 @@ class SkillDetailsDialog extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final viewModel = context.watch<SkillsViewModel>();
 
-    return Dialog(
-      backgroundColor: shadTheme.colorScheme.background,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 600),
+    final width = MediaQuery.sizeOf(context).width;
+    return Material(
+      key: const ValueKey('skillDetails.sheet'),
+      color: shadTheme.colorScheme.background,
+      child: Container(
+        width: width < 640 ? width : 560,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: shadTheme.colorScheme.border)),
+          boxShadow: context.kc.shadowLg,
+        ),
         child: FutureBuilder<String>(
           future: viewModel.readSkillContent(skill),
           builder: (context, snapshot) {
             return Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.max,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header

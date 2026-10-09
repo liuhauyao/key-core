@@ -770,5 +770,19 @@
   "mcp_menu_import": "从已启用的工具导入",
   "mcp_import_result": "新增 {a} 个服务，记录 {b} 条启用关系",
   "mcp_import_failed_suffix": "，失败 {n} 个",
-  "mcp_written_n": "已写入 {n} 个工具"
+  "mcp_written_n": "已写入 {n} 个工具",
+  "skills_prompts_tooltip": "系统提示词（CLAUDE.md / AGENTS.md 等）",
+  "menu_group_maintain": "维护",
+  "menu_group_settings": "设置",
+  "menu_group_install": "安装",
+  "skills_menu_updates": "检查更新",
+  "skills_menu_backups": "卸载备份与恢复",
+  "skills_menu_method": "同步方式",
+  "skills_menu_storage": "存储位置",
+  "skills_menu_create": "新建 Skill",
+  "skills_menu_repos": "从仓库发现并安装",
+  "skills_menu_skillssh": "搜索 skills.sh",
+  "skills_menu_zip": "从 ZIP 安装",
+  "skills_menu_folder": "从文件夹导入",
+  "skills_menu_import_all": "从所有工具导入未管理的 Skill"
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import '../models/skill.dart';
@@ -163,30 +164,33 @@ class SkillsViewModel extends BaseViewModel {
     _filteredSkills = filtered;
   }
 
-  SkillsSyncStatusSummary getSyncSummary() {
+  SkillsSyncStatusSummary getSyncSummary() => summarizeSkills(_allSkills);
+
+  /// 同步概览（纯函数，便于测试）
+  @visibleForTesting
+  static SkillsSyncStatusSummary summarizeSkills(List<Skill> allSkills) {
     var synced = 0;
     var pending = 0;
     var conflicts = 0;
 
-    for (final skill in _allSkills.where((s) => s.isActive)) {
-      for (final state in skill.syncStatus.values) {
-        switch (state) {
-          case SkillSyncState.synced:
-            synced++;
-            break;
-          case SkillSyncState.conflict:
-            conflicts++;
-            break;
-          case SkillSyncState.notSynced:
-          case SkillSyncState.outdated:
-            pending++;
-            break;
-        }
+    // 按「技能」计数（而不是技能 × 工具的组合数）：一个技能只落入一类，
+    // 优先级 冲突 > 待同步 > 已同步。启用了某工具但还没有状态的，视为待同步。
+    for (final skill in allSkills.where((s) => s.isActive)) {
+      final states = skill.enabledTools.isNotEmpty
+          ? skill.enabledTools.map((t) => skill.syncStatus[t] ?? SkillSyncState.notSynced).toList()
+          : skill.syncStatus.values.toList();
+      if (states.isEmpty) continue;
+      if (states.contains(SkillSyncState.conflict)) {
+        conflicts++;
+      } else if (states.any((s) => s == SkillSyncState.notSynced || s == SkillSyncState.outdated)) {
+        pending++;
+      } else {
+        synced++;
       }
     }
 
     return SkillsSyncStatusSummary(
-      total: _allSkills.length,
+      total: allSkills.length,
       synced: synced,
       pending: pending,
       conflicts: conflicts,

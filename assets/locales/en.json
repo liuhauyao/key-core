@@ -770,5 +770,19 @@
   "mcp_menu_import": "Import from enabled tools",
   "mcp_import_result": "Added {a} servers, recorded {b} tool links",
   "mcp_import_failed_suffix": ", {n} failed",
-  "mcp_written_n": "Written to {n} tools"
+  "mcp_written_n": "Written to {n} tools",
+  "skills_prompts_tooltip": "System prompts (CLAUDE.md / AGENTS.md…)",
+  "menu_group_maintain": "Maintenance",
+  "menu_group_settings": "Settings",
+  "menu_group_install": "Install",
+  "skills_menu_updates": "Check for updates",
+  "skills_menu_backups": "Uninstall backups & restore",
+  "skills_menu_method": "Sync method",
+  "skills_menu_storage": "Storage location",
+  "skills_menu_create": "New skill",
+  "skills_menu_repos": "Discover & install from repos",
+  "skills_menu_skillssh": "Search skills.sh",
+  "skills_menu_zip": "Install from ZIP",
+  "skills_menu_folder": "Import from folder",
+  "skills_menu_import_all": "Import unmanaged skills from all tools"
 }
