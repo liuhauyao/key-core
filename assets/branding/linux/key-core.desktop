@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Key Core
+Name[zh_CN]=密枢
+Comment=API key manager for AI coding tools
+Comment[zh_CN]=AI 编程工具 API 密钥管理器
+Exec=key_core
+Icon=key-core
+Terminal=false
+Categories=Utility;Security;Development;
+StartupWMClass=key_core
