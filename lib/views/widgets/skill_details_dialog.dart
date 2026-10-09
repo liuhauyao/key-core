@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/kc_tokens.dart';
-import 'key_details_dialog.dart' show showKeyDetailsSheet;
+import 'kc_drawer.dart';
+import 'kc_logo.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../models/skill.dart';
@@ -110,7 +111,7 @@ class SkillDetailsDialog extends StatelessWidget {
     if (!context.mounted) return;
 
     // 右侧抽屉（与密钥 / MCP 详情一致，form_v3.md §8）
-    await showKeyDetailsSheet<void>(
+    await showKcDrawer<void>(
       context: context,
       builder: (_) => SkillDetailsDialog(skill: skill),
     );
@@ -119,215 +120,92 @@ class SkillDetailsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shadTheme = ShadTheme.of(context);
+    final cs = shadTheme.colorScheme;
+    final kc = context.kc;
     final loc = AppLocalizations.of(context);
     final viewModel = context.watch<SkillsViewModel>();
 
-    final width = MediaQuery.sizeOf(context).width;
-    return Material(
+    // 统一抽屉（kc_drawer.dart）：实色面板 + 统一页头 + 可滚动正文 + 固定底栏
+    return KcDrawerSurface(
       key: const ValueKey('skillDetails.sheet'),
-      color: shadTheme.colorScheme.background,
-      child: Container(
-        width: width < 640 ? width : 560,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: shadTheme.colorScheme.border)),
-          boxShadow: context.kc.shadowLg,
-        ),
-        child: FutureBuilder<String>(
-          future: viewModel.readSkillContent(skill),
-          builder: (context, snapshot) {
-            return Column(
-              mainAxisSize: MainAxisSize.max,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
+      header: KcDrawerHeader(
+        leading: KcLogoBox(child: Icon(Icons.psychology_outlined, size: 22, color: kc.actionText)),
+        title: Text(skill.name),
+        subtitle: Text(skill.relativePath == skill.skillId ? skill.skillId : '${skill.skillId} · ${skill.relativePath}'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.x6),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (skill.description != null && skill.description!.isNotEmpty)
+            Text(skill.description!, style: KcType.body.copyWith(color: kc.text2)),
+          _SyncStatusSection(skill: skill),
+          if (skill.tags != null && skill.tags!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              for (final tag in skill.tags!)
                 Container(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: shadTheme.colorScheme.border, width: 1),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(skill.name, style: shadTheme.textTheme.h4),
-                            const SizedBox(height: 4),
-                            Text(
-                              skill.skillId,
-                              style: shadTheme.textTheme.small.copyWith(
-                                color: shadTheme.colorScheme.mutedForeground,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Flexible(
-                        child: Text(
-                          skill.relativePath,
-                          style: shadTheme.textTheme.small.copyWith(
-                            color: shadTheme.colorScheme.mutedForeground,
-                            fontStyle: FontStyle.italic,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(999)),
+                  child: Text('#$tag', style: KcType.badge.copyWith(color: kc.text2)),
                 ),
-
-                // Description + sync status + tags
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (skill.description != null && skill.description!.isNotEmpty)
-                        Text(
-                          skill.description!,
-                          style: shadTheme.textTheme.p.copyWith(
-                            color: shadTheme.colorScheme.mutedForeground,
-                          ),
-                        ),
-                      _SyncStatusSection(skill: skill),
-                      if (skill.tags != null && skill.tags!.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: skill.tags!.map((tag) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: shadTheme.colorScheme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                '#$tag',
-                                style: shadTheme.textTheme.small.copyWith(
-                                  color: shadTheme.colorScheme.primary,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-                Flexible(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: shadTheme.colorScheme.muted,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: shadTheme.colorScheme.border),
-                    ),
-                    child: snapshot.connectionState == ConnectionState.waiting
-                        ? const Center(child: CircularProgressIndicator())
-                        : snapshot.hasError
-                            ? Center(
-                                child: Text(
-                                  loc?.skillsFailedLoadContent ?? 'Failed to load content',
-                                  style: TextStyle(color: shadTheme.colorScheme.destructive),
-                                ),
-                              )
-                            : SingleChildScrollView(
-                                child: SelectableText(
-                                  snapshot.data ?? '',
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontSize: 13,
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ),
-                  ),
-                ),
-
-                // Footer actions
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  child: Row(
-                    children: [
-                      ShadButton.ghost(
-                        onPressed: () => viewModel.toggleActive(skill),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              skill.isActive ? Icons.toggle_on : Icons.toggle_off_outlined,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(skill.isActive
-                                ? (loc?.skillsActive ?? 'Active')
-                                : (loc?.skillsInactive ?? 'Inactive')),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      if (skill.enabledTools.isNotEmpty)
-                        ShadButton.outline(
-                          onPressed: () {
-                            viewModel
-                                .syncToTool(skill.enabledTools.first, replaceExisting: false)
-                                .then((_) {
-                              if (context.mounted) Navigator.of(context).pop();
-                            });
-                          },
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.sync, size: 16),
-                              const SizedBox(width: 6),
-                              Text(loc?.skillsSync ?? 'Sync'),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(width: 8),
-                      ShadButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          Future.microtask(() async {
-                            if (!context.mounted) return;
-                            context.read<SkillsViewModel>().refresh();
-                            await Navigator.of(context).push<bool>(
-                              MaterialPageRoute(
-                                builder: (_) => SkillFormPage(skill: skill),
-                              ),
-                            );
-                          });
-                        },
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.edit_outlined, size: 16),
-                            const SizedBox(width: 6),
-                            Text(loc?.edit ?? 'Edit'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+            ]),
+          ],
+          const SizedBox(height: KcSpace.x5),
+          Text('SKILL.md', style: KcType.section.copyWith(color: cs.foreground)),
+          const SizedBox(height: KcSpace.x2),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: cs.card,
+              borderRadius: BorderRadius.circular(KcRadius.panel),
+              border: Border.all(color: cs.border),
+            ),
+            child: FutureBuilder<String>(
+              future: viewModel.readSkillContent(skill),
+              builder: (context, snapshot) => snapshot.connectionState == ConnectionState.waiting
+                  ? const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
+                  : snapshot.hasError
+                      ? Text(loc?.skillsFailedLoadContent ?? 'Failed to load content', style: TextStyle(color: cs.destructive))
+                      : SelectableText(snapshot.data ?? '', style: KcType.mono.copyWith(fontSize: 12.5, height: 1.5, color: cs.foreground)),
+            ),
+          ),
+        ]),
+      ),
+      footer: KcDrawerFooter(
+        leading: [
+          ShadButton.ghost(
+            key: const ValueKey('skillDetails.toggle'),
+            leading: Icon(skill.isActive ? Icons.toggle_on : Icons.toggle_off_outlined, size: 18),
+            onPressed: () => viewModel.toggleActive(skill),
+            child: Text(skill.isActive ? (loc?.skillsActive ?? 'Active') : (loc?.skillsInactive ?? 'Inactive')),
+          ),
+        ],
+        trailing: [
+          if (skill.enabledTools.isNotEmpty)
+            ShadButton.outline(
+              key: const ValueKey('skillDetails.sync'),
+              leading: const Icon(Icons.sync, size: 16),
+              onPressed: () {
+                viewModel.syncToTool(skill.enabledTools.first, replaceExisting: false).then((_) {
+                  if (context.mounted) Navigator.of(context).pop();
+                });
+              },
+              child: Text(loc?.skillsSync ?? 'Sync'),
+            ),
+          ShadButton(
+            key: const ValueKey('skillDetails.edit'),
+            leading: const Icon(Icons.edit_outlined, size: 16),
+            onPressed: () {
+              Navigator.of(context).pop();
+              Future.microtask(() async {
+                if (!context.mounted) return;
+                context.read<SkillsViewModel>().refresh();
+                await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => SkillFormPage(skill: skill)));
+              });
+            },
+            child: Text(loc?.edit ?? 'Edit'),
+          ),
+        ],
       ),
     );
   }

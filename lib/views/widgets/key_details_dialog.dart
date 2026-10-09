@@ -10,6 +10,7 @@ import '../../utils/app_localizations.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../../models/model_info.dart';
 import 'kc_logo.dart';
+import 'kc_drawer.dart';
 import 'kc_toast.dart';
 import '../../services/tool_providers/tool_provider_service.dart';
 import 'kc_segmented.dart';
@@ -19,25 +20,8 @@ import 'key_card.dart' show enabledToolsOf, toolConfigPathHint, toolModelOf;
 export 'key_card.dart' show toolModelOf;
 
 /// 以右侧抽屉形式打开详情（遮罩 overlay，150ms 滑入；减少动态效果时无动画）
-Future<T?> showKeyDetailsSheet<T>({required BuildContext context, required WidgetBuilder builder}) {
-  final kc = context.kc;
-  return showGeneralDialog<T>(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: kc.overlay,
-    transitionDuration: KcMotion.of(context, KcMotion.slide),
-    pageBuilder: (ctx, _, __) => Align(
-      alignment: Alignment.centerRight,
-      child: builder(ctx),
-    ),
-    transitionBuilder: (ctx, anim, _, child) => SlideTransition(
-      position: Tween(begin: const Offset(1, 0), end: Offset.zero)
-          .animate(CurvedAnimation(parent: anim, curve: KcMotion.curve)),
-      child: child,
-    ),
-  );
-}
+Future<T?> showKeyDetailsSheet<T>({required BuildContext context, required WidgetBuilder builder}) =>
+    showKcDrawer<T>(context: context, builder: builder);
 
 /// 开启某个工具前是否还需要先在编辑页补全配置（请求地址 / 模型）。Gemini 只用官方 API，无需配置
 bool toolNeedsSetup(AIKey k, AiToolType t) {
@@ -211,48 +195,22 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = ShadTheme.of(context).colorScheme;
-    final kc = context.kc;
     final l = AppLocalizations.of(context);
-    final width = MediaQuery.sizeOf(context).width;
 
-    return Material(
+    return KcDrawerSurface(
       key: const ValueKey('keyDetails.sheet'),
-      color: cs.card,
-      elevation: 0,
-      child: Container(
-        width: width < 640 ? width : 560,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: cs.border)),
-          boxShadow: kc.shadowLg,
-        ),
-        child: SafeArea(
-          left: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _header(context, l),
-              if (widget.loadModels != null) _tabs(context, l),
-              Divider(height: 1, thickness: 1, color: cs.border),
-              if (_tab == 1)
-                Expanded(child: _modelsTab(context, l))
-              else
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.x6),
-                  child: AnimatedBuilder(
-                    animation: widget.viewModel,
-                    builder: (context, _) => _body(context, l),
-                  ),
-                ),
+      header: _header(context, l),
+      tabs: widget.loadModels != null ? _tabs(context, l) : null,
+      body: _tab == 1
+          ? _modelsTab(context, l)
+          : SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.x6),
+              child: AnimatedBuilder(
+                animation: widget.viewModel,
+                builder: (context, _) => _body(context, l),
               ),
-              Divider(height: 1, thickness: 1, color: cs.border),
-              _footer(context, l),
-            ],
-          ),
-        ),
-      ),
+            ),
+      footer: _footer(context, l),
     );
   }
 
@@ -660,8 +618,11 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
 
   Widget _footer(BuildContext context, AppLocalizations? l) {
     final kc = context.kc;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: KcSpace.page, vertical: KcSpace.x3),
+    return SizedBox(
+      key: const ValueKey('kcDrawer.footer'),
+      height: 56,
+      child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KcSpace.page),
       child: Row(
         children: [
           if (widget.onDelete != null)
@@ -681,6 +642,7 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
               child: Text(l?.copyAsEnv ?? '复制为环境变量'),
             ),
         ],
+      ),
       ),
     );
   }

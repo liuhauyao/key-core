@@ -12,6 +12,7 @@ import '../../services/skills_path_service.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/skills_viewmodel.dart';
 import '../widgets/kc_manage_scaffold.dart';
+import '../widgets/kc_segmented.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/skill_card.dart';
 import '../widgets/skill_details_dialog.dart';
@@ -30,6 +31,7 @@ class SkillsConfigScreen extends StatefulWidget {
 class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isEditMode = false;
+  _SkillStatus? _status;
 
   // 多选模式
   final Set<int> _selectedSkillIds = {};
@@ -86,27 +88,13 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
               // Toolbar
               _buildToolbar(context, viewModel, shadTheme, localizations, syncSummary),
 
-              // Content area
+              // 内容区：单列网格（不再有页面内的第二条分类侧栏）
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Category sidebar
-                    _buildCategorySidebar(context, viewModel, shadTheme, localizations),
-
-                    // Separator
-                    Container(width: 1, color: shadTheme.colorScheme.border),
-
-                    // Skill list
-                    Expanded(
-                      child: viewModel.isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : viewModel.skills.isEmpty
-                              ? _buildEmptyState(context, viewModel, shadTheme, localizations)
-                              : _buildSkillList(context, viewModel, shadTheme),
-                    ),
-                  ],
-                ),
+                child: viewModel.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _visibleSkills(viewModel).isEmpty
+                        ? _buildEmptyState(context, viewModel, shadTheme, localizations)
+                        : _buildSkillList(context, viewModel, shadTheme),
               ),
             ],
             ),
@@ -123,6 +111,20 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     );
   }
 
+  /// 单个技能的同步状态（与 getSyncSummary 同一规则：冲突 > 待同步 > 已同步）
+  _SkillStatus? _statusOf(Skill skill) {
+    final states = skill.enabledTools.isNotEmpty
+        ? skill.enabledTools.map((t) => skill.syncStatus[t] ?? SkillSyncState.notSynced).toList()
+        : skill.syncStatus.values.toList();
+    if (!skill.isActive || states.isEmpty) return null;
+    if (states.contains(SkillSyncState.conflict)) return _SkillStatus.conflict;
+    if (states.any((s) => s == SkillSyncState.notSynced || s == SkillSyncState.outdated)) return _SkillStatus.pending;
+    return _SkillStatus.synced;
+  }
+
+  List<Skill> _visibleSkills(SkillsViewModel vm) =>
+      _status == null ? vm.skills : vm.skills.where((s) => _statusOf(s) == _status).toList();
+
   Widget _buildToolbar(
     BuildContext context,
     SkillsViewModel viewModel,
@@ -130,171 +132,131 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     AppLocalizations? localizations,
     SkillsSyncStatusSummary syncSummary,
   ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.background,
-        border: Border(
-          bottom: BorderSide(color: shadTheme.colorScheme.border, width: 1),
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              // Search
-              Expanded(
-                flex: 2,
-                child: SizedBox(
-                  height: 38,
-                  child: ShadInput(
-                    controller: _searchController,
-                    onChanged: (v) {
-                      viewModel.setSearchQuery(v);
-                      _clearSelection();
-                    },
-                    placeholder: Text(localizations?.skillsSearchPlaceholder ?? 'Search skills...'),
-                    leading: Icon(Icons.search, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                    trailing: _searchController.text.isNotEmpty
-                        ? ShadButton.ghost(
-                            width: 20,
-                            height: 20,
-                            padding: EdgeInsets.zero,
-                            backgroundColor: Colors.transparent,
-                            onPressed: () {
-                              _searchController.clear();
-                              viewModel.setSearchQuery('');
-                            },
-                            child: Icon(Icons.clear, size: 14, color: shadTheme.colorScheme.mutedForeground),
-                          )
-                        : null,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                height: 38,
-                decoration: BoxDecoration(
-                  border: Border.all(color: shadTheme.colorScheme.border),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _toolbarButton(
-                      icon: _isEditMode ? Icons.check : Icons.drag_handle,
-                      tooltip: _isEditMode
-                          ? (localizations?.skillsFinishEdit ?? 'Done')
-                          : (localizations?.edit ?? 'Edit'),
-                      onPressed: () {
-                        setState(() {
-                          _isEditMode = !_isEditMode;
-                          _clearSelection();
-                        });
-                      },
-                      shadTheme: shadTheme,
-                    ),
-                    _divider(shadTheme),
-                    _toolbarButton(
-                      icon: Icons.sync,
-                      tooltip: localizations?.skillsSyncAll ?? 'Sync All',
-                      onPressed: () => _syncAllSkills(context, viewModel),
-                      shadTheme: shadTheme,
-                    ),
-                    _divider(shadTheme),
-                    _toolbarButton(
-                      icon: Icons.swap_horiz,
-                      tooltip: localizations?.skillsSync ?? 'Sync',
-                      onPressed: () => _openSyncPage(context),
-                      shadTheme: shadTheme,
-                    ),
-                    _divider(shadTheme),
-                    _toolbarButton(
-                      icon: Icons.notes_outlined,
-                      tooltip: localizations?.tr('skills_prompts_tooltip', '系统提示词（CLAUDE.md / AGENTS.md 等）') ?? '系统提示词（CLAUDE.md / AGENTS.md 等）',
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const PromptsPage()),
-                      ),
-                      shadTheme: shadTheme,
-                    ),
-                    _divider(shadTheme),
-                    // ⋯ 维护菜单（form_v3.md §8）：更新 / 备份 / 设置
-                    PopupMenuButton<String>(
-                      key: const ValueKey('skills.moreMenu'),
-                      tooltip: localizations?.tr('more', '更多') ?? '更多',
-                      icon: Icon(Icons.more_horiz, size: 18, color: shadTheme.colorScheme.primary),
-                      onSelected: (v) => _onMarketAction(context, viewModel, v),
-                      itemBuilder: (_) => [
-                        _menuHeader(localizations?.tr('menu_group_maintain', '维护') ?? '维护'),
-                        _menuItem('updates', Icons.system_update_alt, localizations?.tr('skills_menu_updates', '检查更新') ?? '检查更新'),
-                        _menuItem('backups', Icons.restore, localizations?.tr('skills_menu_backups', '卸载备份与恢复') ?? '卸载备份与恢复'),
-                        const PopupMenuDivider(),
-                        _menuHeader(localizations?.tr('menu_group_settings', '设置') ?? '设置'),
-                        _menuItem('method', Icons.link, localizations?.tr('skills_menu_method', '同步方式') ?? '同步方式'),
-                        _menuItem('storage', Icons.folder_outlined, localizations?.tr('skills_menu_storage', '存储位置') ?? '存储位置'),
-                      ],
-                    ),
-                    _divider(shadTheme),
-                    _toolbarButton(
-                      icon: Icons.refresh,
-                      tooltip: localizations?.refreshKeyList ?? 'Refresh',
-                      onPressed: () => viewModel.refresh(),
-                      shadTheme: shadTheme,
-                    ),
-                    _divider(shadTheme),
-                    // + 分组添加菜单（form_v3.md §8）：新建 / 安装 / 导入
-                    PopupMenuButton<String>(
-                      key: const ValueKey('skills.addMenu'),
-                      tooltip: localizations?.tr('add', '添加') ?? '添加',
-                      icon: Icon(Icons.add, size: 18, color: shadTheme.colorScheme.primary),
-                      onSelected: (v) => _onMarketAction(context, viewModel, v),
-                      itemBuilder: (_) => _addMenuItems(localizations),
-                    ),
-                  ],
-                ),
-              ),
+    String t(String k, String f) => localizations?.tr(k, f) ?? f;
+    final icon = KcPageHeader.iconButton;
+    // 统一页头（与钥匙包 / MCP 相同几何）：标题 · 副标题 · 搜索 240 · 图标组 · 定宽主按钮槽
+    final header = KcPageHeader(
+      title: 'Skills',
+      subtitle: t('skills_subtitle', '{n} 个技能 · {m} 个待同步')
+          .replaceAll('{n}', '${syncSummary.total}')
+          .replaceAll('{m}', '${syncSummary.pending + syncSummary.conflicts}'),
+      manageSubtitle: t('manage_subtitle_skills', '管理模式 · 拖动排序，勾选后批量操作'),
+      manage: _isEditMode,
+      searchKey: const ValueKey('skills.search'),
+      searchController: _searchController,
+      searchHint: localizations?.skillsSearchPlaceholder ?? '搜索 Skills…',
+      onSearch: (v) {
+        viewModel.setSearchQuery(v);
+        _clearSelection();
+      },
+      actions: [
+        icon(context,
+            key: const ValueKey('skills.manageToggle'),
+            icon: _isEditMode ? Icons.check : Icons.drag_indicator,
+            tip: _isEditMode ? (localizations?.skillsFinishEdit ?? '完成') : t('manage_tip', '管理：排序 / 批量操作'),
+            active: _isEditMode,
+            onPressed: () => setState(() {
+                  _isEditMode = !_isEditMode;
+                  _clearSelection();
+                })),
+        icon(context, icon: Icons.sync, tip: localizations?.skillsSyncAll ?? '全部同步', onPressed: () => _syncAllSkills(context, viewModel)),
+        icon(context, icon: Icons.compare_arrows, tip: localizations?.skillsSync ?? '对比与同步', onPressed: () => _openSyncPage(context)),
+        icon(context,
+            key: const ValueKey('skills.prompts'),
+            icon: Icons.notes_outlined,
+            tip: t('skills_prompts_tooltip', '系统提示词（CLAUDE.md / AGENTS.md 等）'),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PromptsPage()))),
+        Padding(
+          padding: const EdgeInsets.only(left: KcSpace.x2),
+          child: PopupMenuButton<String>(
+            key: const ValueKey('skills.moreMenu'),
+            tooltip: t('more', '更多'),
+            position: PopupMenuPosition.under,
+            onSelected: (v) => _onMarketAction(context, viewModel, v),
+            itemBuilder: (_) => [
+              _menuHeader(t('menu_group_maintain', '维护')),
+              _menuItem('updates', Icons.system_update_alt, t('skills_menu_updates', '检查更新')),
+              _menuItem('backups', Icons.restore, t('skills_menu_backups', '卸载备份与恢复')),
+              _menuItem('refresh', Icons.refresh, localizations?.refreshKeyList ?? '刷新'),
+              const PopupMenuDivider(),
+              _menuHeader(t('menu_group_settings', '设置')),
+              _menuItem('method', Icons.link, t('skills_menu_method', '同步方式')),
+              _menuItem('storage', Icons.folder_outlined, t('skills_menu_storage', '存储位置')),
             ],
+            child: IgnorePointer(child: icon(context, icon: Icons.more_horiz, tip: t('more', '更多'), onPressed: () {})),
           ),
-          // Sync status summary
-          if (syncSummary.total > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(
-                children: [
-                  _statusChip(AppLocalizations.of(context)?.skillsStatTotal(syncSummary.total) ?? '共 ${syncSummary.total} 个', shadTheme.colorScheme.mutedForeground, shadTheme),
-                  const SizedBox(width: 8),
-                  _statusChip(AppLocalizations.of(context)?.skillsStatSynced(syncSummary.synced) ?? '${syncSummary.synced} 个已同步', Colors.green, shadTheme),
-                  const SizedBox(width: 8),
-                  _statusChip(AppLocalizations.of(context)?.skillsStatPending(syncSummary.pending) ?? '${syncSummary.pending} 个待同步', Colors.orange, shadTheme),
-                  if (syncSummary.conflicts > 0) ...[
-                    const SizedBox(width: 8),
-                    _statusChip(AppLocalizations.of(context)?.skillsStatConflicts(syncSummary.conflicts) ?? '${syncSummary.conflicts} 个冲突', shadTheme.colorScheme.destructive, shadTheme),
-                  ],
-                ],
+        ),
+      ],
+      primary: _isEditMode
+          ? ShadButton(
+              key: const ValueKey('skills.done'),
+              height: KcSize.control,
+              width: 112,
+              leading: const Icon(Icons.check, size: 16),
+              onPressed: () => setState(() {
+                _isEditMode = false;
+                _clearSelection();
+              }),
+              child: Text(t('done', '完成')),
+            )
+          : PopupMenuButton<String>(
+              key: const ValueKey('skills.addMenu'),
+              tooltip: '',
+              position: PopupMenuPosition.under,
+              onSelected: (v) => _onMarketAction(context, viewModel, v),
+              itemBuilder: (_) => _addMenuItems(localizations),
+              child: IgnorePointer(
+                child: ShadButton(
+                  height: KcSize.control,
+                  width: 112,
+                  leading: const Icon(Icons.add, size: 16),
+                  trailing: const Icon(Icons.expand_more, size: 14),
+                  onPressed: () {},
+                  child: Text(t('add', '添加')),
+                ),
               ),
             ),
-        ],
-      ),
     );
+
+    final cats = viewModel.categories;
+    String catName(String c) => c.isEmpty ? (localizations?.skillsUncategorized ?? '未分类') : c;
+    final all = viewModel.skills;
+    int n(_SkillStatus? st) => st == null ? all.length : all.where((s) => _statusOf(s) == st).length;
+    final filterRow = Padding(
+      padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, 0),
+      child: Row(children: [
+        KcSegmented<_SkillStatus?>(
+          key: const ValueKey('skills.statusFilter'),
+          value: _status,
+          onChanged: (v) => setState(() => _status = v),
+          items: [
+            (null, t('segment_all', '全部'), n(null)),
+            (_SkillStatus.synced, t('status_synced', '已同步'), n(_SkillStatus.synced)),
+            (_SkillStatus.pending, t('status_pending', '待同步'), n(_SkillStatus.pending)),
+            (_SkillStatus.conflict, t('status_conflict', '冲突'), n(_SkillStatus.conflict)),
+          ],
+        ),
+        const Spacer(),
+        // 分类筛选改为弹出菜单（取代原来页面内的第二条侧栏）
+        if (cats.isNotEmpty)
+          KcFilterMenuButton<String?>(
+            key: const ValueKey('skills.categoryFilter'),
+            label: viewModel.activeCategory == null ? t('all_categories', '全部分类') : catName(viewModel.activeCategory!),
+            selected: viewModel.activeCategory,
+            onSelected: (c) {
+              viewModel.setActiveCategory(c);
+              _clearSelection();
+            },
+            items: [
+              (null, t('all_categories', '全部分类'), viewModel.allSkills.length),
+              for (final c in cats) (c, catName(c), viewModel.getSkillsByCategory(c).length),
+            ],
+          ),
+      ]),
+    );
+    return Column(mainAxisSize: MainAxisSize.min, children: [header, filterRow]);
   }
 
-  Widget _statusChip(String text, Color color, ShadThemeData shadTheme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: shadTheme.textTheme.small.copyWith(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
 
   Widget _buildSelectionToolbar(
     BuildContext context,
@@ -328,117 +290,9 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     );
   }
 
-  Widget _buildCategorySidebar(
-    BuildContext context,
-    SkillsViewModel viewModel,
-    ShadThemeData shadTheme,
-    AppLocalizations? localizations,
-  ) {
-    final categories = viewModel.categories;
-    if (categories.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      width: 160,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: ListView(
-        children: [
-          _categoryItem(
-            label: localizations?.skillsAll ?? 'All',
-            icon: Icons.psychology_outlined,
-            isSelected: viewModel.activeCategory == null,
-            count: viewModel.allSkills.length,
-            onTap: () => viewModel.setActiveCategory(null),
-            shadTheme: shadTheme,
-          ),
-          for (final cat in categories)
-            _categoryItem(
-              label: cat.isEmpty ? (localizations?.skillsUncategorized ?? 'Uncategorized') : cat,
-              icon: cat.isEmpty ? Icons.folder_off_outlined : Icons.folder_outlined,
-              isSelected: viewModel.activeCategory == cat,
-              count: viewModel.getSkillsByCategory(cat).length,
-              onTap: () => viewModel.setActiveCategory(cat),
-              shadTheme: shadTheme,
-            ),
-        ],
-      ),
-    );
-  }
 
-  Widget _categoryItem({
-    required String label,
-    required IconData icon,
-    required bool isSelected,
-    required int count,
-    required VoidCallback onTap,
-    required ShadThemeData shadTheme,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? shadTheme.colorScheme.primary.withOpacity(0.1) : Colors.transparent,
-          border: Border(
-            right: BorderSide(
-              color: isSelected ? shadTheme.colorScheme.primary : Colors.transparent,
-              width: 2,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: isSelected ? shadTheme.colorScheme.primary : shadTheme.colorScheme.mutedForeground),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: shadTheme.textTheme.small.copyWith(
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected ? shadTheme.colorScheme.primary : shadTheme.colorScheme.foreground,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: shadTheme.colorScheme.muted,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '$count',
-                style: shadTheme.textTheme.small.copyWith(fontSize: 10),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _toolbarButton({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onPressed,
-    required ShadThemeData shadTheme,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: ShadButton.ghost(
-        width: 38,
-        height: 38,
-        padding: EdgeInsets.zero,
-        onPressed: onPressed,
-        child: Icon(icon, size: 18, color: shadTheme.colorScheme.primary),
-      ),
-    );
-  }
-
-  Widget _divider(ShadThemeData shadTheme) {
-    return Container(width: 1, height: 20, color: shadTheme.colorScheme.border);
-  }
 
   Widget _buildEmptyState(
     BuildContext context,
@@ -542,7 +396,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
         final cardWidth = (availableWidth - (crossAxisCount - 1) * cardSpacing) / crossAxisCount;
         if (cardWidth < minCardWidth && crossAxisCount > 1) crossAxisCount -= 1;
 
-        final skills = List<Skill>.from(viewModel.skills);
+        final skills = List<Skill>.from(_visibleSkills(viewModel));
         final cards = skills.map((skill) {
           return SizedBox(
             key: ValueKey('skillSlot-${skill.id}'),
@@ -564,7 +418,8 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                   // Single tap in normal mode → open details
                   SkillDetailsDialog.show(context, skill);
                 } else {
-                  _openEditPage(context, skill);
+                  // 管理模式：点卡片 = 勾选（与钥匙包 / MCP 一致）
+                  _toggleSelection(skill);
                 }
               },
               onDoubleTap: () {
@@ -777,6 +632,8 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
 
   Future<void> _onMarketAction(BuildContext context, SkillsViewModel vm, String action) async {
     switch (action) {
+      case 'refresh':
+        await vm.refresh();
       case 'create':
         _openCreatePage(context);
       case 'folder':
@@ -1130,3 +987,5 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
 }
 
 String _l(BuildContext c, String k, String zh) => AppLocalizations.of(c)?.tr(k, zh) ?? zh;
+
+enum _SkillStatus { synced, pending, conflict }

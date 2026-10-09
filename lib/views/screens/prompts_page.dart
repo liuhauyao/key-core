@@ -1,3 +1,6 @@
+import '../widgets/kc_manage_scaffold.dart';
+import '../../theme/kc_tokens.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -84,54 +87,72 @@ class _PromptsView extends StatelessWidget {
         ],
         onClose: () => Navigator.of(context).pop(),
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      body: Builder(builder: (context) {
+        final cs = ShadTheme.of(context).colorScheme;
+        final kc = context.kc;
+        // 与钥匙包 / MCP / Skills 同一语言：筛选行（工具弹出菜单 + 目标文件路径）+ 分组卡片列表
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, KcSpace.x3),
             child: Row(children: [
-              DropdownButton<AiToolType>(
-                value: vm.tool,
-                onChanged: (t) => t == null ? null : vm.selectTool(t),
-                items: vm.tools
-                    .map((t) => DropdownMenuItem(value: t, child: Text(t.displayName)))
-                    .toList(),
+              KcFilterMenuButton<AiToolType>(
+                key: const ValueKey('prompts.tool'),
+                label: vm.tool.displayName,
+                selected: vm.tool,
+                onSelected: vm.selectTool,
+                items: [for (final t in vm.tools) (t, t.displayName, null)],
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: KcSpace.x3),
+              Icon(Icons.description_outlined, size: 15, color: kc.text2),
+              const SizedBox(width: 4),
               Expanded(
-                child: Text(vm.filePath ?? '', overflow: TextOverflow.ellipsis),
+                child: Text(vm.filePath ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: KcType.mono.copyWith(fontSize: 12, color: kc.text2)),
               ),
             ]),
           ),
-          if (vm.isLoading) const LinearProgressIndicator(),
+          if (vm.isLoading) const LinearProgressIndicator(minHeight: 2),
           Expanded(
             child: vm.prompts.isEmpty
-                ? Center(child: Text(_l(context, 'prompts_empty', '暂无提示词。启用某条提示词后，它会写入上面的文件。')))
+                ? Center(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.notes_outlined, size: 40, color: kc.text2.withValues(alpha: 0.5)),
+                      const SizedBox(height: KcSpace.x3),
+                      Text(_l(context, 'prompts_empty', '暂无提示词。启用某条提示词后，它会写入上面的文件。'), style: KcType.body.copyWith(color: kc.text2)),
+                      const SizedBox(height: KcSpace.x4),
+                      ShadButton(leading: const Icon(Icons.add, size: 16), onPressed: () => _edit(context, vm), child: Text(_l(context, 'new_btn', '新建'))),
+                    ]),
+                  )
                 : ListView(
-                    children: vm.prompts
-                        .map((p) => ListTile(
-                              title: Text(p.name),
-                              subtitle: Text(
-                                p.content.replaceAll('\n', ' '),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              leading: Switch(
-                                value: p.enabled,
-                                onChanged: (v) async {
-                                  final ok = await vm.setEnabled(p, v);
-                                  if (context.mounted) _toast(context, vm, ok, v ? _l(context, 'prompt_enabled_written', '已启用并写入文件') : _l(context, 'disabled', '已停用'));
-                                },
-                              ),
-                              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    padding: const EdgeInsets.fromLTRB(KcSpace.page, 0, KcSpace.page, KcSpace.x6),
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: cs.card,
+                          borderRadius: BorderRadius.circular(KcRadius.panel),
+                          border: Border.all(color: cs.border),
+                        ),
+                        child: Column(children: [
+                          for (final (i, p) in vm.prompts.indexed) ...[
+                            if (i > 0) Divider(height: 1, thickness: 1, indent: KcSpace.x4, color: cs.border),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: KcSpace.x4, vertical: KcSpace.x3),
+                              child: Row(children: [
+                                Expanded(
+                                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Text(p.name, style: KcType.strong.copyWith(color: cs.foreground)),
+                                    const SizedBox(height: 2),
+                                    Text(p.content.replaceAll('\n', ' '), maxLines: 2, overflow: TextOverflow.ellipsis, style: KcType.caption.copyWith(color: kc.text2)),
+                                  ]),
+                                ),
+                                const SizedBox(width: KcSpace.x3),
                                 IconButton(
                                   tooltip: _l(context, 'edit_btn', '编辑'),
-                                  icon: const Icon(Icons.edit_outlined),
+                                  icon: Icon(Icons.edit_outlined, size: 17, color: kc.text2),
                                   onPressed: () => _edit(context, vm, p),
                                 ),
                                 IconButton(
                                   tooltip: p.enabled ? _l(context, 'prompt_cant_delete_enabled', '启用中的提示词不能删除') : _l(context, 'delete_btn', '删除'),
-                                  icon: const Icon(Icons.delete_outline),
+                                  icon: Icon(Icons.delete_outline, size: 17, color: p.enabled ? kc.text2.withValues(alpha: 0.5) : kc.dangerText),
                                   onPressed: p.enabled
                                       ? null
                                       : () async {
@@ -139,13 +160,25 @@ class _PromptsView extends StatelessWidget {
                                           if (context.mounted) _toast(context, vm, ok, _l(context, 'deleted', '已删除'));
                                         },
                                 ),
+                                const SizedBox(width: KcSpace.x2),
+                                Switch(
+                                  value: p.enabled,
+                                  activeTrackColor: cs.primary,
+                                  onChanged: (v) async {
+                                    final ok = await vm.setEnabled(p, v);
+                                    if (context.mounted) _toast(context, vm, ok, v ? _l(context, 'prompt_enabled_written', '已启用并写入文件') : _l(context, 'disabled', '已停用'));
+                                  },
+                                ),
                               ]),
-                            ))
-                        .toList(),
+                            ),
+                          ],
+                        ]),
+                      ),
+                    ],
                   ),
           ),
-        ],
-      ),
+        ]);
+      }),
     );
   }
 }
