@@ -123,8 +123,10 @@ void main() {
       expect(auth.defaultRule.envKeyName, 'CODEX_API_KEY');
       expect(auth.defaultRule.wireApi, 'responses');
       expect(auth.defaultRule.keyPlacement, 'bearerToken');
+      // 上游只有 Chat Completions 的供应商保留 chat（新版 Codex 需本地代理，见 parity_matrix.md）
       for (final r in auth.rules) {
-        expect(r.wireApi, 'responses', reason: r.platformType);
+        expect(r.wireApi, const {'siliconFlow', 'huggingFace'}.contains(r.platformType) ? 'chat' : 'responses',
+            reason: r.platformType);
       }
       expect(auth.rules.firstWhere((r) => r.platformType == 'openAI').keyPlacement, 'authJson');
     });

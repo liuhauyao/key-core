@@ -759,7 +759,8 @@
         },
         "codex": {
           "baseUrl": "https://api.tbox.cn/api/v1",
-          "model": "Ling-1T"
+          "model": "Ling-1T",
+          "wireApi": "chat"
         },
         "platform": {
           "managementUrl": "https://alipaytbox.yuque.com/sxs0ba/ling/get_started",
@@ -1015,7 +1016,8 @@
         },
         "codex": {
           "baseUrl": "https://api-inference.huggingface.co/v1",
-          "model": "gpt-5-codex"
+          "model": "gpt-5-codex",
+          "wireApi": "chat"
         },
         "openclaw": {
           "baseUrl": "https://api-inference.huggingface.co/v1",
@@ -1689,7 +1691,8 @@
           "model": "gpt-5-codex",
           "endpointCandidates": [
             "https://api.siliconflow.cn/v1"
-          ]
+          ],
+          "wireApi": "chat"
         },
         "openclaw": {
           "baseUrl": "https://api.siliconflow.cn/v1",
@@ -3259,7 +3262,8 @@
         },
         "codex": {
           "baseUrl": "https://apihub.agnes-ai.com/v1",
-          "model": "agnes-2.0-flash"
+          "model": "agnes-2.0-flash",
+          "wireApi": "chat"
         },
         "platform": {
           "managementUrl": "https://platform.agnes-ai.com",
@@ -3376,7 +3380,8 @@
         },
         "codex": {
           "baseUrl": "https://api.sensenova.cn/v1",
-          "model": "SenseChat-5"
+          "model": "SenseChat-5",
+          "wireApi": "chat"
         },
         "platform": {
           "managementUrl": "https://platform.sensenova.cn/console/api-keys",
@@ -11402,7 +11407,7 @@
           "supportsAuthJson": false,
           "envKeyName": "HUGGINGFACE_API_KEY",
           "requiresOpenaiAuth": false,
-          "wireApi": "responses",
+          "wireApi": "chat",
           "keyPlacement": "bearerToken"
         },
         {
@@ -11439,7 +11444,7 @@
           "supportsAuthJson": true,
           "requiresOpenaiAuth": true,
           "authJsonKey": "OPENAI_API_KEY",
-          "wireApi": "responses",
+          "wireApi": "chat",
           "keyPlacement": "bearerToken"
         },
         {
