@@ -19,6 +19,7 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
   final List<int> deleteCalls = [];
   final Map<String, List<int>> switchCalls = {};
   final List<int> decryptCalls = [];
+  final List<int> copyCalls = [];
 
   /// 各工具当前生效的密钥（测试可直接改写）；切换成功会更新它
   final Map<AiToolType, int?> current = {
@@ -133,6 +134,12 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
     updateCalls.add(key);
     _all = [for (final k in _all) k.id == key.id ? key : k];
     notifyListeners();
+    return true;
+  }
+
+  @override
+  Future<bool> copyKeyToClipboard(int id) async {
+    copyCalls.add(id);
     return true;
   }
 

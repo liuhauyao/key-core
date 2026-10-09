@@ -723,5 +723,16 @@
   "batch_delete_mcp_confirm": "Delete the {n} selected MCP servers?",
   "uninstall": "Uninstall",
   "sidebar_official_tip": "{tool} is using: official sign-in",
-  "official_login": "Official sign-in"
+  "official_login": "Official sign-in",
+  "drag_to_reorder": "Drag to reorder",
+  "card_copy_key": "Key",
+  "card_copy_endpoint": "URL",
+  "no_api_endpoint": "No API base URL",
+  "open_console": "Open console",
+  "no_management_url": "No console URL",
+  "refresh_balance_models": "Refresh balance & models",
+  "active_in_tools": "Active in {tools}",
+  "enabled_n_tools": "Enabled in {n} tools",
+  "copied_endpoint_of": "Copied the base URL of “{name}”",
+  "copied_key_of": "Copied the key of “{name}”"
 }

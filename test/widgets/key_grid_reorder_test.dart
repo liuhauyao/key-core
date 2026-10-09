@@ -230,7 +230,7 @@ void main() {
     });
   });
 
-  group('响应式列数（卡片高 140）', () {
+  group('响应式列数（v3 卡片高 150）', () {
     for (final entry in {700.0: 2, 1000.0: 3, 1280.0: 4, 1600.0: 5}.entries) {
       testWidgets('宽 ${entry.key.toInt()} → ${entry.value} 列', (tester) async {
         await pumpGrid(tester, size: Size(entry.key, 900));
@@ -242,7 +242,7 @@ void main() {
         final firstRow = tops.where((r) => (r.top - firstRowY).abs() < 1).length;
         expect(firstRow, entry.value);
         for (final r in tops) {
-          expect(r.height, closeTo(140, 0.5));
+          expect(r.height, closeTo(150, 0.5));
         }
       });
     }

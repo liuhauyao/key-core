@@ -723,5 +723,16 @@
   "batch_delete_mcp_confirm": "确定要删除选中的 {n} 个 MCP 服务器吗？",
   "uninstall": "卸载",
   "sidebar_official_tip": "{tool} 当前使用：官方登录",
-  "official_login": "官方登录"
+  "official_login": "官方登录",
+  "drag_to_reorder": "拖动排序",
+  "card_copy_key": "密钥",
+  "card_copy_endpoint": "地址",
+  "no_api_endpoint": "未设置请求地址",
+  "open_console": "打开控制台",
+  "no_management_url": "未设置管理地址",
+  "refresh_balance_models": "刷新余额与模型",
+  "active_in_tools": "生效于 {tools}",
+  "enabled_n_tools": "已启用 {n} 个工具",
+  "copied_endpoint_of": "已复制「{name}」的请求地址",
+  "copied_key_of": "已复制「{name}」的密钥"
 }

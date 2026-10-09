@@ -58,11 +58,10 @@ void main() {
     // 7: 一个工具都没有 → 「＋ 未用到工具」
     expect(inCard(7, byKey('toolChip.plus')), findsOneWidget);
     expect(inCard(7, find.text('未用到工具')), findsOneWidget);
-    // 有工具的卡片不 hover 时不显示 ＋
-    // （按钮保持挂载以免菜单弹出后丢失选择，但不可见、不可点）
-    final plusVis = tester.widget<Visibility>(
-        find.ancestor(of: inCard(1, byKey('toolChip.plus')), matching: find.byType(Visibility)).first);
-    expect(plusVis.visible, isFalse);
+    // v3：工具行常驻末尾虚线「+」；右侧摘要「生效于 …」/「已启用 N 个工具」
+    expect(inCard(1, byKey('toolChip.plus')), findsOneWidget);
+    expect(inCard(1, find.text('生效于 Claude')), findsOneWidget);
+    expect(inCard(3, find.textContaining('已启用')), findsOneWidget);
   });
 
   testWidgets('点击「已启用」chip 直接切换；toast 带撤销，撤销恢复为官方配置', (tester) async {
@@ -115,13 +114,13 @@ void main() {
     expect(vm.decryptCalls, isEmpty, reason: '点 chip 不应冒泡成「打开详情」');
   });
 
-  testWidgets('管理模式：不渲染可点 chip，底部显示「n 个工具」+ 置顶/编辑/删除', (tester) async {
+  testWidgets('管理模式：工具行不可点、无＋；底栏换成置顶/编辑/删除', (tester) async {
     await pumpGrid(tester, setup: (vm) => vm.current[AiToolType.claudecode] = 1);
     await tester.tap(byKey('keyGrid.manageToggle'));
     await settle(tester, rounds: 2);
-    expect(find.byKey(const ValueKey('toolChip.active.claudecode')), findsNothing);
-    expect(find.byKey(const ValueKey('toolChip.enabled.codex')), findsNothing);
-    expect(inCard(1, find.text('3 个工具')), findsOneWidget);
+    // v3：工具行保持原样（零位移），但点击不切换；没有「＋」
+    expect(inCard(1, byKey('toolChip.active.claudecode')), findsOneWidget);
+    expect(inCard(1, byKey('toolChip.plus')), findsNothing);
     expect(inCard(7, find.text('未用到工具')), findsOneWidget);
     // v3（form_v3.md §13）：标题不变、不插横幅；主按钮原位变为「完成」，底部出现悬浮批量栏
     expect(find.text('管理密钥'), findsNothing);
@@ -141,7 +140,9 @@ void main() {
     expect(inCard(1, byKey('keyCard.favorite')), findsOneWidget);
     expect(inCard(2, byKey('keyCard.favorite')), findsOneWidget);
     expect(inCard(3, byKey('keyCard.favorite')), findsNothing);
-    expect(inCard(1, find.textContaining('sk-••••0001', findRichText: true)), findsOneWidget);
+    // v3：卡片不显示密钥（掩码也不显示），副标题只有平台名
+    expect(inCard(1, find.textContaining('••••', findRichText: true)), findsNothing);
+    expect(inCard(1, byKey('keyCard.platform')), findsOneWidget);
     expect(find.byKey(const ValueKey('platformLogo.initial')), findsOneWidget);
     expect(inCard(12, byKey('platformLogo.initial')), findsOneWidget);
   });
@@ -158,27 +159,54 @@ void main() {
     expect(inCard(3, find.textContaining('过期')), findsNothing);
   });
 
-  testWidgets('hover 才出现右上角操作（复制 / 编辑 / ⋯）', (tester) async {
+  testWidgets('v3 底栏常驻 5 个定宽槽：复制密钥 / 复制请求地址 / 编辑 / 控制台 / ⋯（无需 hover）', (tester) async {
     await pumpGrid(tester);
-    double opacityOfActions() => tester
-        .widget<AnimatedOpacity>(find
-            .ancestor(of: inCard(5, byKey('keyCard.copy')), matching: find.byType(AnimatedOpacity))
-            .first)
-        .opacity;
-    expect(opacityOfActions(), 0);
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    addTearDown(mouse.removePointer);
-    await mouse.moveTo(tester.getCenter(cardFor(5)));
-    await tester.pumpAndSettle(const Duration(milliseconds: 200));
-    expect(opacityOfActions(), 1);
-    // hover 时有工具的卡片也出现 ＋
-    expect(
-        tester
-            .widget<Visibility>(
-                find.ancestor(of: inCard(5, byKey('toolChip.plus')), matching: find.byType(Visibility)).first)
-            .visible,
-        isTrue);
+    for (final k in ['keyCard.copy', 'keyCard.copyEndpoint', 'keyCard.hoverEdit', 'keyCard.openConsole', 'keyCard.more']) {
+      expect(inCard(5, byKey(k)), findsOneWidget, reason: k);
+    }
+    expect(tester.getSize(inCard(5, byKey('keyCard.copy'))).width, 58);
+    expect(tester.getSize(inCard(5, byKey('keyCard.copyEndpoint'))).width, 58);
+    // 所有卡片的槽位 x 偏移一致（按钮只置灰不隐藏）
+    final cards = tester.widgetList<KeyCard>(find.byType(KeyCard)).take(4).toList();
+    final dx = cards
+        .map((c) => tester.getTopLeft(find.descendant(of: find.byWidget(c), matching: byKey('keyCard.openConsole'))).dx -
+            tester.getTopLeft(find.byWidget(c)).dx)
+        .toSet();
+    expect(dx.length, 1);
+  });
+
+  testWidgets('复制密钥 / 请求地址：toast 只写名称与类型，不回显内容', (tester) async {
+    final vm = await pumpGrid(tester);
+    await tester.tap(inCard(1, byKey('keyCard.copy')));
+    await tester.pump();
+    expect(vm.copyCalls, [1]);
+    expect(find.text('已复制「DeepSeek 主力」的密钥'), findsOneWidget);
+    expect(find.textContaining('sk-'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('管理模式：底栏原位换成 拖动排序 / 编辑 / 置顶 / 删除，几何不变', (tester) async {
+    await pumpGrid(tester);
+    Rect r(String k) => tester.getRect(inCard(5, byKey(k)));
+    final more = r('keyCard.more');
+    final console = r('keyCard.openConsole');
+    final edit = r('keyCard.hoverEdit');
+    await tester.tap(byKey('keyGrid.manageToggle'));
+    await settle(tester, rounds: 2);
+    expect(r('keyCard.delete').center, more.center);
+    expect(r('keyCard.moveToTop').center, console.center);
+    expect(r('keyCard.edit').center, edit.center);
+    expect(r('keyCard.dragHandle').width, 120);
+  });
+
+  testWidgets('⋯ 菜单分组：查看 / 复制（含请求地址）/ 置顶 · 删除', (tester) async {
+    await pumpGrid(tester);
+    await tester.tap(inCard(1, byKey('keyCard.more')));
+    await tester.pumpAndSettle();
+    for (final k in ['view', 'copyKey', 'endpoint', 'top', 'delete']) {
+      expect(byKey('keyCard.menu.$k'), findsOneWidget, reason: k);
+    }
+    expect(find.byType(PopupMenuDivider), findsWidgets);
   });
 
   testWidgets('过滤分段：正在使用 / 未用到工具 / 需处理', (tester) async {
