@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../theme/kc_tokens.dart';
 import 'package:provider/provider.dart';
 import 'package:reorderables/reorderables.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -209,34 +210,28 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                     ),
                     _divider(shadTheme),
                     _toolbarButton(
-                      icon: Icons.file_upload_outlined,
-                      tooltip: localizations?.skillsImport ?? 'Import',
-                      onPressed: () => _importFromFolder(context, viewModel),
-                      shadTheme: shadTheme,
-                    ),
-                    _divider(shadTheme),
-                    _toolbarButton(
                       icon: Icons.notes_outlined,
-                      tooltip: '系统提示词（CLAUDE.md / AGENTS.md 等）',
+                      tooltip: localizations?.tr('skills_prompts_tooltip', '系统提示词（CLAUDE.md / AGENTS.md 等）') ?? '系统提示词（CLAUDE.md / AGENTS.md 等）',
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const PromptsPage()),
                       ),
                       shadTheme: shadTheme,
                     ),
                     _divider(shadTheme),
+                    // ⋯ 维护菜单（form_v3.md §8）：更新 / 备份 / 设置
                     PopupMenuButton<String>(
-                      tooltip: '更多 Skills 功能',
-                      icon: Icon(Icons.storefront_outlined, size: 18, color: shadTheme.colorScheme.primary),
+                      key: const ValueKey('skills.moreMenu'),
+                      tooltip: localizations?.tr('more', '更多') ?? '更多',
+                      icon: Icon(Icons.more_horiz, size: 18, color: shadTheme.colorScheme.primary),
                       onSelected: (v) => _onMarketAction(context, viewModel, v),
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'repos', child: Text('从仓库发现并安装')),
-                        PopupMenuItem(value: 'skillssh', child: Text('搜索 skills.sh')),
-                        PopupMenuItem(value: 'zip', child: Text('从 ZIP 安装')),
-                        PopupMenuItem(value: 'importAll', child: Text('从所有工具导入未管理的 Skill')),
-                        PopupMenuItem(value: 'updates', child: Text('检查更新')),
-                        PopupMenuItem(value: 'backups', child: Text('卸载备份与恢复')),
-                        PopupMenuItem(value: 'method', child: Text('同步方式')),
-                        PopupMenuItem(value: 'storage', child: Text('存储位置')),
+                      itemBuilder: (_) => [
+                        _menuHeader(localizations?.tr('menu_group_maintain', '维护') ?? '维护'),
+                        _menuItem('updates', Icons.system_update_alt, localizations?.tr('skills_menu_updates', '检查更新') ?? '检查更新'),
+                        _menuItem('backups', Icons.restore, localizations?.tr('skills_menu_backups', '卸载备份与恢复') ?? '卸载备份与恢复'),
+                        const PopupMenuDivider(),
+                        _menuHeader(localizations?.tr('menu_group_settings', '设置') ?? '设置'),
+                        _menuItem('method', Icons.link, localizations?.tr('skills_menu_method', '同步方式') ?? '同步方式'),
+                        _menuItem('storage', Icons.folder_outlined, localizations?.tr('skills_menu_storage', '存储位置') ?? '存储位置'),
                       ],
                     ),
                     _divider(shadTheme),
@@ -247,11 +242,13 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                       shadTheme: shadTheme,
                     ),
                     _divider(shadTheme),
-                    _toolbarButton(
-                      icon: Icons.add,
-                      tooltip: localizations?.skillsCreate ?? 'Create',
-                      onPressed: () => _openCreatePage(context),
-                      shadTheme: shadTheme,
+                    // + 分组添加菜单（form_v3.md §8）：新建 / 安装 / 导入
+                    PopupMenuButton<String>(
+                      key: const ValueKey('skills.addMenu'),
+                      tooltip: localizations?.tr('add', '添加') ?? '添加',
+                      icon: Icon(Icons.add, size: 18, color: shadTheme.colorScheme.primary),
+                      onSelected: (v) => _onMarketAction(context, viewModel, v),
+                      itemBuilder: (_) => _addMenuItems(localizations),
                     ),
                   ],
                 ),
@@ -501,7 +498,21 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
               ),
               const SizedBox(width: 12),
               ShadButton.outline(
-                onPressed: () => _importFromFolder(context, viewModel),
+                key: const ValueKey('skills.empty.repos'),
+                onPressed: () => _onMarketAction(context, viewModel, 'repos'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.storefront_outlined, size: 16),
+                    const SizedBox(width: 6),
+                    Text(localizations?.tr('skills_menu_repos', '从仓库发现并安装') ?? '从仓库发现并安装'),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              ShadButton.outline(
+                key: const ValueKey('skills.empty.importAll'),
+                onPressed: () => _onMarketAction(context, viewModel, 'importAll'),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -739,8 +750,37 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
 
   Future<List<SkillTargetTool>> _installTargets() => SkillsPathService().detectInstalledTools();
 
+  PopupMenuItem<String> _menuHeader(String text) => PopupMenuItem<String>(
+        enabled: false,
+        height: 28,
+        child: Text(text, style: KcType.caption.copyWith(fontWeight: FontWeight.w600)),
+      );
+
+  PopupMenuItem<String> _menuItem(String value, IconData icon, String text) => PopupMenuItem<String>(
+        value: value,
+        height: 36,
+        child: Row(children: [Icon(icon, size: 16), const SizedBox(width: 10), Text(text)]),
+      );
+
+  List<PopupMenuEntry<String>> _addMenuItems(AppLocalizations? l) => [
+        _menuItem('create', Icons.edit_note, l?.tr('skills_menu_create', '新建 Skill') ?? '新建 Skill'),
+        const PopupMenuDivider(),
+        _menuHeader(l?.tr('menu_group_install', '安装') ?? '安装'),
+        _menuItem('repos', Icons.storefront_outlined, l?.tr('skills_menu_repos', '从仓库发现并安装') ?? '从仓库发现并安装'),
+        _menuItem('skillssh', Icons.travel_explore, l?.tr('skills_menu_skillssh', '搜索 skills.sh') ?? '搜索 skills.sh'),
+        _menuItem('zip', Icons.folder_zip_outlined, l?.tr('skills_menu_zip', '从 ZIP 安装') ?? '从 ZIP 安装'),
+        const PopupMenuDivider(),
+        _menuHeader(l?.tr('menu_group_import', '导入') ?? '导入'),
+        _menuItem('folder', Icons.file_upload_outlined, l?.tr('skills_menu_folder', '从文件夹导入') ?? '从文件夹导入'),
+        _menuItem('importAll', Icons.download_for_offline_outlined, l?.tr('skills_menu_import_all', '从所有工具导入未管理的 Skill') ?? '从所有工具导入未管理的 Skill'),
+      ];
+
   Future<void> _onMarketAction(BuildContext context, SkillsViewModel vm, String action) async {
     switch (action) {
+      case 'create':
+        _openCreatePage(context);
+      case 'folder':
+        await _importFromFolder(context, vm);
       case 'repos':
         await _showRepoDialog(context, vm);
       case 'skillssh':
