@@ -538,8 +538,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     double menuHeight,
   ) {
     return Container(
-      width: 240,
-      padding: const EdgeInsets.only(left: 24, top: 16, bottom: 16),
+      key: const ValueKey('settings.sidebar'),
+      width: 200,
+      padding: const EdgeInsets.only(left: 16, right: 12, top: 12, bottom: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -594,9 +595,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
         height: 32,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected
-              ? shadTheme.colorScheme.muted.withOpacity(0.5)
-              : Colors.transparent,
+          color: isSelected ? context.kc.actionSoft : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Align(
@@ -606,9 +605,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
             style: shadTheme.textTheme.small.copyWith(
               fontSize: 14,
               fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-              color: isSelected
-                  ? shadTheme.colorScheme.foreground
-                  : shadTheme.colorScheme.mutedForeground,
+              color: isSelected ? context.kc.actionText : shadTheme.colorScheme.foreground,
               height: 1.2,
                 ),
               ),
@@ -625,10 +622,15 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     ShadThemeData shadTheme,
   ) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(left: 32, top: 16, right: 32, bottom: 32),
-      child: SizedBox(
-        width: double.infinity,
-        child: _buildCategoryContent(context, localizations, settingsViewModel, shadTheme),
+      key: ValueKey('settings.page.${_selectedCategory.name}'),
+      padding: const EdgeInsets.only(left: 28, top: 12, right: 28, bottom: 32),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          // System Settings 风格：内容列最大 680，居中
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: _buildCategoryContent(context, localizations, settingsViewModel, shadTheme),
+        ),
       ),
     );
   }
@@ -797,7 +799,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                 localizations.interfaceLanguage,
                 _buildInterfaceSettings(context, localizations, settingsViewModel),
               ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 20),
               // 地区限制（仅在中国大陆地区显示）
               if (_shouldShowRegionFilter) ...[
                 _buildSettingSection(
@@ -805,7 +807,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                   localizations.regionRestrictions,
                   _buildRegionFilterControl(context, localizations, shadTheme),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 20),
               ],
               // 窗口行为
               _buildSettingSection(
@@ -813,7 +815,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                 localizations.windowBehavior,
                 _buildWindowBehaviorControl(context, localizations, settingsViewModel),
               ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 20),
               // 配置模板更新
               _buildSettingSection(
                 context,
@@ -832,8 +834,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     final shadTheme = ShadTheme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(12),
+        color: shadTheme.colorScheme.card,
+        borderRadius: BorderRadius.circular(KcRadius.panel),
+        border: Border.all(color: shadTheme.colorScheme.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -907,7 +910,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                 '目录访问授权',
                 _buildHomeDirAuthorizationControl(context, viewModel, shadTheme),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
             ],
             // 工具配置网格
             LayoutBuilder(
@@ -963,7 +966,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                 );
               },
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
             _buildSkillsSettings(context, localizations, shadTheme),
           ],
         );
@@ -988,8 +991,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
           localizations.skillsSettingsTitle,
           Container(
             decoration: BoxDecoration(
-              color: shadTheme.colorScheme.muted,
-              borderRadius: BorderRadius.circular(12),
+              color: shadTheme.colorScheme.card,
+              borderRadius: BorderRadius.circular(KcRadius.panel),
+              border: Border.all(color: shadTheme.colorScheme.border),
             ),
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -1055,8 +1059,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
   ) {
     return Container(
       decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(12),
+        color: shadTheme.colorScheme.card,
+        borderRadius: BorderRadius.circular(KcRadius.panel),
+        border: Border.all(color: shadTheme.colorScheme.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1204,14 +1209,14 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-            Text(
-              title,
-          style: shadTheme.textTheme.h4.copyWith(
-                fontWeight: FontWeight.w600,
-                color: shadTheme.colorScheme.foreground,
-              ),
-            ),
-        const SizedBox(height: 16),
+        // System Settings 风格：小号分组标题 + 紧凑分组列表（form_v3.md §9）
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            title,
+            style: KcType.caption.copyWith(fontWeight: FontWeight.w600, color: shadTheme.colorScheme.mutedForeground),
+          ),
+        ),
         control,
       ],
     );
@@ -1225,8 +1230,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     final shadTheme = ShadTheme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(12),
+        color: shadTheme.colorScheme.card,
+        borderRadius: BorderRadius.circular(KcRadius.panel),
+        border: Border.all(color: shadTheme.colorScheme.border),
       ),
       child: Column(
         children: [
@@ -1263,8 +1269,11 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     bool isLast = false,
   }) {
     final shadTheme = ShadTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    // 统一行高（最小 52）与内边距 14×10，说明文字内联在标签下方
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 52),
+      child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -1274,18 +1283,20 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
               children: [
                 Text(
                   label,
-                  style: shadTheme.textTheme.p.copyWith(
+                  style: KcType.body.copyWith(
                     fontWeight: FontWeight.w500,
                     color: shadTheme.colorScheme.foreground,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: shadTheme.textTheme.small.copyWith(
-                    color: shadTheme.colorScheme.mutedForeground,
+                if (description.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: KcType.caption.copyWith(
+                      color: shadTheme.colorScheme.mutedForeground,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -1293,6 +1304,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
           control,
         ],
       ),
+    ),
     );
   }
 
@@ -1523,8 +1535,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     final shadTheme = ShadTheme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(12),
+        color: shadTheme.colorScheme.card,
+        borderRadius: BorderRadius.circular(KcRadius.panel),
+        border: Border.all(color: shadTheme.colorScheme.border),
       ),
       child: _buildSettingItem(
         context,
@@ -1868,8 +1881,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
 
     return Container(
       decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(12),
+        color: shadTheme.colorScheme.card,
+        borderRadius: BorderRadius.circular(KcRadius.panel),
+        border: Border.all(color: shadTheme.colorScheme.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
