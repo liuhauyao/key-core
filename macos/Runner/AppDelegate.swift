@@ -283,7 +283,13 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
 
     // 设置状态栏图标（兼容 macOS 10.15+）
     // 关键：必须设置 image 或 title，否则按钮不会显示
-    if #available(macOS 11.0, *) {
+    // 优先使用品牌模板图（Assets.xcassets/StatusBarIcon，18pt，黑色 + 透明，isTemplate 自动适配深/浅色菜单栏）
+    if let brandImage = NSImage(named: "StatusBarIcon") {
+      brandImage.isTemplate = true
+      brandImage.size = NSSize(width: 18, height: 18)
+      brandImage.accessibilityDescription = statusBarAppTitle
+      button.image = brandImage
+    } else if #available(macOS 11.0, *) {
       if let image = NSImage(systemSymbolName: "key.fill", accessibilityDescription: statusBarAppTitle) {
         button.image = image
         button.image?.isTemplate = true
