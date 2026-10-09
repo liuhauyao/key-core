@@ -11045,12 +11045,9 @@
         "category": "search",
         "serverType": "stdio",
         "command": "npx",
-        "args": [
-          "-y",
-          "@baidu-maps/mcp@latest"
-        ],
+        "args": ["-y", "@baidumap/mcp-server-baidu-map"],
         "env": {
-          "BAIDU_MAP_AK": ""
+          "BAIDU_MAP_API_KEY": ""
         },
         "icon": "baidumap.svg",
         "tags": [
@@ -11089,11 +11086,8 @@
         "description": "Git操作MCP服务器",
         "category": "development",
         "serverType": "stdio",
-        "command": "npx",
-        "args": [
-          "-y",
-          "@modelcontextprotocol/server-git@latest"
-        ],
+        "command": "uvx",
+        "args": ["mcp-server-git"],
         "icon": "git.svg",
         "tags": [
           "git",
@@ -11155,10 +11149,7 @@
         "category": "ai",
         "serverType": "stdio",
         "command": "npx",
-        "args": [
-          "-y",
-          "@modelcontextprotocol/sequentialthinking@latest"
-        ],
+        "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
         "icon": "mcp.svg",
         "tags": [
           "ai",
@@ -11174,11 +11165,8 @@
         "description": "时间服务MCP服务器，提供当前时间获取和时区转换功能",
         "category": "development",
         "serverType": "stdio",
-        "command": "python",
-        "args": [
-          "-m",
-          "mcp_server_time"
-        ],
+        "command": "uvx",
+        "args": ["mcp-server-time"],
         "icon": "mcp.svg",
         "tags": [
           "time",
@@ -11217,12 +11205,9 @@
         "category": "automation",
         "serverType": "stdio",
         "command": "npx",
-        "args": [
-          "-y",
-          "@modelcontextprotocol/server-notion@latest"
-        ],
+        "args": ["-y", "@notionhq/notion-mcp-server"],
         "env": {
-          "NOTION_API_KEY": ""
+          "NOTION_TOKEN": ""
         },
         "icon": "notion.svg",
         "tags": [
@@ -11258,11 +11243,8 @@
         "description": "HTTP请求MCP服务器，提供网络请求功能",
         "category": "development",
         "serverType": "stdio",
-        "command": "npx",
-        "args": [
-          "-y",
-          "@modelcontextprotocol/server-fetch@latest"
-        ],
+        "command": "uvx",
+        "args": ["mcp-server-fetch"],
         "icon": "mcp.svg",
         "tags": [
           "http",
