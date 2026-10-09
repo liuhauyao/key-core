@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
-import '../models/mcp_server.dart';
 import '../models/skill.dart';
 import '../services/skills_database_service.dart';
 import '../services/skills_path_service.dart';
@@ -23,6 +22,17 @@ class SkillsSyncStatusSummary {
   });
 }
 
+/// 分类分组信息
+class SkillsCategoryGroup {
+  final String category;
+  final List<Skill> skills;
+
+  const SkillsCategoryGroup({required this.category, required this.skills});
+
+  int get total => skills.length;
+  int get synced => skills.where((s) => s.syncStatus.values.any((st) => st == SkillSyncState.synced)).length;
+}
+
 /// Skills 管理 ViewModel
 class SkillsViewModel extends BaseViewModel {
   final SkillsDatabaseService _databaseService = SkillsDatabaseService();
@@ -34,11 +44,59 @@ class SkillsViewModel extends BaseViewModel {
   List<Skill> _filteredSkills = [];
   String _searchQuery = '';
   String? _skillsSourceDir;
+  String? _activeCategory; // null = all, '' = uncategorized
+  bool _searchInContent = false; // 搜索扩展到 body 内容
 
   List<Skill> get skills => _filteredSkills;
   List<Skill> get allSkills => _allSkills;
   String get searchQuery => _searchQuery;
   String? get skillsSourceDir => _skillsSourceDir;
+  String? get activeCategory => _activeCategory;
+  bool get searchInContent => _searchInContent;
+
+  /// 获取所有分类（从 relativePath 推导）
+  List<String> get categories {
+    final cats = <String>{};
+    for (final skill in _allSkills) {
+      final parts = skill.relativePath.split('/');
+      if (parts.length > 1) {
+        cats.add(parts.first);
+      } else {
+        cats.add(''); // uncategorized
+      }
+    }
+    return cats.toList()..sort();
+  }
+
+  /// 获取指定分类的技能列表
+  List<Skill> getSkillsByCategory(String category) {
+    if (category.isEmpty) {
+      return _allSkills.where((s) => !s.relativePath.contains('/')).toList();
+    }
+    return _allSkills.where((s) => s.relativePath.startsWith('$category/')).toList();
+  }
+
+  /// 获取分类分组
+  List<SkillsCategoryGroup> get categoryGroups {
+    final groups = <SkillsCategoryGroup>[];
+    for (final cat in categories) {
+      final skills = getSkillsByCategory(cat);
+      groups.add(SkillsCategoryGroup(category: cat, skills: skills));
+    }
+    return groups;
+  }
+
+  /// 设置分类过滤
+  void setActiveCategory(String? category) {
+    _activeCategory = category;
+    _updateFilteredSkills();
+  }
+
+  /// 切换内容搜索开关
+  void toggleSearchInContent() {
+    _searchInContent = !_searchInContent;
+    _updateFilteredSkills();
+  }
 
   Future<void> init() async {
     if (_allSkills.isEmpty) {
@@ -67,16 +125,36 @@ class SkillsViewModel extends BaseViewModel {
 
   void _updateFilteredSkills() {
     var filtered = _allSkills;
+
+    // 分类过滤
+    if (_activeCategory != null) {
+      if (_activeCategory!.isEmpty) {
+        filtered = filtered.where((s) => !s.relativePath.contains('/')).toList();
+      } else {
+        filtered = filtered.where((s) => s.relativePath.startsWith('${_activeCategory}/')).toList();
+      }
+    }
+
+    // 搜索过滤
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       filtered = filtered.where((skill) {
-        return skill.name.toLowerCase().contains(q) ||
+        final basicMatch = skill.name.toLowerCase().contains(q) ||
             skill.skillId.toLowerCase().contains(q) ||
             skill.relativePath.toLowerCase().contains(q) ||
             (skill.description?.toLowerCase().contains(q) ?? false) ||
             (skill.tags?.any((tag) => tag.toLowerCase().contains(q)) ?? false);
+
+        if (basicMatch) return true;
+
+        // 内容搜索需要异步读取文件，在同步过滤器中无法实现
+        // 未来可通过预建 content 缓存索引来优化
+        // searchInContent flag 保留供 UI 层切换状态
+
+        return false;
       }).toList();
     }
+
     _filteredSkills = filtered;
   }
 
@@ -195,6 +273,62 @@ class SkillsViewModel extends BaseViewModel {
     }) ?? false;
   }
 
+  /// 批量删除技能
+  Future<int> batchDelete(List<Skill> skills, {bool removeSymlinks = true}) async {
+    var deleted = 0;
+    for (final skill in skills) {
+      final ok = await deleteSkill(skill, removeSymlinks: removeSymlinks);
+      if (ok) deleted++;
+    }
+    return deleted;
+  }
+
+  /// 批量启用/禁用
+  Future<int> batchToggleActive(List<Skill> skills, bool active) async {
+    var updated = 0;
+    for (final skill in skills) {
+      if (skill.isActive == active) continue;
+      await _databaseService.updateSkill(
+        skill.copyWith(isActive: active, updatedAt: DateTime.now()),
+      );
+      updated++;
+    }
+    if (updated > 0) {
+      await loadSkills(showLoading: false);
+    }
+    return updated;
+  }
+
+  /// 批量设置分发工具
+  Future<int> batchSetEnabledTools(List<Skill> skills, List<SkillTargetTool> tools) async {
+    var updated = 0;
+    for (final skill in skills) {
+      await _databaseService.updateSkill(
+        skill.copyWith(enabledTools: tools, updatedAt: DateTime.now()),
+      );
+      updated++;
+    }
+    if (updated > 0) {
+      await loadSkills(showLoading: false);
+    }
+    return updated;
+  }
+
+  /// 批量同步到工具
+  Future<int> batchSyncToFirstTool(List<Skill> skills, {bool replaceExisting = false}) async {
+    var synced = 0;
+    for (final skill in skills) {
+      if (skill.enabledTools.isEmpty) continue;
+      final summary = await _syncService.syncToTool(
+        skill.enabledTools.first,
+        replaceExisting: replaceExisting,
+      );
+      synced += summary.synced;
+    }
+    await loadSkills(showLoading: false);
+    return synced;
+  }
+
   Future<bool> toggleActive(Skill skill) async {
     return await executeAsync(() async {
       await _databaseService.updateSkill(
@@ -217,7 +351,7 @@ class SkillsViewModel extends BaseViewModel {
 
   Future<bool> importFromFolder(String folderPath) async {
     return await executeAsync(() async {
-      final dir = Directory(folderPath);
+      final importDir = Directory(folderPath);
       final skillId = path.basename(folderPath);
 
       await _storeService.importSkillFromFolder(folderPath);

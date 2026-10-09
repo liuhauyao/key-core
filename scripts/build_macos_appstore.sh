@@ -20,20 +20,20 @@ echo "=========================================="
 export GITHUB_PROXY=https://ghproxy.com
 echo "已设置 GITHUB_PROXY=${GITHUB_PROXY}"
 
-# 1. 清理构建
-echo "1. 清理构建..."
-flutter clean > /dev/null 2>&1 || true
-rm -rf macos/build 2>/dev/null || true
-
-# 2. 生成图标列表配置文件
-echo "2. 生成图标列表配置文件..."
+# 1. 生成图标列表配置文件
+echo "1. 生成图标列表配置文件..."
 dart scripts/generate_icon_list.dart > /dev/null 2>&1
 
-# 3. 获取依赖
-echo "3. 获取 Flutter 依赖..."
+# 2. 获取 Flutter 依赖
+echo "2. 获取 Flutter 依赖..."
 flutter pub get > /dev/null 2>&1
 
-# 4. 清理 sqlite3 缓存
+# 3. 初始化 SQLite 缓存
+echo "3. 初始化 SQLite 原生库缓存..."
+# shellcheck source=setup_sqlite_cache.sh
+source "$(dirname "$0")/setup_sqlite_cache.sh" > /dev/null 2>&1 || true
+
+# 4. 清理 sqlite3 构建缓存
 echo "4. 清理 sqlite3 构建缓存..."
 rm -rf ~/.pub-cache/hosted/pub.flutter-io.cn/sqlite3-*/.dart_tool 2>/dev/null || true
 rm -rf ~/.pub-cache/hosted/pub.dev/sqlite3-*/.dart_tool 2>/dev/null || true
@@ -46,7 +46,7 @@ flutter build macos --release > /tmp/flutter_build.log 2>&1 || {
     cat /tmp/flutter_build.log | tail -20
 }
 
-# 6. 确保 ephemeral 目录存在
+# 5. 确保 ephemeral 目录存在
 echo "5. 确保 Flutter ephemeral 文件存在..."
 mkdir -p macos/Flutter/ephemeral
 if [ ! -f "macos/Flutter/ephemeral/FlutterInputs.xcfilelist" ]; then

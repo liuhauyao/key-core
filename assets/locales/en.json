@@ -587,5 +587,22 @@
   "skills_open_directory": "Open Directory",
   "skills_rescan": "Rescan",
   "skills_sync_all": "Sync All",
-  "skills_sync_all_done": "Full sync completed"
+  "skills_sync_all_done": "Full sync completed",
+  "skills_all": "All",
+  "skills_uncategorized": "Uncategorized",
+  "skills_collapse": "Collapse",
+  "skills_expand": "Expand",
+  "skills_no_tools_enabled": "No tools enabled",
+  "skills_synced_status": "Synced",
+  "skills_conflict_status": "Conflict",
+  "skills_outdated_status": "Outdated",
+  "skills_not_synced_status": "Not synced",
+  "skills_failed_load_content": "Failed to load content",
+  "skills_active": "Active",
+  "skills_inactive": "Inactive",
+  "skills_start_from_template": "Start from template",
+  "skills_batch_delete_title": "Delete {count} skills?",
+  "skills_batch_delete_message": "This will permanently remove the skill source files and symlinks.",
+  "skills_full_sync_complete": "Full sync completed: {synced} synced, {conflicts} conflicts",
+  "skills_selected_count": "{count} selected"
 }

@@ -45,7 +45,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 13,
+      version: 15,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -92,6 +92,12 @@ class DatabaseService {
         enable_openclaw INTEGER DEFAULT 0,
         openclaw_base_url TEXT,
         openclaw_model TEXT,
+        enable_claude_desktop INTEGER DEFAULT 0,
+        claude_desktop_base_url TEXT,
+        claude_desktop_model TEXT,
+        claude_desktop_sonnet_model TEXT,
+        claude_desktop_haiku_model TEXT,
+        claude_desktop_opus_model TEXT,
         is_validated INTEGER DEFAULT 0
       )
     ''');
@@ -362,6 +368,18 @@ class DatabaseService {
     if (oldVersion < 13) {
       await _createSkillsTable(db);
     }
+
+    if (oldVersion < 14) {
+      // 添加 Claude Desktop 相关字段
+      await _addColumnIfNotExists(db, 'ai_keys', 'enable_claude_desktop', 'INTEGER DEFAULT 0');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_base_url', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_model', 'TEXT');
+    }
+
+    // Claude Desktop 模型映射列（每次升级都尝试添加，_addColumnIfNotExists 内部会检查是否存在）
+    await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_sonnet_model', 'TEXT');
+    await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_haiku_model', 'TEXT');
+    await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_opus_model', 'TEXT');
   }
 
   /// 插入密钥
@@ -504,6 +522,18 @@ class DatabaseService {
     final maps = await db.query(
       'ai_keys',
       where: 'enable_gemini = ?',
+      whereArgs: [1],
+      orderBy: 'is_favorite DESC, updated_at DESC',
+    );
+    return maps.map((map) => AIKey.fromMap(map)).toList();
+  }
+
+  /// 获取启用了 Claude Desktop 的密钥列表
+  Future<List<AIKey>> getClaudeDesktopKeys() async {
+    final db = await database;
+    final maps = await db.query(
+      'ai_keys',
+      where: 'enable_claude_desktop = ?',
       whereArgs: [1],
       orderBy: 'is_favorite DESC, updated_at DESC',
     );

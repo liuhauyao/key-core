@@ -589,5 +589,22 @@
   "skills_open_directory": "打开目录",
   "skills_rescan": "重新扫描",
   "skills_sync_all": "全量同步",
-  "skills_sync_all_done": "全量同步完成"
+  "skills_sync_all_done": "全量同步完成",
+  "skills_all": "全部",
+  "skills_uncategorized": "未分类",
+  "skills_collapse": "收起",
+  "skills_expand": "展开",
+  "skills_no_tools_enabled": "未启用工具",
+  "skills_synced_status": "已同步",
+  "skills_conflict_status": "冲突",
+  "skills_outdated_status": "已过期",
+  "skills_not_synced_status": "未同步",
+  "skills_failed_load_content": "加载内容失败",
+  "skills_active": "已启用",
+  "skills_inactive": "已禁用",
+  "skills_start_from_template": "从模板开始",
+  "skills_batch_delete_title": "删除 {count} 个 Skills？",
+  "skills_batch_delete_message": "这将永久删除 Skill 源文件和符号链接。",
+  "skills_full_sync_complete": "全量同步完成：已同步 {synced}，冲突 {conflicts}",
+  "skills_selected_count": "已选 {count} 项"
 }

@@ -17,6 +17,8 @@ class SettingsService {
   static const String _keyOfficialCodexApiKey = 'official_codex_api_key';
   static const String _keyGeminiConfigDir = 'gemini_config_dir';
   static const String _keyOfficialGeminiApiKey = 'official_gemini_api_key';
+  static const String _keyClaudeDesktopConfigDir = 'claude_desktop_config_dir';
+  static const String _keyOfficialClaudeDesktopApiKey = 'official_claude_desktop_api_key';
 
   static const String _defaultLanguage = 'zh';
   static const String _defaultThemeMode = 'system';
@@ -236,6 +238,44 @@ class SettingsService {
       final result = await _prefs!.setString(_keyOfficialGeminiApiKey, apiKey.trim());
       if (!result) {
         throw Exception('Failed to save official Gemini API key to SharedPreferences');
+      }
+    }
+  }
+
+  /// 获取 Claude Desktop 配置目录（自定义路径或默认路径）
+  String? getClaudeDesktopConfigDir() {
+    return _prefs?.getString(_keyClaudeDesktopConfigDir);
+  }
+
+  /// 设置 Claude Desktop 配置目录
+  Future<void> setClaudeDesktopConfigDir(String? path) async {
+    if (path == null || path.trim().isEmpty) {
+      await _prefs?.remove(_keyClaudeDesktopConfigDir);
+    } else {
+      await _prefs?.setString(_keyClaudeDesktopConfigDir, path.trim());
+    }
+  }
+
+  /// 获取官方 Claude Desktop API Key（本地存储）
+  String? getOfficialClaudeDesktopApiKey() {
+    if (_prefs == null) {
+      return null;
+    }
+    return _prefs!.getString(_keyOfficialClaudeDesktopApiKey);
+  }
+
+  /// 设置官方 Claude Desktop API Key（本地存储）
+  Future<void> setOfficialClaudeDesktopApiKey(String? apiKey) async {
+    if (_prefs == null) {
+      await init();
+    }
+
+    if (apiKey == null || apiKey.trim().isEmpty) {
+      await _prefs!.remove(_keyOfficialClaudeDesktopApiKey);
+    } else {
+      final result = await _prefs!.setString(_keyOfficialClaudeDesktopApiKey, apiKey.trim());
+      if (!result) {
+        throw Exception('Failed to save official Claude Desktop API key to SharedPreferences');
       }
     }
   }

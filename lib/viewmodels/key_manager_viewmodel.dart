@@ -8,6 +8,7 @@ import '../services/clipboard_service.dart';
 import '../services/export_service.dart';
 import '../services/import_service.dart';
 import '../services/claude_config_service.dart';
+import '../services/claude_desktop_config_service.dart';
 import '../services/codex_config_service.dart';
 import '../services/gemini_config_service.dart';
 import '../services/settings_service.dart';
@@ -27,6 +28,7 @@ class KeyManagerViewModel extends BaseViewModel {
   final ClaudeConfigService _claudeConfigService = ClaudeConfigService();
   final CodexConfigService _codexConfigService = CodexConfigService();
   final GeminiConfigService _geminiConfigService = GeminiConfigService();
+  final ClaudeDesktopConfigService _claudeDesktopConfigService = ClaudeDesktopConfigService();
 
   List<AIKey> _allKeys = [];
   List<AIKey> _filteredKeys = [];
@@ -39,6 +41,7 @@ class KeyManagerViewModel extends BaseViewModel {
   int? _currentClaudeCodeKeyId;
   int? _currentCodexKeyId;
   int? _currentGeminiKeyId;
+  int? _currentClaudeDesktopKeyId;
 
   List<AIKey> get keys => _filteredKeys;
   List<AIKey> get allKeys => _allKeys; // 暴露所有密钥，用于获取已添加的平台
@@ -439,6 +442,9 @@ class KeyManagerViewModel extends BaseViewModel {
         enableOpenclaw: key.enableOpenclaw,
         openclawBaseUrl: key.openclawBaseUrl,
         openclawModel: key.openclawModel,
+        enableClaudeDesktop: key.enableClaudeDesktop,
+        claudeDesktopBaseUrl: key.claudeDesktopBaseUrl,
+        claudeDesktopModel: key.claudeDesktopModel,
         isValidated: key.isValidated,
       );
 
@@ -688,6 +694,9 @@ class KeyManagerViewModel extends BaseViewModel {
         enableOpenclaw: key.enableOpenclaw,
         openclawBaseUrl: key.openclawBaseUrl,
         openclawModel: key.openclawModel,
+        enableClaudeDesktop: key.enableClaudeDesktop,
+        claudeDesktopBaseUrl: key.claudeDesktopBaseUrl,
+        claudeDesktopModel: key.claudeDesktopModel,
         isValidated: key.isValidated,
       );
     } catch (e) {
@@ -1304,6 +1313,24 @@ class KeyManagerViewModel extends BaseViewModel {
           }
         }
       }
+
+      // 检查 Claude Desktop
+      if (key.enableClaudeDesktop) {
+        bool isCurrent = _currentClaudeDesktopKeyId == keyId;
+        if (!isCurrent) {
+          isCurrent = await isCurrentClaudeDesktopKey(keyId);
+        }
+        if (isCurrent) {
+          print('KeyManagerViewModel: 检测到当前保存的密钥是激活的 Claude Desktop 密钥，立即刷新配置');
+          await _claudeDesktopConfigService.backupConfig();
+          final success = await _claudeDesktopConfigService.switchProvider(key);
+          if (success) {
+            _currentClaudeDesktopKeyId = keyId;
+            notifyListeners();
+            await _notifyStatusBarMenuUpdate();
+          }
+        }
+      }
     } catch (e) {
       // 配置刷新失败不应该影响密钥保存的成功
       print('KeyManagerViewModel: 刷新激活配置失败: $e');
@@ -1319,6 +1346,117 @@ class KeyManagerViewModel extends BaseViewModel {
         'anyExists': false,
         'settingsExists': false,
         'envExists': false,
+      };
+    }
+  }
+
+  /// 获取启用了 Claude Desktop 的密钥列表
+  Future<List<AIKey>> getClaudeDesktopKeys() async {
+    try {
+      return await _databaseService.getClaudeDesktopKeys();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// 切换 Claude Desktop 使用的密钥
+  Future<bool> switchClaudeDesktopProvider(int keyId) async {
+    return await executeAsync(() async {
+          final key = await _databaseService.getKeyById(keyId);
+          if (key == null || !key.enableClaudeDesktop) {
+            throw Exception('密钥不存在或未启用 Claude Desktop');
+          }
+
+          // 备份当前配置
+          await _claudeDesktopConfigService.backupConfig();
+
+          // 切换配置
+          final success = await _claudeDesktopConfigService.switchProvider(key);
+          if (success) {
+            _currentClaudeDesktopKeyId = keyId;
+            notifyListeners();
+            // 通知状态栏菜单更新
+            await _notifyStatusBarMenuUpdate();
+          }
+          return success;
+        }) ??
+        false;
+  }
+
+  /// 获取当前 Claude Desktop 使用的密钥
+  /// 返回 null 表示当前是官方配置
+  Future<AIKey?> getCurrentClaudeDesktopKey() async {
+    // 先检查是否是官方配置
+    final isOfficial = await _claudeDesktopConfigService.isOfficialConfig();
+    if (isOfficial) {
+      _currentClaudeDesktopKeyId = null;
+      return null;
+    }
+
+    // 从配置文件重新读取当前使用的 API Key
+    final currentApiKey = await _claudeDesktopConfigService.getCurrentApiKey();
+
+    if (currentApiKey != null && currentApiKey.isNotEmpty) {
+      final keys = await getClaudeDesktopKeys();
+
+      for (final key in keys) {
+        final decryptedValue = await decryptKeyValue(key.keyValue);
+        if (decryptedValue == null || decryptedValue.isEmpty) {
+          continue;
+        }
+
+        final cleanedDecryptedValue = decryptedValue.trim();
+        final cleanedCurrentApiKey = currentApiKey.trim();
+
+        if (cleanedDecryptedValue == cleanedCurrentApiKey) {
+          _currentClaudeDesktopKeyId = key.id;
+          return key;
+        }
+      }
+    }
+
+    _currentClaudeDesktopKeyId = null;
+    return null;
+  }
+
+  /// 切换回官方 Claude Desktop 配置
+  Future<bool> switchToOfficialClaudeDesktop() async {
+    return await executeAsync(() async {
+          // 备份当前配置
+          await _claudeDesktopConfigService.backupConfig();
+
+          // 切换配置
+          final success = await _claudeDesktopConfigService.switchToOfficial();
+          if (success) {
+            _currentClaudeDesktopKeyId = null;
+            notifyListeners();
+            // 通知状态栏菜单更新
+            await _notifyStatusBarMenuUpdate();
+          }
+          return success;
+        }) ??
+        false;
+  }
+
+  /// 检查密钥是否为当前使用的 Claude Desktop 密钥
+  Future<bool> isCurrentClaudeDesktopKey(int keyId) async {
+    final currentKey = await getCurrentClaudeDesktopKey();
+    return currentKey?.id == keyId;
+  }
+
+  /// 检查当前是否是官方 Claude Desktop 配置
+  Future<bool> isOfficialClaudeDesktopConfig() async {
+    return await _claudeDesktopConfigService.isOfficialConfig();
+  }
+
+  /// 检测 Claude Desktop 配置文件是否存在
+  Future<Map<String, dynamic>> checkClaudeDesktopConfigExists() async {
+    try {
+      return await _claudeDesktopConfigService.checkConfigExists();
+    } catch (e) {
+      return {
+        'dirExists': false,
+        'configExists': false,
       };
     }
   }

@@ -10,6 +10,12 @@
 .history
 .svn/
 .swiftpm/
+.reasonix
+reasonix.toml
+.codegraph/
+.firecrawl/
+.idea/
+.claude/
 migrate_working_dir/
 
 # IntelliJ related

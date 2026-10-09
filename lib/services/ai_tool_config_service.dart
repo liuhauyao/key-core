@@ -29,6 +29,17 @@ class AiToolConfigService {
       case AiToolType.openclaw:
         // OpenClaw 的配置文件在 ~/.openclaw 目录下
         return path.join(home, '.openclaw');
+      case AiToolType.claudeDesktop:
+        // Claude Desktop 的配置文件在 ~/Library/Application Support/Claude (macOS)
+        // 或 ~/.config/Claude (Linux) 或 %APPDATA%\Claude (Windows)
+        if (Platform.isMacOS) {
+          return path.join(home, 'Library', 'Application Support', 'Claude');
+        } else if (Platform.isWindows) {
+          final appData = Platform.environment['APPDATA'] ?? path.join(home, 'AppData', 'Roaming');
+          return path.join(appData, 'Claude');
+        } else {
+          return path.join(home, '.config', 'Claude');
+        }
     }
   }
 
@@ -53,6 +64,9 @@ class AiToolConfigService {
       case AiToolType.openclaw:
         // OpenClaw 使用 openclaw.json 文件（JSON5 格式，但标准 JSON 同样兼容）
         return path.join(configDir, 'openclaw.json');
+      case AiToolType.claudeDesktop:
+        // Claude Desktop 使用 claude_desktop_config.json 文件
+        return path.join(configDir, 'claude_desktop_config.json');
     }
   }
 

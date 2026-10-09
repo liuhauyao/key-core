@@ -7,7 +7,10 @@ import '../../utils/app_localizations.dart';
 class SkillCard extends StatefulWidget {
   final Skill skill;
   final bool isEditMode;
+  final bool isSelected;
   final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
+  final VoidCallback? onLongPress;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final ValueChanged<bool>? onToggleActive;
@@ -16,7 +19,10 @@ class SkillCard extends StatefulWidget {
     super.key,
     required this.skill,
     this.isEditMode = false,
+    this.isSelected = false,
     this.onTap,
+    this.onDoubleTap,
+    this.onLongPress,
     this.onEdit,
     this.onDelete,
     this.onToggleActive,
@@ -39,28 +45,37 @@ class _SkillCardState extends State<SkillCard> {
       onEnter: (_) => setState(() => _isHovering = true),
       onExit: (_) => setState(() => _isHovering = false),
       child: GestureDetector(
-        onTap: widget.isEditMode ? null : widget.onTap,
+        onTap: widget.onTap,
+        onDoubleTap: widget.onDoubleTap,
+        onLongPress: widget.onLongPress,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: isActive
-                ? Color.alphaBlend(
-                    shadTheme.colorScheme.primary.withOpacity(0.04),
-                    shadTheme.colorScheme.background,
-                  )
-                : shadTheme.colorScheme.muted.withOpacity(0.5),
+            color: widget.isSelected
+                ? shadTheme.colorScheme.primary.withOpacity(0.12)
+                : isActive
+                    ? Color.alphaBlend(
+                        shadTheme.colorScheme.primary.withOpacity(0.04),
+                        shadTheme.colorScheme.background,
+                      )
+                    : shadTheme.colorScheme.muted.withOpacity(0.5),
             border: Border.all(
-              color: isActive
-                  ? shadTheme.colorScheme.primary.withOpacity(0.3)
-                  : shadTheme.colorScheme.border,
-              width: 1,
+              color: widget.isSelected
+                  ? shadTheme.colorScheme.primary
+                  : isActive
+                      ? shadTheme.colorScheme.primary.withOpacity(0.3)
+                      : shadTheme.colorScheme.border,
+              width: widget.isSelected ? 2 : 1,
             ),
-            boxShadow: _isHovering && !widget.isEditMode
+            boxShadow: (_isHovering || widget.isSelected) && !widget.isEditMode
                 ? [
                     BoxShadow(
-                      color: shadTheme.colorScheme.primary.withOpacity(0.08),
+                      color: (widget.isSelected
+                              ? shadTheme.colorScheme.primary
+                              : shadTheme.colorScheme.primary)
+                          .withOpacity(0.08),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -74,6 +89,16 @@ class _SkillCardState extends State<SkillCard> {
               children: [
                 Row(
                   children: [
+                    // Show checkbox when selected
+                    if (widget.isSelected)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: shadTheme.colorScheme.primary,
+                          size: 22,
+                        ),
+                      ),
                     Container(
                       width: 36,
                       height: 36,
@@ -112,7 +137,7 @@ class _SkillCardState extends State<SkillCard> {
                         ],
                       ),
                     ),
-                    if (!widget.isEditMode && widget.onToggleActive != null)
+                    if (!widget.isEditMode && !widget.isSelected && widget.onToggleActive != null)
                       Switch(
                         value: isActive,
                         onChanged: widget.onToggleActive,
@@ -144,7 +169,7 @@ class _SkillCardState extends State<SkillCard> {
                     }),
                     const Spacer(),
                     _buildSyncBadge(shadTheme, localizations),
-                    if (_isHovering && !widget.isEditMode) ...[
+                    if (_isHovering && !widget.isEditMode && !widget.isSelected) ...[
                       const SizedBox(width: 4),
                       if (widget.onEdit != null)
                         _iconButton(Icons.edit_outlined, widget.onEdit!, shadTheme),

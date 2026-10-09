@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
-import '../models/skill.dart';
 import 'skill_parser_service.dart';
 import 'skills_path_service.dart';
 
