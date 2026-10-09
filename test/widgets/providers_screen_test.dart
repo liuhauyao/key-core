@@ -174,6 +174,13 @@ void main() {
     });
   });
 
+  testWidgets('still lists providers when secure storage is unavailable', (tester) async {
+    final backend = _backend()..encryptionError = Exception('Libsecret error');
+    await _pump(tester, backend);
+    expect(find.text('My Relay'), findsOneWidget);
+    expect(find.text('未设置主密码'), findsOneWidget);
+  });
+
   group('Tool switch', () {
     testWidgets('shows current provider per tool and switches in one click', (tester) async {
       final backend = _backend();

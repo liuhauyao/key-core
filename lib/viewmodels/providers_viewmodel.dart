@@ -179,16 +179,15 @@ class ProvidersViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final results = await Future.wait([
-        _backend.loadPresets(),
-        _backend.getAllProviders(),
-        _backend.isEncryptionEnabled(),
-        _backend.loadCurrentSelections(),
-      ]);
-      _presets = results[0] as List<Provider>;
-      _providers = results[1] as List<Provider>;
-      _encryptionEnabled = results[2] as bool;
-      _currentByTool = Map<String, String>.from(results[3] as Map<String, String>);
+      _presets = await _backend.loadPresets();
+      _providers = await _backend.getAllProviders();
+      try {
+        _encryptionEnabled = await _backend.isEncryptionEnabled();
+      } catch (_) {
+        // 系统安全存储不可用时按未加密展示；保存时 ProviderManagerService 会报错而不是静默写入明文
+        _encryptionEnabled = false;
+      }
+      _currentByTool = Map<String, String>.from(await _backend.loadCurrentSelections());
       await refreshLiveStates(notify: false);
       _loaded = true;
     } catch (e) {

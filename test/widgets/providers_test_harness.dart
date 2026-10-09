@@ -66,6 +66,7 @@ class FakeProviderBackend implements ProviderBackend {
   final List<MapEntry<String, String>> switched = [];
   final List<String> restored = [];
   Object? switchError;
+  Object? encryptionError;
 
   FakeProviderBackend({
     List<Provider>? presets,
@@ -102,7 +103,10 @@ class FakeProviderBackend implements ProviderBackend {
   }
 
   @override
-  Future<bool> isEncryptionEnabled() async => encryption;
+  Future<bool> isEncryptionEnabled() async {
+    if (encryptionError != null) throw encryptionError!;
+    return encryption;
+  }
 
   @override
   Future<void> switchTool(Provider provider, String tool) async {

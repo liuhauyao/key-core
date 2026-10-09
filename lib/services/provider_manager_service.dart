@@ -217,8 +217,14 @@ class ProviderManagerService {
       try {
         final encryptedKey = map['api_key_encrypted'] as String;
         
-        // 检查是否设置了主密码
-        final hasPassword = await _authService.hasMasterPassword();
+        // 检查是否设置了主密码；系统安全存储不可用（如 Linux 无 keyring）时，
+        // 明文格式仍可读取，加密格式则无法解密
+        bool hasPassword;
+        try {
+          hasPassword = await _authService.hasMasterPassword();
+        } catch (_) {
+          hasPassword = encryptedKey.startsWith('{');
+        }
         if (hasPassword) {
           final encryptionKey = await _authService.getEncryptionKey();
           if (encryptionKey != null) {
