@@ -801,7 +801,7 @@ class _MainScreenState extends State<MainScreen> {
         const double minCardWidth = 240;
         const double cardSpacing = 10;
         const double padding = KcSpace.page; // 与页头左右 padding 对齐（原 16，列数算法不变）
-        const double cardHeight = 140; // 固定卡片高度，减小高度以优化空间利用
+        const double cardHeight = 150; // v3 卡片：头部 / 徽章 / 工具行 / 底栏（form_v3.md §4）
         
         final availableWidth = constraints.maxWidth - padding * 2;
         int crossAxisCount = (availableWidth / (minCardWidth + cardSpacing)).floor();
@@ -842,13 +842,14 @@ class _MainScreenState extends State<MainScreen> {
             onCopyApiEndpoint: () {
               if (key.apiEndpoint != null) {
                 ClipboardService().copyToClipboard(key.apiEndpoint!);
-                _showSnackBar(context, AppLocalizations.of(context)?.apiEndpointCopied ?? '请求地址已复制');
+                // 只写名称和类型，不回显内容（form_v3.md §14.3）
+                _showSnackBar(context, _copiedMessage(context, key.name, endpoint: true));
               }
             },
             onCopyApiKey: () {
               viewModel.copyKeyToClipboard(key.id!);
-              final loc = AppLocalizations.of(context);
-              _showSnackBar(context, loc?.keyCopied ?? '密钥已复制');
+              // 只写名称和类型，绝不回显密钥（form_v3.md §14.3）
+              _showSnackBar(context, _copiedMessage(context, key.name));
             },
             currentKeyIds: currentIds,
             onSwitchTool: (tool) => _switchToolFromCard(key, tool),
@@ -1228,6 +1229,14 @@ class _MainScreenState extends State<MainScreen> {
   /// 获取平台分组的显示名称
   String _getPlatformCategoryDisplayName(PlatformCategory category, BuildContext context) {
     return category.getValue(context); // 使用 PlatformCategory 自带的本地化方法
+  }
+
+  static String _copiedMessage(BuildContext context, String name, {bool endpoint = false}) {
+    final l = AppLocalizations.of(context);
+    final t = endpoint
+        ? (l?.tr('copied_endpoint_of', '已复制「{name}」的请求地址') ?? '已复制「{name}」的请求地址')
+        : (l?.tr('copied_key_of', '已复制「{name}」的密钥') ?? '已复制「{name}」的密钥');
+    return t.replaceAll('{name}', name);
   }
 
   void _showSnackBar(BuildContext context, String message, {bool isError = false}) {

@@ -564,5 +564,16 @@
   "batch_delete_mcp_confirm": "確定要刪除選中的 {n} 個 MCP 伺服器嗎？",
   "uninstall": "解除安裝",
   "sidebar_official_tip": "{tool} 目前使用：官方登入",
-  "official_login": "官方登入"
+  "official_login": "官方登入",
+  "drag_to_reorder": "拖曳排序",
+  "card_copy_key": "金鑰",
+  "card_copy_endpoint": "位址",
+  "no_api_endpoint": "未設定請求位址",
+  "open_console": "開啟主控台",
+  "no_management_url": "未設定管理位址",
+  "refresh_balance_models": "重新整理餘額與模型",
+  "active_in_tools": "生效於 {tools}",
+  "enabled_n_tools": "已啟用 {n} 個工具",
+  "copied_endpoint_of": "已複製「{name}」的請求位址",
+  "copied_key_of": "已複製「{name}」的金鑰"
 }
