@@ -4,6 +4,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../models/mcp_server.dart';
@@ -46,8 +47,22 @@ McpSyncAction? defaultMcpAction(McpComparisonStatus s) => switch (s) {
 
 String _t(BuildContext c, String k, String f) => AppLocalizations.of(c)?.tr(k, f) ?? f;
 
-String mcpJsonOf(McpServer? s) =>
-    s == null ? '' : const JsonEncoder.withIndent('  ').convert({s.serverId: s.toToolConfigFormat()});
+String mcpJsonOf(McpServer? s, {bool mask = false}) {
+  if (s == null) return '';
+  var cfg = s.toToolConfigFormat();
+  if (mask) {
+    // env / headers 里的值可能是令牌：显示时打码（比对仍基于原值）
+    cfg = {
+      for (final e in cfg.entries)
+        e.key: (e.key == 'env' || e.key == 'headers') && e.value is Map
+            ? {for (final kv in (e.value as Map).entries) kv.key: _maskSecret('${kv.value}')}
+            : e.value,
+    };
+  }
+  return const JsonEncoder.withIndent('  ').convert({s.serverId: cfg});
+}
+
+String _maskSecret(String v) => v.length <= 4 ? '••••' : '${v.substring(0, 2)}••••${v.substring(v.length - 2)}';
 
 enum _Filter { all, pending, onlyLocal, onlyTool, different, identical }
 
@@ -368,7 +383,10 @@ class _McpSyncBoardState extends State<McpSyncBoard> {
                   : null,
             ),
             const SizedBox(width: 4),
-            const KcLogoBox(size: 30, child: Icon(Icons.dns_outlined, size: 17)),
+            KcLogoBox(
+              size: 30,
+              child: SvgPicture.asset('assets/icons/platforms/${r.server.icon ?? 'mcp.svg'}', width: 19, height: 19, allowDrawingOutsideViewBox: true),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -432,9 +450,11 @@ class _McpSyncBoardState extends State<McpSyncBoard> {
     };
     final a = mcpJsonOf(local).split('\n');
     final b = mcpJsonOf(tool).split('\n');
+    final am = mcpJsonOf(local, mask: true).split('\n');
+    final bm = mcpJsonOf(tool, mask: true).split('\n');
     final bSet = b.toSet();
     final aSet = a.toSet();
-    Widget pane(String title, List<String> lines, Set<String> other, Color hl) => Expanded(
+    Widget pane(String title, List<String> raw, List<String> shown, Set<String> other, Color hl) => Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(title, style: KcType.caption.copyWith(color: cs.mutedForeground, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
@@ -445,17 +465,17 @@ class _McpSyncBoardState extends State<McpSyncBoard> {
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: cs.border),
               ),
-              child: lines.length == 1 && lines.first.isEmpty
+              child: raw.length == 1 && raw.first.isEmpty
                   ? Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: Text(_t(context, 'mcp_sync_absent', '（不存在）'), style: KcType.caption.copyWith(color: cs.mutedForeground)),
                     )
                   : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      for (final l in lines)
+                      for (final (i, l) in raw.indexed)
                         Container(
                           color: other.isNotEmpty && !other.contains(l) ? hl : null,
                           padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Text(l, style: KcType.mono.copyWith(fontSize: 11.5, height: 1.5, color: cs.foreground)),
+                          child: Text(i < shown.length ? shown[i] : l, style: KcType.mono.copyWith(fontSize: 11.5, height: 1.5, color: cs.foreground)),
                         ),
                     ]),
             ),
@@ -465,9 +485,9 @@ class _McpSyncBoardState extends State<McpSyncBoard> {
       key: ValueKey('mcpSync.diff.${r.server.serverId}'),
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        pane('key-core', a, bSet, context.kc.okSoft),
+        pane('key-core', a, am, bSet, context.kc.okSoft),
         const SizedBox(width: 10),
-        pane(widget.selectedTool?.displayName ?? '', b, aSet, context.kc.dangerSoft),
+        pane(widget.selectedTool?.displayName ?? '', b, bm, aSet, context.kc.dangerSoft),
       ]),
     );
   }

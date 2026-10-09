@@ -105,6 +105,17 @@ void main() {
     expect(applied.single.keys.toSet(), {'github', 'ctx7', 'sqlite'});
   });
 
+  testWidgets('差异视图对 env 中的令牌打码', (tester) async {
+    final t = McpServer(
+      serverId: 'gh', name: 'gh', serverType: McpServerType.stdio, command: 'npx', args: const ['x'],
+      env: const {'TOKEN': 'ghp_supersecret123'}, createdAt: DateTime(2026), updatedAt: DateTime(2026));
+    await pump(tester, [McpComparisonResult(server: _s('gh', ['x']), status: McpComparisonStatus.different, toolServer: t)]);
+    await tester.tap(find.byKey(const ValueKey('mcpSync.expand.gh')));
+    await tester.pump();
+    expect(find.textContaining('ghp_supersecret123'), findsNothing);
+    expect(find.textContaining('gh••••23'), findsOneWidget);
+  });
+
   testWidgets('全部一致 → 已全部同步空状态', (tester) async {
     await pump(tester, [results.first]);
     expect(find.byKey(const ValueKey('mcpSync.allInSync')), findsOneWidget);
