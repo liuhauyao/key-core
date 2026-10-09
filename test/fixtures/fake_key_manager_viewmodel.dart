@@ -4,6 +4,7 @@
 // 「拖拽排序 / 置顶 / 删除」等交互最终调用了哪个 ViewModel 方法、参数是什么。
 // reorderKeys 的「筛选子集在前 + 其余保持原序」合并规则与生产实现一致。
 import 'package:key_core/models/ai_key.dart';
+import 'package:key_core/models/mcp_server.dart' show AiToolType;
 import 'package:key_core/services/database_service.dart';
 import 'package:key_core/viewmodels/key_manager_viewmodel.dart';
 
@@ -18,6 +19,26 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
   final List<int> deleteCalls = [];
   final Map<String, List<int>> switchCalls = {};
   final List<int> decryptCalls = [];
+
+  /// 各工具当前生效的密钥（测试可直接改写）；切换成功会更新它
+  final Map<AiToolType, int?> current = {
+    AiToolType.claudecode: null,
+    AiToolType.claudeDesktop: null,
+    AiToolType.codex: null,
+    AiToolType.gemini: null,
+  };
+
+  /// 为 true 时所有 switch* 返回失败
+  bool failSwitches = false;
+
+  @override
+  Map<AiToolType, int?> get currentKeyIds => Map.of(current);
+
+  @override
+  bool get currentToolKeysLoaded => true;
+
+  @override
+  Future<void> refreshCurrentToolKeys() async => notifyListeners();
 
   @override
   List<AIKey> get keys => _query.isEmpty
@@ -85,39 +106,44 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
     return _all.firstWhere((k) => k.id == id);
   }
 
-  void _recordSwitch(String tool, int keyId) =>
-      (switchCalls[tool] ??= []).add(keyId);
-
-  @override
-  Future<bool> switchClaudeCodeProvider(int keyId) async {
-    _recordSwitch('claudeCode', keyId);
+  bool _recordSwitch(String tool, int keyId, AiToolType t) {
+    (switchCalls[tool] ??= []).add(keyId);
+    if (failSwitches) return false;
+    current[t] = keyId;
+    notifyListeners();
     return true;
   }
 
-  @override
-  Future<bool> switchCodexProvider(int keyId) async {
-    _recordSwitch('codex', keyId);
-    return true;
+  AIKey? _byId(int? id) {
+    if (id == null) return null;
+    for (final k in _all) {
+      if (k.id == id) return k;
+    }
+    return null;
   }
 
   @override
-  Future<bool> switchGeminiProvider(int keyId) async {
-    _recordSwitch('gemini', keyId);
-    return true;
-  }
+  Future<bool> switchClaudeCodeProvider(int keyId) async =>
+      _recordSwitch('claudeCode', keyId, AiToolType.claudecode);
 
   @override
-  Future<bool> switchClaudeDesktopProvider(int keyId) async {
-    _recordSwitch('claudeDesktop', keyId);
-    return true;
-  }
+  Future<bool> switchCodexProvider(int keyId) async =>
+      _recordSwitch('codex', keyId, AiToolType.codex);
 
   @override
-  Future<AIKey?> getCurrentClaudeCodeKey() async => null;
+  Future<bool> switchGeminiProvider(int keyId) async =>
+      _recordSwitch('gemini', keyId, AiToolType.gemini);
+
   @override
-  Future<AIKey?> getCurrentCodexKey() async => null;
+  Future<bool> switchClaudeDesktopProvider(int keyId) async =>
+      _recordSwitch('claudeDesktop', keyId, AiToolType.claudeDesktop);
+
   @override
-  Future<AIKey?> getCurrentGeminiKey() async => null;
+  Future<AIKey?> getCurrentClaudeCodeKey() async => _byId(current[AiToolType.claudecode]);
   @override
-  Future<AIKey?> getCurrentClaudeDesktopKey() async => null;
+  Future<AIKey?> getCurrentCodexKey() async => _byId(current[AiToolType.codex]);
+  @override
+  Future<AIKey?> getCurrentGeminiKey() async => _byId(current[AiToolType.gemini]);
+  @override
+  Future<AIKey?> getCurrentClaudeDesktopKey() async => _byId(current[AiToolType.claudeDesktop]);
 }

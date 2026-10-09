@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../theme/kc_tokens.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/key_card.dart';
 import '../widgets/official_key_card.dart';
@@ -26,11 +27,21 @@ class _EnvVarItem {
 }
 
 /// Claude Code / Claude Desktop 切换
-enum _ClaudeSection { claudeCode, claudeDesktop }
+enum ClaudeSection { claudeCode, claudeDesktop }
 
 /// ClaudeCode / Claude Desktop 配置管理页面
+///
+/// 侧栏把 Claude Code / Claude Desktop 拆成两行（ui_redesign_plan §2.2），两行都用这个页面，
+/// 通过 [initialTab] 区分；[showSectionToggle] 为 false 时页头不再显示二选一的分段按钮。
 class ClaudeConfigScreen extends StatefulWidget {
-  const ClaudeConfigScreen({super.key});
+  const ClaudeConfigScreen({
+    super.key,
+    this.initialTab = ClaudeSection.claudeCode,
+    this.showSectionToggle = true,
+  });
+
+  final ClaudeSection initialTab;
+  final bool showSectionToggle;
 
   @override
   State<ClaudeConfigScreen> createState() => ClaudeConfigScreenState();
@@ -53,7 +64,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
   final TextEditingController _desktopSearchController = TextEditingController();
   KeyManagerViewModel? _viewModel;
 
-  _ClaudeSection _selectedSection = _ClaudeSection.claudeCode;
+  late ClaudeSection _selectedSection = widget.initialTab;
   List<AIKey> _claudeDesktopKeys = [];
   List<AIKey> _filteredDesktopKeys = [];
   AIKey? _currentDesktopKey;
@@ -425,8 +436,14 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                     allowDrawingOutsideViewBox: true,
                   ),
                   const SizedBox(width: 12),
-                  // Claude Code / Claude Desktop 切换按钮组
-                  _buildSectionToggle(shadTheme),
+                  // Claude Code / Claude Desktop 切换按钮组（侧栏已拆分时只显示标题）
+                  if (widget.showSectionToggle)
+                    _buildSectionToggle(shadTheme)
+                  else
+                    Text(
+                      _selectedSection == ClaudeSection.claudeCode ? 'Claude Code' : 'Claude Desktop',
+                      style: KcType.page.copyWith(color: shadTheme.colorScheme.foreground),
+                    ),
                   const Spacer(),
                   // 搜索框（两个模式都显示）
                   SizedBox(
@@ -437,7 +454,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: ShadInput(
-                          controller: _selectedSection == _ClaudeSection.claudeCode
+                          controller: _selectedSection == ClaudeSection.claudeCode
                               ? _searchController
                               : _desktopSearchController,
                           placeholder: Text(localizations?.search ?? '搜索密钥...'),
@@ -446,7 +463,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                             size: 18,
                             color: shadTheme.colorScheme.mutedForeground,
                           ),
-                          trailing: (_selectedSection == _ClaudeSection.claudeCode
+                          trailing: (_selectedSection == ClaudeSection.claudeCode
                                   ? _searchController.text
                                   : _desktopSearchController.text)
                               .isNotEmpty
@@ -458,7 +475,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                                   foregroundColor: shadTheme.colorScheme.mutedForeground,
                                   hoverBackgroundColor: Colors.transparent,
                                   onPressed: () {
-                                    if (_selectedSection == _ClaudeSection.claudeCode) {
+                                    if (_selectedSection == ClaudeSection.claudeCode) {
                                       _searchController.clear();
                                       _updateFilteredKeys();
                                     } else {
@@ -513,7 +530,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
             ),
             // 内容区：根据选择显示 Claude Code 或 Claude Desktop
             Expanded(
-              child: _selectedSection == _ClaudeSection.claudeCode
+              child: _selectedSection == ClaudeSection.claudeCode
                   ? (_filteredKeys.isEmpty && !_isOfficial && _searchController.text.isEmpty
                       ? _buildEmptyState(shadTheme, localizations)
                       : _buildKeyList(shadTheme, localizations))
@@ -725,18 +742,18 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
         children: [
           _buildToggleTab(
             label: 'Claude Code',
-            isActive: _selectedSection == _ClaudeSection.claudeCode,
+            isActive: _selectedSection == ClaudeSection.claudeCode,
             onTap: () => setState(() {
-              _selectedSection = _ClaudeSection.claudeCode;
+              _selectedSection = ClaudeSection.claudeCode;
               _desktopSearchController.clear();
             }),
             shadTheme: shadTheme,
           ),
           _buildToggleTab(
             label: 'Claude Desktop',
-            isActive: _selectedSection == _ClaudeSection.claudeDesktop,
+            isActive: _selectedSection == ClaudeSection.claudeDesktop,
             onTap: () => setState(() {
-              _selectedSection = _ClaudeSection.claudeDesktop;
+              _selectedSection = ClaudeSection.claudeDesktop;
               _searchController.clear();
             }),
             shadTheme: shadTheme,

@@ -20,7 +20,6 @@ import '../widgets/first_launch_dialog.dart';
 import '../../models/ai_key.dart';
 import '../../models/platform_type.dart';
 import '../../models/platform_category.dart';
-import '../../models/mcp_server.dart';
 import '../../services/database_service.dart';
 import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
@@ -46,6 +45,7 @@ class _MainScreenState extends State<MainScreen> {
   final TextEditingController _searchController = TextEditingController();
   final PageController _pageController = PageController();
   final GlobalKey<ClaudeConfigScreenState> _claudeConfigScreenKey = GlobalKey<ClaudeConfigScreenState>();
+  final GlobalKey<ClaudeConfigScreenState> _claudeDesktopConfigScreenKey = GlobalKey<ClaudeConfigScreenState>();
   final GlobalKey<CodexConfigScreenState> _codexConfigScreenKey = GlobalKey<CodexConfigScreenState>();
   final GlobalKey<GeminiConfigScreenState> _geminiConfigScreenKey = GlobalKey<GeminiConfigScreenState>();
   final GlobalKey<OpenClawConfigScreenState> _openClawConfigScreenKey = GlobalKey<OpenClawConfigScreenState>();
@@ -53,6 +53,7 @@ class _MainScreenState extends State<MainScreen> {
   static const _settingsScreenKey = ValueKey('settings_screen');
   bool _isEditMode = false;
   AppType _activeApp = AppType.keyManager;
+  SettingsCategory _settingsCategory = SettingsCategory.general;
   bool _previousLoadingState = false;
   int? _lastRefreshedPageIndex; // 记录上次刷新的页面索引，避免重复刷新
   int? _targetPageIndex; // 记录目标页面索引，用于区分中间页面和目标页面
@@ -71,7 +72,11 @@ class _MainScreenState extends State<MainScreen> {
     });
     // 初始化ViewModel
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<KeyManagerViewModel>().init();
+      final keyVm = context.read<KeyManagerViewModel>();
+      keyVm.init().then((_) {
+        // 侧栏工具行显示「当前生效密钥」：进入时并行读一次各工具配置
+        if (mounted) keyVm.refreshCurrentToolKeys();
+      });
       // 触发初始页面的首次加载（如果是 ClaudeCode 或 Codex）
       if (_lastRefreshedPageIndex == null) {
         _triggerPageLoad(0);
@@ -217,6 +222,8 @@ class _MainScreenState extends State<MainScreen> {
       final app = visibleApps[pageIndex];
       if (app == AppType.claudeCode) {
         _claudeConfigScreenKey.currentState?.refresh();
+      } else if (app == AppType.claudeDesktop) {
+        _claudeDesktopConfigScreenKey.currentState?.refresh();
       } else if (app == AppType.codex) {
         _codexConfigScreenKey.currentState?.refresh();
       } else if (app == AppType.gemini) {
@@ -248,27 +255,7 @@ class _MainScreenState extends State<MainScreen> {
       final settingsViewModel = context.read<SettingsViewModel>();
       final enabledTools = settingsViewModel.getEnabledTools();
       
-      final visibleApps = AppType.values.where((app) {
-        // 钥匙包、MCP、设置始终显示
-        if (app == AppType.keyManager || app == AppType.mcp || app == AppType.skills || app == AppType.settings) {
-          return true;
-        }
-        // Claude、Codex、Gemini 和 OpenClaw 根据启用状态显示
-        if (app == AppType.claudeCode) {
-          return enabledTools.contains(AiToolType.claudecode) ||
-                 enabledTools.contains(AiToolType.claudeDesktop);
-        }
-        if (app == AppType.codex) {
-          return enabledTools.contains(AiToolType.codex);
-        }
-        if (app == AppType.gemini) {
-          return enabledTools.contains(AiToolType.gemini);
-        }
-        if (app == AppType.openClaw) {
-          return enabledTools.contains(AiToolType.openclaw);
-        }
-        return true;
-      }).toList();
+      final visibleApps = AppType.visibleFor(enabledTools);
       
       // 如果当前活动应用不在可见列表中，且当前不在设置页面，才切换到第一个可见应用
       // 如果当前在设置页面，保持不变，避免在设置页面时切换页面
@@ -347,10 +334,19 @@ class _MainScreenState extends State<MainScreen> {
             bottom: false,
             left: false,
             right: false,
-            child: Column(
+            child: LayoutBuilder(
+              builder: (context, constraints) => Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // macOS 26 风格：沉浸式标题栏（与界面融为一体）
-                _buildImmersiveTitleBar(context, viewModel),
+                // 全局侧栏（ui_redesign_plan §5.1）：窄窗口收为图标轨
+                AppSidebar(
+                  activeApp: _activeApp,
+                  apps: _getVisibleApps(context),
+                  onSwitch: _onAppSwitched,
+                  collapsed: constraints.maxWidth < kSidebarCollapseBreakpoint,
+                  settingsCategory: _settingsCategory,
+                  onSettingsCategory: (c) => setState(() => _settingsCategory = c),
+                ),
                 // 页面内容区域
                 Expanded(
                   child: Consumer<SettingsViewModel>(
@@ -394,7 +390,17 @@ class _MainScreenState extends State<MainScreen> {
                             case AppType.keyManager:
                               return _buildKeyManagerPage(context, viewModel);
                             case AppType.claudeCode:
-                              return ClaudeConfigScreen(key: _claudeConfigScreenKey);
+                              return ClaudeConfigScreen(
+                                key: _claudeConfigScreenKey,
+                                initialTab: ClaudeSection.claudeCode,
+                                showSectionToggle: false,
+                              );
+                            case AppType.claudeDesktop:
+                              return ClaudeConfigScreen(
+                                key: _claudeDesktopConfigScreenKey,
+                                initialTab: ClaudeSection.claudeDesktop,
+                                showSectionToggle: false,
+                              );
                             case AppType.codex:
                               return CodexConfigScreen(key: _codexConfigScreenKey);
                             case AppType.gemini:
@@ -406,7 +412,7 @@ class _MainScreenState extends State<MainScreen> {
                             case AppType.skills:
                               return const SkillsConfigScreen();
                             case AppType.settings:
-                              return SettingsScreen(key: _settingsScreenKey);
+                              return SettingsScreen(key: _settingsScreenKey, category: _settingsCategory);
                           }
                         }).toList(),
                       );
@@ -414,6 +420,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
               ],
+            ),
             ),
           );
         },
@@ -694,109 +701,6 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             );
-  }
-
-  /// macOS 26 风格：沉浸式标题栏（与界面融为一体）
-  Widget _buildImmersiveTitleBar(BuildContext context, KeyManagerViewModel viewModel) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    
-    // macOS 标准标题栏高度 + 窗口控制按钮区域
-    // 考虑窗口控制按钮（红绿灯）的高度，通常为 28px，加上内边距
-    // 增加上边距以避免滑块进入窗口控制按钮的可点击区域
-    return Container(
-      height: 56, // 增加高度以容纳上边距
-      padding: const EdgeInsets.only(top: 20, left: 20), // 增加上边距避免被标题栏点击事件遮挡
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.background,
-        // 移除底部边框
-      ),
-      child: Stack(
-        children: [
-          // 页面切换导航居中显示
-          Center(
-            child: AppSwitcher(
-              activeApp: _activeApp,
-              onSwitch: _onAppSwitched,
-            ),
-          ),
-          // 右侧：统计信息（仅在钥匙包页面显示）
-          if (_activeApp == AppType.keyManager && viewModel.statistics != null)
-            Positioned(
-              right: 16,
-              top: 20,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildCompactStatItem(
-                    context,
-                    localizations?.total ?? '总数',
-                    viewModel.statistics!.total,
-                    shadTheme,
-                  ),
-                  const SizedBox(width: 16),
-                  _buildCompactStatItem(
-                    context,
-                    localizations?.active ?? '活跃',
-                    viewModel.statistics!.active,
-                    shadTheme,
-                    color: Colors.green,
-                  ),
-                  if (viewModel.statistics!.expiringSoon > 0) ...[
-                    const SizedBox(width: 16),
-                    _buildCompactStatItem(
-                      context,
-                      localizations?.expiringSoon ?? '即将过期',
-                      viewModel.statistics!.expiringSoon,
-                      shadTheme,
-                      color: Colors.orange,
-                    ),
-                  ],
-                  if (viewModel.statistics!.expired > 0) ...[
-                    const SizedBox(width: 16),
-                    _buildCompactStatItem(
-                      context,
-                      localizations?.expired ?? '已过期',
-                      viewModel.statistics!.expired,
-                      shadTheme,
-                      color: Colors.red,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactStatItem(
-    BuildContext context,
-    String label,
-    int value,
-    ShadThemeData theme, {
-    Color? color,
-  }) {
-    final displayColor = color ?? theme.colorScheme.primary;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value.toString(),
-          style: theme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w600,
-            color: displayColor,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: theme.textTheme.small.copyWith(
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-      ],
-    );
   }
 
   Widget _buildStatisticsCard(KeyStatistics stats) {

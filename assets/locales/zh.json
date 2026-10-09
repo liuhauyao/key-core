@@ -630,5 +630,12 @@
   "openclaw_written": "已将 {name} 写入 OpenClaw 配置",
   "openclaw_written_with_model": "已将 {name} 写入 OpenClaw，并设置默认模型为 {model}",
   "key_decrypt_failed": "密钥解密失败",
-  "api_endpoint_copied": "请求地址已复制"
+  "api_endpoint_copied": "请求地址已复制",
+  "sidebar_tools_section": "工具 · 按工具查看密钥",
+  "sidebar_extensions_section": "扩展",
+  "back_to_keys": "返回钥匙包",
+  "official_short": "官方",
+  "n_enabled": "{n} 个已启用",
+  "mcp_servers_nav": "MCP 服务",
+  "sidebar_current_key_tip": "{tool} 当前使用：{name}"
 }
