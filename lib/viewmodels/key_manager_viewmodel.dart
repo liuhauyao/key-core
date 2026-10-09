@@ -445,6 +445,10 @@ class KeyManagerViewModel extends BaseViewModel {
         enableClaudeDesktop: key.enableClaudeDesktop,
         claudeDesktopBaseUrl: key.claudeDesktopBaseUrl,
         claudeDesktopModel: key.claudeDesktopModel,
+        claudeDesktopSonnetModel: key.claudeDesktopSonnetModel,
+        claudeDesktopHaikuModel: key.claudeDesktopHaikuModel,
+        claudeDesktopOpusModel: key.claudeDesktopOpusModel,
+        claudeCodeConfig: key.claudeCodeConfig,
         isValidated: key.isValidated,
       );
 
@@ -697,6 +701,10 @@ class KeyManagerViewModel extends BaseViewModel {
         enableClaudeDesktop: key.enableClaudeDesktop,
         claudeDesktopBaseUrl: key.claudeDesktopBaseUrl,
         claudeDesktopModel: key.claudeDesktopModel,
+        claudeDesktopSonnetModel: key.claudeDesktopSonnetModel,
+        claudeDesktopHaikuModel: key.claudeDesktopHaikuModel,
+        claudeDesktopOpusModel: key.claudeDesktopOpusModel,
+        claudeCodeConfig: key.claudeCodeConfig,
         isValidated: key.isValidated,
       );
     } catch (e) {

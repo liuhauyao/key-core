@@ -37,7 +37,8 @@ class DatabaseService {
   /// - v16：PR #5「供应商中心」新增 `providers` 表（已回退）。
   /// - v17：把 `providers` 表中保存过的 API Key 导入 `ai_keys` 后删除该表，
   ///   回到以密钥为唯一实体的设计。版本号只增不减，避免 v16 的数据库被静默降级。
-  static const int schemaVersion = 17;
+  /// - v18：`ai_keys.claude_code_config`（Claude Code 的密钥字段名与供应商专属 env）。
+  static const int schemaVersion = 18;
 
   /// 迁移前备份最多保留的份数
   static const int maxMigrationBackups = 5;
@@ -171,6 +172,7 @@ class DatabaseService {
         codex_model TEXT,
         codex_base_url TEXT,
         codex_config TEXT,
+        claude_code_config TEXT,
         enable_gemini INTEGER DEFAULT 0,
         gemini_api_endpoint TEXT,
         gemini_model TEXT,
@@ -476,6 +478,10 @@ class DatabaseService {
 
       // 回退 PR #5 的「供应商中心」：保存过 API Key 的供应商导入为密钥，然后删除 providers 表。
       await _migrateProviderCenterToAiKeys(db);
+    }
+
+    if (oldVersion < 18) {
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_config', 'TEXT');
     }
   }
 

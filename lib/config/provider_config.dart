@@ -65,6 +65,12 @@ class ClaudeCodeProvider {
   /// 对应的平台类型（用于匹配密钥编辑页面的平台选择）
   final PlatformType? platformType;
 
+  /// 密钥写入的 env 变量名（缺省 ANTHROPIC_AUTH_TOKEN）
+  final String? apiKeyField;
+
+  /// 供应商额外需要的 env
+  final Map<String, String>? env;
+
   const ClaudeCodeProvider({
     required this.name,
     required this.websiteUrl,
@@ -76,6 +82,8 @@ class ClaudeCodeProvider {
     this.isPartner = false,
     this.endpointCandidates,
     this.platformType,
+    this.apiKeyField,
+    this.env,
   });
 }
 
@@ -111,6 +119,12 @@ class CodexProvider {
   /// 对应的平台类型（用于匹配密钥编辑页面的平台选择）
   final PlatformType? platformType;
 
+  /// wire_api（缺省 responses）
+  final String? wireApi;
+
+  /// model_reasoning_effort
+  final String? reasoningEffort;
+
   const CodexProvider({
     required this.name,
     required this.websiteUrl,
@@ -122,6 +136,8 @@ class CodexProvider {
     this.isPartner = false,
     this.endpointCandidates,
     this.platformType,
+    this.wireApi,
+    this.reasoningEffort,
   });
 }
 
@@ -159,6 +175,22 @@ class ProviderConfig {
   static List<ClaudeCodeProvider>? _cachedClaudeCodeProviders;
   static List<CodexProvider>? _cachedCodexProviders;
   static List<OpenClawProvider>? _cachedOpenClawProviders;
+  static Map<String, UnifiedProviderConfig>? _cachedPresetsByPlatform;
+
+  /// 按平台 ID 获取完整的供应商预设（密钥模板）。
+  ///
+  /// 预设只用于创建/填充密钥；切换时以密钥自身保存的参数为准。
+  static UnifiedProviderConfig? getPresetByPlatformId(String platformId) =>
+      _cachedPresetsByPlatform?[platformId];
+
+  /// 全部供应商预设
+  static List<UnifiedProviderConfig> get allPresets =>
+      _cachedPresetsByPlatform?.values.toList() ?? const [];
+
+  /// 测试用：直接注入预设
+  static void debugSetPresets(List<UnifiedProviderConfig> providers) {
+    _cachedPresetsByPlatform = {for (final p in providers) p.platformType: p};
+  }
 
   /// 初始化配置（从云端或本地加载）
   static Future<void> init({bool forceRefresh = false}) async {
@@ -187,6 +219,7 @@ class ProviderConfig {
     final codexProvidersList = <CodexProvider>[];
     final openClawProvidersList = <OpenClawProvider>[];
     int errorCount = 0;
+    _cachedPresetsByPlatform = {for (final p in providers) p.platformType: p};
     
     for (final provider in providers) {
       try {
@@ -210,6 +243,8 @@ class ProviderConfig {
             isPartner: provider.isPartner,
             endpointCandidates: provider.claudeCode!.endpointCandidates,
             platformType: platformType == PlatformType.custom ? null : platformType,
+            apiKeyField: provider.claudeCode!.apiKeyField,
+            env: provider.claudeCode!.env,
           ));
         }
         
@@ -226,6 +261,8 @@ class ProviderConfig {
             isPartner: provider.isPartner,
             endpointCandidates: provider.codex!.endpointCandidates,
             platformType: platformType == PlatformType.custom ? null : platformType,
+            wireApi: provider.codex!.wireApi,
+            reasoningEffort: provider.codex!.reasoningEffort,
           ));
         }
 

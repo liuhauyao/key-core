@@ -105,7 +105,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
     try {
       final codexConfigService = CodexConfigService();
       final providerConfig = await codexConfigService.getProviderConfig(key);
-      return !providerConfig.supportsAuthJson && providerConfig.envKeyName != null;
+      return providerConfig.needsEnvVar;
     } catch (e) {
       return false;
     }
@@ -250,7 +250,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
         // 检查是否需要环境变量
         final codexConfigService = CodexConfigService();
         final providerConfig = await codexConfigService.getProviderConfig(key);
-        final needsEnvVar = !providerConfig.supportsAuthJson && providerConfig.envKeyName != null;
+        final needsEnvVar = providerConfig.needsEnvVar;
         
         if (needsEnvVar) {
           // 生成环境变量命令（永久设置）

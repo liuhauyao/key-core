@@ -35,10 +35,21 @@ class KeyFieldFloor {
     'CLAUDE_CODE_USE_FOUNDRY',
   ];
 
+  /// AWS Bedrock 的 Bearer Token（CC Switch 预设 “AWS Bedrock (API Key)” 使用）
+  static const String claudeBedrockBearerToken = 'AWS_BEARER_TOKEN_BEDROCK';
+
+  /// 允许作为“密钥写入字段”的 env 名（供应商预设的 `claudeCode.apiKeyField`）
+  static const List<String> claudeApiKeyFields = [
+    claudeAuthToken,
+    claudeApiKey,
+    claudeBedrockBearerToken,
+  ];
+
   /// 切换到第三方密钥时，写入新值前需要清空的全部 env 键
   static const List<String> claudeKeysClearedOnSwitch = [
     claudeAuthToken,
     claudeApiKey,
+    claudeBedrockBearerToken,
     claudeBaseUrl,
     ...claudeModelKeys,
     claudeSmallFastModel,
@@ -55,7 +66,13 @@ class KeyFieldFloor {
   // ---------------- Gemini CLI（.env） ----------------
 
   static const String geminiApiKey = 'GEMINI_API_KEY';
-  static const List<String> geminiClearedOnSwitch = ['GEMINI_BASE_URL', 'GEMINI_MODEL'];
+
+  /// 第三方端点（Gemini CLI 读取 `GOOGLE_GEMINI_BASE_URL`）
+  static const String geminiBaseUrl = 'GOOGLE_GEMINI_BASE_URL';
+  static const String geminiModel = 'GEMINI_MODEL';
+
+  /// 切换时先清空再按密钥写入（`GEMINI_BASE_URL` 是早期误用的旧名，一并清理）
+  static const List<String> geminiClearedOnSwitch = [geminiBaseUrl, geminiModel, 'GEMINI_BASE_URL'];
 
   // ---------------- Codex（auth.json） ----------------
 
