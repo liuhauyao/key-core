@@ -494,6 +494,13 @@ class AppLocalizations {
       'category_third_party': '第三方',
       'category_aggregator': '聚合平台',
       'undo': '撤销',
+      'sidebar_current_key_tip': '{tool} 当前使用：{name}',
+      'mcp_servers_nav': 'MCP 服务',
+      'n_enabled': '{n} 个已启用',
+      'official_short': '官方',
+      'back_to_keys': '返回钥匙包',
+      'sidebar_extensions_section': '扩展',
+      'sidebar_tools_section': '工具 · 按工具查看密钥',
       'retry': '重试',
       'switched_to_target': '已切换到 {name}。新开的会话会读取新配置。',
       'switched_to_target_tool': '{tool} 已切换到 {name}。新开的会话会读取新配置。',
@@ -958,6 +965,13 @@ class AppLocalizations {
       'category_third_party': 'Third-party',
       'category_aggregator': 'Aggregator',
       'undo': 'Undo',
+      'sidebar_current_key_tip': '{tool} is using: {name}',
+      'mcp_servers_nav': 'MCP servers',
+      'n_enabled': '{n} enabled',
+      'official_short': 'Official',
+      'back_to_keys': 'Back to keys',
+      'sidebar_extensions_section': 'Extensions',
+      'sidebar_tools_section': 'Tools · keys by tool',
       'retry': 'Retry',
       'switched_to_target': 'Switched to {name}. New sessions will pick up the new config.',
       'switched_to_target_tool': '{tool} switched to {name}. New sessions will pick up the new config.',
@@ -1182,6 +1196,13 @@ class AppLocalizations {
   String get requestAddress => translate('request_address');
   // ---- UI-2：反馈与文案 ----
   String get undo => translate('undo');
+  String sidebarCurrentKeyTip(String tool, String name) => translate('sidebar_current_key_tip').replaceAll('{tool}', tool).replaceAll('{name}', name);
+  String get mcpServersNav => translate('mcp_servers_nav');
+  String nEnabled(int n) => translate('n_enabled').replaceAll('{n}', '$n');
+  String get officialShort => translate('official_short');
+  String get backToKeys => translate('back_to_keys');
+  String get sidebarExtensionsSection => translate('sidebar_extensions_section');
+  String get sidebarToolsSection => translate('sidebar_tools_section');
   String get retry => translate('retry');
   String get copyCommand => translate('copy_command');
   String get codexEnvVarRequired => translate('codex_env_var_required');

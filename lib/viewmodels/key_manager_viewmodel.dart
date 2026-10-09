@@ -1,6 +1,7 @@
 import '../models/ai_key.dart';
 import '../models/platform_type.dart';
 import '../models/platform_category.dart';
+import '../models/mcp_server.dart' show AiToolType;
 import '../services/database_service.dart';
 import '../services/crypt_service.dart';
 import '../services/auth_service.dart';
@@ -42,6 +43,38 @@ class KeyManagerViewModel extends BaseViewModel {
   int? _currentCodexKeyId;
   int? _currentGeminiKeyId;
   int? _currentClaudeDesktopKeyId;
+
+  bool _currentToolKeysLoaded = false;
+
+  /// 各工具当前生效的密钥 id（null = 官方配置 / 未配置）。供侧栏、卡片工具状态 chip 使用。
+  /// 由 [refreshCurrentToolKeys] 一次性并行读取，切换成功后由各 switch 方法增量更新。
+  Map<AiToolType, int?> get currentKeyIds => {
+        AiToolType.claudecode: _currentClaudeCodeKeyId,
+        AiToolType.claudeDesktop: _currentClaudeDesktopKeyId,
+        AiToolType.codex: _currentCodexKeyId,
+        AiToolType.gemini: _currentGeminiKeyId,
+      };
+
+  /// [currentKeyIds] 是否已经从配置文件读取过一次
+  bool get currentToolKeysLoaded => _currentToolKeysLoaded;
+
+  /// 并行读取各工具当前密钥（读 4 个配置文件），读完通知一次。单个工具失败不影响其他工具。
+  Future<void> refreshCurrentToolKeys() async {
+    Future<void> guard(Future<Object?> Function() f) async {
+      try {
+        await f();
+      } catch (_) {}
+    }
+
+    await Future.wait([
+      guard(getCurrentClaudeCodeKey),
+      guard(getCurrentClaudeDesktopKey),
+      guard(getCurrentCodexKey),
+      guard(getCurrentGeminiKey),
+    ]);
+    _currentToolKeysLoaded = true;
+    notifyListeners();
+  }
 
   List<AIKey> get keys => _filteredKeys;
   List<AIKey> get allKeys => _allKeys; // 暴露所有密钥，用于获取已添加的平台

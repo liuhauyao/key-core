@@ -28,6 +28,7 @@ import '../../services/macos_bookmark_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/region_filter_service.dart';
 import '../../constants/app_constants.dart';
+import '../../theme/kc_tokens.dart';
 
 /// 设置分组枚举
 enum SettingsCategory {
@@ -41,7 +42,22 @@ enum SettingsCategory {
 
 /// 设置页面 - 独立页面
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  /// 由外部（全局侧栏）控制的分类。非 null 时页面内不再绘制第二条子导航，
+  /// 只显示页标题 + 内容（ui_redesign_plan §5.1 / §5.6）。
+  final SettingsCategory? category;
+
+  const SettingsScreen({super.key, this.category});
+
+  /// 侧栏使用的分类标签（与页内原有子导航一致）
+  static List<(String, SettingsCategory)> categoryLabels(AppLocalizations localizations) {
+    return [
+      (localizations.settingsGeneral, SettingsCategory.general),
+      (localizations.settingsTools, SettingsCategory.tools),
+      (localizations.settingsData, SettingsCategory.data),
+      (localizations.settingsSecurity, SettingsCategory.security),
+      (localizations.settingsAbout, SettingsCategory.about),
+    ];
+  }
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -473,6 +489,30 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     final sidebarCategories = _settingsSidebarCategories(localizations);
     final menuHeight = _settingsMenuHeightForItemCount(sidebarCategories.length);
 
+    final external = widget.category;
+    if (external != null) {
+      if (_selectedCategory != external) _selectedCategory = external;
+      final title = sidebarCategories.firstWhere((c) => c.$2 == external).$1;
+      return Scaffold(
+        backgroundColor: shadTheme.colorScheme.background,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: KcSize.pageHeader,
+              padding: const EdgeInsets.symmetric(horizontal: KcSpace.page),
+              alignment: Alignment.centerLeft,
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: shadTheme.colorScheme.border)),
+              ),
+              child: Text(title, style: KcType.page.copyWith(color: shadTheme.colorScheme.foreground)),
+            ),
+            Expanded(child: _buildContentArea(context, localizations, settingsViewModel, shadTheme)),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: shadTheme.colorScheme.background,
       body: SafeArea(
@@ -503,13 +543,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
   }
 
   List<(String, SettingsCategory)> _settingsSidebarCategories(AppLocalizations localizations) {
-    return [
-      (localizations.settingsGeneral, SettingsCategory.general),
-      (localizations.settingsTools, SettingsCategory.tools),
-      (localizations.settingsData, SettingsCategory.data),
-      (localizations.settingsSecurity, SettingsCategory.security),
-      (localizations.settingsAbout, SettingsCategory.about),
-    ];
+    return SettingsScreen.categoryLabels(localizations);
   }
 
   double _settingsMenuHeightForItemCount(int n) {

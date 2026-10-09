@@ -630,5 +630,12 @@
   "openclaw_written": "Wrote {name} to the OpenClaw config",
   "openclaw_written_with_model": "Wrote {name} to OpenClaw and set the default model to {model}",
   "key_decrypt_failed": "Failed to decrypt the key",
-  "api_endpoint_copied": "Request URL copied"
+  "api_endpoint_copied": "Request URL copied",
+  "sidebar_tools_section": "Tools · keys by tool",
+  "sidebar_extensions_section": "Extensions",
+  "back_to_keys": "Back to keys",
+  "official_short": "Official",
+  "n_enabled": "{n} enabled",
+  "mcp_servers_nav": "MCP servers",
+  "sidebar_current_key_tip": "{tool} is using: {name}"
 }
