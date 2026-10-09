@@ -494,6 +494,24 @@ class AppLocalizations {
       'category_third_party': '第三方',
       'category_aggregator': '聚合平台',
       'undo': '撤销',
+      'openclaw_no_keys_hint': '在下方「未启用到 OpenClaw 的密钥」里点「启用」，或在编辑密钥时打开 OpenClaw',
+      'openclaw_no_keys': '还没有启用到 OpenClaw 的密钥',
+      'detect_again': '重新检测',
+      'official_website': '官网',
+      'config_dir_label': '配置目录：{dir}',
+      'openclaw_install_hint': '请先安装 OpenClaw 并运行初始化（openclaw onboard）',
+      'openclaw_not_detected': '未检测到 OpenClaw',
+      'openclaw_dir_missing': '未找到 OpenClaw 配置目录（~/.openclaw），可能还没有安装 OpenClaw。',
+      'openclaw_enabled_summary': '{n} 个已启用  ·  写入 {path}',
+      'api_url_copied': 'API 地址已复制',
+      'base_url_copied': 'Base URL 已复制',
+      'also_used_in': '也用于',
+      'default_model': '默认模型',
+      'official_api_short': '官方 API',
+      'enable_short': '启用',
+      'not_enabled_for_tool_hint': '启用后才会出现在上面的候选列表里',
+      'not_enabled_for_tool': '未启用到 {tool} 的密钥',
+      'tool_page_current': '当前：{name}  ·  写入 {path}',
       'no_tools_enabled': '设置里还没有开启任何工具',
       'select_platform_first': '先在左侧选择平台预设，再配置要用到的工具',
       'n_fields_need_fix': '{n} 处需要修改',
@@ -1019,6 +1037,24 @@ class AppLocalizations {
       'category_third_party': 'Third-party',
       'category_aggregator': 'Aggregator',
       'undo': 'Undo',
+      'openclaw_no_keys_hint': 'Click "Enable" in the section below, or turn on OpenClaw when editing a key',
+      'openclaw_no_keys': 'No keys enabled for OpenClaw yet',
+      'detect_again': 'Detect again',
+      'official_website': 'Website',
+      'config_dir_label': 'Config folder: {dir}',
+      'openclaw_install_hint': 'Install OpenClaw and run `openclaw onboard` first',
+      'openclaw_not_detected': 'OpenClaw not detected',
+      'openclaw_dir_missing': 'OpenClaw config folder (~/.openclaw) not found. OpenClaw may not be installed.',
+      'openclaw_enabled_summary': '{n} enabled  ·  writes {path}',
+      'api_url_copied': 'API URL copied',
+      'base_url_copied': 'Base URL copied',
+      'also_used_in': 'Also in',
+      'default_model': 'Default model',
+      'official_api_short': 'Official API',
+      'enable_short': 'Enable',
+      'not_enabled_for_tool_hint': 'Enable a key to add it to the list above',
+      'not_enabled_for_tool': 'Keys not enabled for {tool}',
+      'tool_page_current': 'Current: {name}  ·  writes {path}',
       'no_tools_enabled': 'No tools are enabled in Settings yet',
       'select_platform_first': 'Pick a platform preset on the left first, then configure tools',
       'n_fields_need_fix': '{n} fields need attention',
@@ -1304,6 +1340,24 @@ class AppLocalizations {
   String get requestAddress => translate('request_address');
   // ---- UI-2：反馈与文案 ----
   String get undo => translate('undo');
+  String get openclawNoKeysHint => translate('openclaw_no_keys_hint');
+  String get openclawNoKeys => translate('openclaw_no_keys');
+  String get detectAgain => translate('detect_again');
+  String get officialWebsite => translate('official_website');
+  String configDirLabel(String dir) => translate('config_dir_label').replaceAll('{dir}', dir);
+  String get openclawInstallHint => translate('openclaw_install_hint');
+  String get openclawNotDetected => translate('openclaw_not_detected');
+  String get openclawDirMissing => translate('openclaw_dir_missing');
+  String openclawEnabledSummary(int n, String path) => translate('openclaw_enabled_summary').replaceAll('{n}', '$n').replaceAll('{path}', path);
+  String get apiUrlCopied => translate('api_url_copied');
+  String get baseUrlCopied => translate('base_url_copied');
+  String get alsoUsedIn => translate('also_used_in');
+  String get defaultModel => translate('default_model');
+  String get officialApiShort => translate('official_api_short');
+  String get enableShort => translate('enable_short');
+  String get notEnabledForToolHint => translate('not_enabled_for_tool_hint');
+  String notEnabledForTool(String tool) => translate('not_enabled_for_tool').replaceAll('{tool}', tool);
+  String toolPageCurrent(String name, String path) => translate('tool_page_current').replaceAll('{name}', name).replaceAll('{path}', path);
   String get noToolsEnabled => translate('no_tools_enabled');
   String get selectPlatformFirst => translate('select_platform_first');
   String nFieldsNeedFix(int n) => translate('n_fields_need_fix').replaceAll('{n}', '$n');

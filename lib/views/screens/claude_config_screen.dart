@@ -16,6 +16,9 @@ import '../../services/settings_service.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../models/platform_type.dart';
 import 'key_form_page.dart';
+import '../widgets/kc_tool_lens.dart';
+import '../../models/mcp_server.dart' show AiToolType;
+import '../widgets/kc_logo.dart';
 import '../widgets/kc_toast.dart';
 
 /// 环境变量项
@@ -53,7 +56,6 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
   AIKey? _currentKey;
   bool _isOfficial = false; // 当前是否是官方配置
   bool _isLoading = false; // 初始状态为 false，等待页面切换时加载
-  bool _previousLoadingState = false;
   bool _isRefreshing = false; // 防止重复刷新
   bool _configExists = true; // 配置文件是否存在
   String? _configDir; // 配置目录路径
@@ -211,17 +213,6 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
           _claudeCodeKeysLoaded = true;
         });
           
-          // 显示底部提示
-          final localizations = AppLocalizations.of(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                localizations?.claudeConfigNotFoundLoad(configDir ?? localizations?.unknown ?? '未知') ?? '未找到 ClaudeCode 配置文件，可能 CLI 工具未安装或配置文件路径不正确。当前路径：${configDir ?? "未知"}',
-              ),
-              duration: const Duration(seconds: 4),
-              backgroundColor: Colors.orange,
-            ),
-          );
         }
         return; // 配置文件不存在，不继续读取当前密钥
       }
@@ -302,15 +293,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     // 检查配置文件是否存在
     if (!_configExists) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              localizations?.claudeConfigNotFoundSwitchKey ?? '未找到 ClaudeCode 配置文件，无法切换密钥。请先安装 CLI 工具或检查配置文件路径。',
-            ),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showKcToast(context, localizations?.claudeConfigNotFoundSwitchKey ?? '未找到 ClaudeCode 配置文件，无法切换密钥。请先安装 CLI 工具或检查配置文件路径。', kind: KcToastKind.warning);
       }
       return;
     }
@@ -340,15 +323,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     // 检查配置文件是否存在
     if (!_configExists) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              localizations?.claudeConfigNotFoundSwitchConfig ?? '未找到 ClaudeCode 配置文件，无法切换配置。请先安装 CLI 工具或检查配置文件路径。',
-            ),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showKcToast(context, localizations?.claudeConfigNotFoundSwitchConfig ?? '未找到 ClaudeCode 配置文件，无法切换配置。请先安装 CLI 工具或检查配置文件路径。', kind: KcToastKind.warning);
       }
       return;
     }
@@ -376,39 +351,6 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     final shadTheme = ShadTheme.of(context);
     final localizations = AppLocalizations.of(context);
 
-    // 只在状态从 false 变为 true 时显示一次通知
-    if (_isLoading && !_previousLoadingState) {
-      _previousLoadingState = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Colors.white,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(localizations?.loading ?? '加载中...'),
-                ],
-              ),
-              duration: const Duration(seconds: 1),
-              backgroundColor: Colors.black87,
-            ),
-          );
-        }
-      });
-    } else if (!_isLoading) {
-      _previousLoadingState = false;
-    }
 
     return Scaffold(
       backgroundColor: shadTheme.colorScheme.background,
@@ -417,7 +359,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
           children: [
             // 标题栏
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, KcSpace.x3),
               decoration: BoxDecoration(
                 color: shadTheme.colorScheme.background,
                 border: Border(
@@ -429,25 +371,16 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
               ),
               child: Row(
                 children: [
-                  SvgPicture.asset(
-                    'assets/icons/platforms/claude-color.svg',
-                    width: 20,
-                    height: 20,
-                    allowDrawingOutsideViewBox: true,
-                  ),
-                  const SizedBox(width: 12),
-                  // Claude Code / Claude Desktop 切换按钮组（侧栏已拆分时只显示标题）
-                  if (widget.showSectionToggle)
-                    _buildSectionToggle(shadTheme)
-                  else
-                    Text(
-                      _selectedSection == ClaudeSection.claudeCode ? 'Claude Code' : 'Claude Desktop',
-                      style: KcType.page.copyWith(color: shadTheme.colorScheme.foreground),
+                  Expanded(
+                    child: KcToolPageTitle(
+                      tool: _selectedSection == ClaudeSection.claudeCode ? AiToolType.claudecode : AiToolType.claudeDesktop,
+                      currentLabel: _lensCurrentLabel(localizations),
+                      trailing: widget.showSectionToggle ? _buildSectionToggle(shadTheme) : null,
                     ),
-                  const Spacer(),
+                  ),
                   // 搜索框（两个模式都显示）
                   SizedBox(
-                    width: 300,
+                    width: 240,
                     height: 38,
                     child: ClipRect(
                       clipBehavior: Clip.hardEdge,
@@ -528,6 +461,8 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                 ],
               ),
             ),
+            if (_selectedSection == ClaudeSection.claudeCode && _hasLoadedOnce && !_configExists)
+              KcNoticeBar(message: localizations?.claudeConfigNotFoundLoad(_configDir ?? localizations.unknown) ?? '未找到 ClaudeCode 配置文件。当前路径：${_configDir ?? "未知"}'),
             // 内容区：根据选择显示 Claude Code 或 Claude Desktop
             Expanded(
               child: _selectedSection == ClaudeSection.claudeCode
@@ -578,12 +513,38 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     );
   }
 
+  /// 页头「当前：X」（按当前分区）
+  String? _lensCurrentLabel(AppLocalizations? l) {
+    if (_selectedSection == ClaudeSection.claudeDesktop) {
+      if (!_claudeDesktopKeysLoaded) return null;
+      if (_isDesktopOfficial) return l?.officialConfig ?? '官方配置';
+      return _currentDesktopKey?.name;
+    }
+    if (!_hasLoadedOnce || !_configExists) return null;
+    if (_isOfficial) return l?.officialConfig ?? '官方配置';
+    return _currentKey?.name;
+  }
+
+  /// 「未启用到 X 的密钥」紧凑区
+  Widget _buildUnenabledSection(AiToolType tool) {
+    final vm = context.read<KeyManagerViewModel>();
+    final keys = vm.allKeys.where((k) => !enabledToolsOf(k).contains(tool)).toList();
+    return KcUnenabledSection(
+      tool: tool,
+      keys: keys,
+      onEnable: (k) async {
+        final ok = await enableKeyForTool(context, k, tool, openEditor: (d) => _showEditKeyPage(context, d));
+        if (ok && mounted) refresh(force: true);
+      },
+    );
+  }
+
   Widget _buildKeyList(ShadThemeData shadTheme, AppLocalizations? localizations) {
     return LayoutBuilder(
       builder: (context, constraints) {
         const double minCardWidth = 240;
         const double cardSpacing = 10;
-        const double padding = 16;
+        const double padding = KcSpace.page;
         const double cardHeight = 140; // 固定卡片高度，与 main_screen 一致
         
         final availableWidth = constraints.maxWidth - padding * 2;
@@ -599,16 +560,20 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
         // 官方配置始终显示，不受搜索筛选影响
         final totalItems = 1 + _filteredKeys.length; // 1 个官方配置卡片 + 过滤后的密钥列表
         
-        return GridView.builder(
-          padding: const EdgeInsets.all(padding),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        return CustomScrollView(
+          primary: false,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(padding),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             childAspectRatio: (cardWidth / cardHeight), // 固定高度，动态宽度
             crossAxisSpacing: cardSpacing,
             mainAxisSpacing: cardSpacing,
           ),
-          itemCount: totalItems,
-          itemBuilder: (context, index) {
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
             // 第一个是官方配置卡片（始终显示）
             if (index == 0) {
               return _buildOfficialCard(shadTheme, localizations);
@@ -624,7 +589,8 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
               aiKey: key,
               isEditMode: false,
               isCurrent: isCurrent,
-              cardMode: KeyCardMode.switchKey, // 工具切换页面使用切换模式
+              cardMode: KeyCardMode.switchKey,
+              lens: AiToolType.claudecode, // 工具切换页面使用切换模式
               onTap: () => _switchProvider(key),
               onView: () => _showKeyDetails(context, key),
               onEdit: () => _showEditKeyPage(context, key),
@@ -637,22 +603,24 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
               onCopyApiEndpoint: () {
                 if (key.claudeCodeBaseUrl != null) {
                   ClipboardService().copyToClipboard(key.claudeCodeBaseUrl!);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Base URL 已复制')),
-                  );
+                  showKcToast(context, AppLocalizations.of(context)?.baseUrlCopied ?? 'Base URL 已复制', kind: KcToastKind.success);
                 }
               },
               onCopyApiKey: () {
                 final viewModel = context.read<KeyManagerViewModel>();
                 if (key.id != null) {
                   viewModel.copyKeyToClipboard(key.id!);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(localizations?.keyCopied ?? '密钥已复制')),
-                  );
+                  showKcToast(context, localizations?.keyCopied ?? '密钥已复制', kind: KcToastKind.success);
                 }
               },
             );
           },
+                  childCount: totalItems,
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(child: _buildUnenabledSection(AiToolType.claudecode)),
+          ],
         );
       },
     );
@@ -807,23 +775,27 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
       builder: (context, constraints) {
         const double minCardWidth = 240;
         const double cardSpacing = 10;
-        const double padding = 16;
+        const double padding = KcSpace.page;
         const double cardHeight = 140;
 
         final availableWidth = constraints.maxWidth - padding * 2;
         int crossAxisCount = (availableWidth / (minCardWidth + cardSpacing)).floor();
         crossAxisCount = crossAxisCount.clamp(1, 5);
 
-        return GridView.builder(
-          padding: const EdgeInsets.all(padding),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        return CustomScrollView(
+          primary: false,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(padding),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             childAspectRatio: ((availableWidth - (crossAxisCount - 1) * cardSpacing) / crossAxisCount) / cardHeight,
             crossAxisSpacing: cardSpacing,
             mainAxisSpacing: cardSpacing,
           ),
-          itemCount: totalItems,
-          itemBuilder: (context, index) {
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
             if (index == 0) {
               return _buildDesktopOfficialCard(shadTheme, localizations);
             }
@@ -835,6 +807,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
               isEditMode: false,
               isCurrent: isCurrent,
               cardMode: KeyCardMode.switchKey,
+              lens: AiToolType.claudeDesktop,
               onTap: () => _switchDesktopProvider(key),
               onView: () => _showKeyDetails(context, key),
               onEdit: () => _showEditKeyPage(context, key),
@@ -847,22 +820,24 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
               onCopyApiEndpoint: () {
                 if (key.claudeDesktopBaseUrl != null) {
                   ClipboardService().copyToClipboard(key.claudeDesktopBaseUrl!);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Base URL 已复制')),
-                  );
+                  showKcToast(context, AppLocalizations.of(context)?.baseUrlCopied ?? 'Base URL 已复制', kind: KcToastKind.success);
                 }
               },
               onCopyApiKey: () {
                 final viewModel = context.read<KeyManagerViewModel>();
                 if (key.id != null) {
                   viewModel.copyKeyToClipboard(key.id!);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(localizations?.keyCopied ?? '密钥已复制')),
-                  );
+                  showKcToast(context, localizations?.keyCopied ?? '密钥已复制', kind: KcToastKind.success);
                 }
               },
             );
           },
+                  childCount: totalItems,
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(child: _buildUnenabledSection(AiToolType.claudeDesktop)),
+          ],
         );
       },
     );
@@ -996,11 +971,10 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
           onTap: onPressed,
           borderRadius: BorderRadius.circular(6),
           child: Container(
-            width: 30,
-            height: 30,
+            width: 26,
+            height: 26,
             decoration: BoxDecoration(
-              color: shadTheme.colorScheme.muted,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(KcRadius.control),
             ),
             child: Icon(
               icon,
@@ -1020,12 +994,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     final decryptedKey = await viewModel.getDecryptedKey(key.id!);
     
     if (decryptedKey == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localizations?.cannotDecryptKey ?? '无法解密密钥'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showKcToast(context, localizations?.cannotDecryptKey ?? '无法解密密钥', kind: KcToastKind.error);
       return;
     }
 
@@ -1041,9 +1010,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
         onCopyKey: () {
           viewModel.copyKeyToClipboard(decryptedKey.id!);
           final loc = AppLocalizations.of(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(loc?.keyCopiedToClipboard ?? '密钥已复制到剪贴板')),
-          );
+          showKcToast(context, loc?.keyCopiedToClipboard ?? '密钥已复制到剪贴板', kind: KcToastKind.success);
         },
         onOpenManagementUrl: () {
           if (decryptedKey.managementUrl != null) {
@@ -1065,12 +1032,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     // ⚠️ 重要：使用解密后的密钥进行编辑（与 main_screen 保持一致）
     final decryptedKey = await viewModel.getDecryptedKey(key.id!);
     if (decryptedKey == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localizations?.cannotDecryptKey ?? '无法解密密钥'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showKcToast(context, localizations?.cannotDecryptKey ?? '无法解密密钥', kind: KcToastKind.error);
       return;
     }
 
@@ -1083,21 +1045,11 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     if (result != null) {
       final success = await viewModel.updateKey(result);
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.keyUpdatedSuccess ?? '密钥更新成功'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        showKcToast(context, localizations?.keyUpdatedSuccess ?? '密钥更新成功', kind: KcToastKind.success);
         // 刷新列表
         refresh();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(viewModel.errorMessage ?? (localizations?.updateFailed ?? '更新失败')),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showKcToast(context, viewModel.errorMessage ?? (localizations?.updateFailed ?? '更新失败'), kind: KcToastKind.error);
       }
     }
   }
@@ -1394,21 +1346,11 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                           if (mounted) {
                             Navigator.pop(context);
                             if (success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(localizations?.officialConfigUpdated ?? '官方配置已更新'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
+                              showKcToast(context, localizations?.officialConfigUpdated ?? '官方配置已更新', kind: KcToastKind.success);
                               // 刷新列表
                               refresh(force: true);
                             } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(localizations?.officialConfigUpdateFailed ?? '更新官方配置失败'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
+                              showKcToast(context, localizations?.officialConfigUpdateFailed ?? '更新官方配置失败', kind: KcToastKind.error);
                             }
                           }
                         },
@@ -1566,11 +1508,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                           () {
                             if (apiKey != null) {
                               ClipboardService().copyToClipboard(apiKey);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(localizations?.keyCopiedToClipboard ?? '密钥已复制到剪贴板'),
-                                ),
-                              );
+                              showKcToast(context, localizations?.keyCopiedToClipboard ?? '密钥已复制到剪贴板', kind: KcToastKind.success);
                             }
                           },
                         ),
@@ -1598,9 +1536,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                           localizations?.copy ?? '复制',
                           () {
                             ClipboardService().copyToClipboard('https://api.anthropic.com');
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('API 地址已复制')),
-                            );
+                            showKcToast(context, AppLocalizations.of(context)?.apiUrlCopied ?? 'API 地址已复制', kind: KcToastKind.success);
                           },
                           isMonospace: true,
                         ),
@@ -1651,12 +1587,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     }
     
     if (apiKey == null || apiKey.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localizations?.noApiKey ?? '未设置 API Key'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      showKcToast(context, localizations?.noApiKey ?? '未设置 API Key', kind: KcToastKind.warning);
       return;
     }
     
@@ -1665,11 +1596,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
       delaySeconds: 30,
     );
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(localizations?.keyCopiedToClipboard ?? '密钥已复制到剪贴板'),
-      ),
-    );
+    showKcToast(context, localizations?.keyCopiedToClipboard ?? '密钥已复制到剪贴板', kind: KcToastKind.success);
   }
 
   Widget _buildKeyValueRow(
