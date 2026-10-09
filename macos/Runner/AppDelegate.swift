@@ -214,6 +214,8 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
       }
       window.appearance = NSAppearance(named: appearance)
     }
+    // 外观切换后 AppKit 会重建标题栏按钮，重新居中红绿灯（form_v3.md §10）
+    (window as? MainFlutterWindow)?.layoutTrafficLights()
   }
 
   func checkAndSetupStatusBar() {

@@ -1,9 +1,8 @@
 // 应用外壳导航（ui_redesign_plan §2.2 / §5.1）：左侧 200px 侧栏，窄窗口（<900）收为 72px 图标轨。
 // `AppType` 仍是唯一的导航数据源；Claude Code / Claude Desktop 拆为两行，共用 ClaudeConfigScreen。
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../../services/platform/window_chrome.dart';
+import 'kc_window_header.dart' show KcDragArea;
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -116,7 +115,6 @@ class AppSidebar extends StatelessWidget {
     final cs = ShadTheme.of(context).colorScheme;
     final kc = context.kc;
     final l10n = AppLocalizations.of(context);
-    final topInset = (!kIsWeb && Platform.isMacOS) ? 28.0 : 10.0;
 
     final inSettings = activeApp == AppType.settings;
     final children = <Widget>[
@@ -125,7 +123,16 @@ class AppSidebar extends StatelessWidget {
       if (inSettings) ..._settingsItems(context, l10n) else ..._appItems(context, l10n),
     ];
 
-    return Semantics(
+    return ValueListenableBuilder<bool>(
+      valueListenable: WindowChrome.isFullScreen,
+      builder: (context, _, __) => _buildShell(context, cs, kc, children, inSettings),
+    );
+  }
+
+  Widget _buildShell(BuildContext context, ShadColorScheme cs, KcTokens kc, List<Widget> children, bool inSettings) {
+    // macOS：顶部 52px 是拖动条，红绿灯在其中垂直居中；全屏 12；Windows / Linux 10（form_v3.md §10）
+    final topInset = WindowChrome.sidebarTopInset;
+    final shell = Semantics(
       container: true,
       label: 'sidebar',
       child: AnimatedContainer(
@@ -165,6 +172,11 @@ class AppSidebar extends StatelessWidget {
         ),
       ),
     );
+    if (!WindowChrome.isMacOS) return shell;
+    return Stack(children: [
+      shell,
+      Positioned(top: 0, left: 0, right: 0, height: topInset, child: const KcDragArea()),
+    ]);
   }
 
   List<Widget> _settingsItems(BuildContext context, AppLocalizations? l10n) {

@@ -5,6 +5,7 @@ import '../../models/skill.dart';
 import '../../services/skills_path_service.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/skills_viewmodel.dart';
+import '../widgets/kc_window_header.dart';
 import '../widgets/kc_toast.dart';
 import '../widgets/confirm_dialog.dart';
 
@@ -70,14 +71,9 @@ class _SkillsSyncPageState extends State<SkillsSyncPage> {
 
     return Scaffold(
       backgroundColor: shadTheme.colorScheme.background,
-      appBar: AppBar(
-        backgroundColor: shadTheme.colorScheme.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(localizations?.skillsSyncPageTitle ?? 'Skills Sync'),
+      appBar: KcWindowHeader(
+        title: localizations?.skillsSyncPageTitle ?? 'Skills Sync',
+        onClose: () => Navigator.of(context).pop(),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),

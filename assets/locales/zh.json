@@ -719,5 +719,7 @@
   "official_website": "官网",
   "detect_again": "重新检测",
   "openclaw_no_keys": "还没有启用到 OpenClaw 的密钥",
-  "openclaw_no_keys_hint": "在下方「未启用到 OpenClaw 的密钥」里点「启用」，或在编辑密钥时打开 OpenClaw"
+  "openclaw_no_keys_hint": "在下方「未启用到 OpenClaw 的密钥」里点「启用」，或在编辑密钥时打开 OpenClaw",
+  "mcp_sync_title": "MCP 同步",
+  "prompts_title": "系统提示词"
 }

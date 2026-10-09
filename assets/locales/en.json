@@ -719,5 +719,7 @@
   "official_website": "Website",
   "detect_again": "Detect again",
   "openclaw_no_keys": "No keys enabled for OpenClaw yet",
-  "openclaw_no_keys_hint": "Click \"Enable\" in the section below, or turn on OpenClaw when editing a key"
+  "openclaw_no_keys_hint": "Click \"Enable\" in the section below, or turn on OpenClaw when editing a key",
+  "mcp_sync_title": "MCP Sync",
+  "prompts_title": "System prompts"
 }

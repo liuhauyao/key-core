@@ -550,5 +550,7 @@
   "no_api_key": "未設定 API Key",
   "official_config_update_failed": "更新官方設定失敗",
   "official_config_updated": "官方設定已更新",
-  "remove_env_var": "移除"
+  "remove_env_var": "移除",
+  "mcp_sync_title": "MCP 同步",
+  "prompts_title": "系統提示詞"
 }

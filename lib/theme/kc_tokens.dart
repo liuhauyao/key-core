@@ -47,7 +47,13 @@ abstract final class KcSize {
   static const double badge = 20;
   static const double sidebar = 200;
   static const double sidebarRail = 72;
-  static const double pageHeader = 56;
+  static const double pageHeader = 52;
+
+  /// v3 顶栏高度：红绿灯在其中垂直居中（form_v3.md §10）
+  static const double toolbar = 52;
+
+  /// macOS 非全屏时，红绿灯右侧内容的起始 x（灯组右缘约 81.5 + 14.5）
+  static const double macTrafficInset = 96;
 }
 
 /// 动效（§4.4）。
