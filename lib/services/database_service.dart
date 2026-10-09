@@ -41,7 +41,8 @@ class DatabaseService {
   /// - v19：`mcp_server_apps`（MCP 服务按工具启用的关系表）。
   /// - v20：`skills` 增加来源仓库与内容哈希（source_repo/source_ref/source_subdir/content_hash）。
   /// - v21：新增 `prompts` 表（系统提示词，CC Switch Prompts 对齐）。
-  static const int schemaVersion = 21;
+  /// - v22：`ai_keys.tool_configs`（OpenCode / Grok Build / Hermes / Pi / MiniMax Code 的按密钥设置）。
+  static const int schemaVersion = 22;
 
   static const String promptsDdl = '''
     CREATE TABLE IF NOT EXISTS prompts (
@@ -229,7 +230,8 @@ class DatabaseService {
         claude_desktop_sonnet_model TEXT,
         claude_desktop_haiku_model TEXT,
         claude_desktop_opus_model TEXT,
-        is_validated INTEGER DEFAULT 0
+        is_validated INTEGER DEFAULT 0,
+        tool_configs TEXT
       )
     ''');
 
@@ -551,6 +553,9 @@ class DatabaseService {
     if (oldVersion < 21) {
       await db.execute(promptsDdl);
       await db.execute('CREATE INDEX IF NOT EXISTS idx_prompts_tool ON prompts(tool)');
+    }
+    if (oldVersion < 22) {
+      await _addColumnIfNotExists(db, 'ai_keys', 'tool_configs', 'TEXT');
     }
   }
 
