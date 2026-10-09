@@ -1142,6 +1142,7 @@ class _KeyCardState extends State<KeyCard> {
               // 拖动手柄（仅在编辑模式显示，作为视觉提示）
             if (widget.isEditMode)
               Container(
+                key: const ValueKey('keyCard.dragHandle'),
                 margin: const EdgeInsets.only(left: 8),
                 child: Icon(
                   Icons.drag_handle,
@@ -1252,6 +1253,7 @@ class _KeyCardState extends State<KeyCard> {
                       children: [
                         _buildActionButton(
                           context,
+                          key: const ValueKey('keyCard.moveToTop'),
                           icon: Icons.vertical_align_top,
                           tooltip: localizations?.moveToTop ?? '置顶',
                           onPressed: widget.onMoveToTop,
@@ -1259,6 +1261,7 @@ class _KeyCardState extends State<KeyCard> {
                         const SizedBox(width: 8),
                         _buildActionButton(
                           context,
+                          key: const ValueKey('keyCard.edit'),
                           icon: Icons.edit_outlined,
                           tooltip: localizations?.edit ?? '编辑',
                           onPressed: widget.onEdit,
@@ -1266,6 +1269,7 @@ class _KeyCardState extends State<KeyCard> {
                         const SizedBox(width: 8),
                         _buildActionButton(
                           context,
+                          key: const ValueKey('keyCard.delete'),
                           icon: Icons.delete_outline,
                           tooltip: localizations?.deleteTooltip ?? '删除',
                           onPressed: widget.onDelete,
@@ -1383,6 +1387,7 @@ class _KeyCardState extends State<KeyCard> {
 
   Widget _buildActionButton(
     BuildContext context, {
+    Key? key,
     required IconData icon,
     required String tooltip,
     required VoidCallback? onPressed,
@@ -1390,6 +1395,7 @@ class _KeyCardState extends State<KeyCard> {
   }) {
     final shadTheme = ShadTheme.of(context);
     return Tooltip(
+      key: key,
       message: tooltip,
       child: Material(
         color: Colors.transparent,

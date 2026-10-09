@@ -597,6 +597,7 @@ class _MainScreenState extends State<MainScreen> {
                           children: [
                             // 拖动模式按钮
                             Tooltip(
+                              key: const ValueKey('keyGrid.manageToggle'),
                               message: _isEditMode 
                                   ? (localizations?.finishEdit ?? '完成编辑')
                                   : (localizations?.edit ?? '编辑'),
