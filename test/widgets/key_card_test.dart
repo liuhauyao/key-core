@@ -123,15 +123,17 @@ void main() {
     expect(find.byKey(const ValueKey('toolChip.enabled.codex')), findsNothing);
     expect(inCard(1, find.text('3 个工具')), findsOneWidget);
     expect(inCard(7, find.text('未用到工具')), findsOneWidget);
-    expect(find.text('管理密钥'), findsOneWidget);
+    // v3（form_v3.md §13）：标题不变、不插横幅；主按钮原位变为「完成」，底部出现悬浮批量栏
+    expect(find.text('管理密钥'), findsNothing);
     expect(byKey('keyGrid.done'), findsOneWidget);
-    expect(byKey('keyGrid.manageNotice'), findsOneWidget);
+    expect(byKey('keyGrid.manageNotice'), findsNothing);
+    expect(byKey('kcFloatingSelectionBar'), findsOneWidget);
 
     // Esc 退出管理模式
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await settle(tester, rounds: 2);
-    expect(byKey('keyGrid.manageNotice'), findsNothing);
-    expect(find.text('管理密钥'), findsNothing);
+    expect(byKey('kcFloatingSelectionBar'), findsNothing);
+    expect(byKey('keyGrid.add'), findsOneWidget);
   });
 
   testWidgets('收藏 ★、掩码密钥、首字回退只给自定义平台', (tester) async {

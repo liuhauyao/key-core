@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reorderables/reorderables.dart';
 import '../../viewmodels/mcp_viewmodel.dart';
 import '../../models/mcp_server.dart';
+import '../widgets/kc_manage_scaffold.dart';
 import '../widgets/mcp_card.dart';
 import '../widgets/confirm_dialog.dart';
 import 'mcp_sync_page.dart';
@@ -27,6 +28,7 @@ class McpConfigScreen extends StatefulWidget {
 class _McpConfigScreenState extends State<McpConfigScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isEditMode = false;
+  final Set<int> _selectedIds = <int>{};
 
   @override
   void initState() {
@@ -166,11 +168,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                                     width: 38,
                                     height: 38,
                                     padding: EdgeInsets.zero,
-                                    onPressed: () {
-                                      setState(() {
-                                        _isEditMode = !_isEditMode;
-                                      });
-                                    },
+                                    onPressed: _exitManage,
                                     child: Icon(
                                       Icons.check,
                                       size: 18,
@@ -251,7 +249,16 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                       )
                     : viewModel.servers.isEmpty
                         ? _buildEmptyState(context, viewModel)
-                        : _buildServerList(context, viewModel, _isEditMode),
+                        : Stack(children: [
+                            Positioned.fill(child: _buildServerList(context, viewModel, _isEditMode)),
+                            if (_isEditMode)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 16,
+                                child: Center(child: _buildSelectionBar(context, viewModel)),
+                              ),
+                          ]),
               ),
             ],
           );
@@ -321,6 +328,57 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
     );
   }
 
+  void _exitManage() => setState(() {
+        _isEditMode = false;
+        _selectedIds.clear();
+      });
+
+  /// 底部悬浮批量栏：启用 / 停用 · 删除（form_v3.md §13.4）
+  Widget _buildSelectionBar(BuildContext context, McpViewModel viewModel) {
+    final l10n = AppLocalizations.of(context);
+    final all = viewModel.servers.map((s) => s.id).whereType<int>().toSet();
+    final sel = _selectedIds.intersection(all);
+    final picked = viewModel.servers.where((s) => sel.contains(s.id)).toList();
+    final allSelected = all.isNotEmpty && sel.length == all.length;
+    Future<void> setActive(bool v) async {
+      for (final s in picked) {
+        if (s.isActive != v) await viewModel.toggleActive(s.id!, v);
+      }
+    }
+
+    return KcFloatingSelectionBar(
+      selectedCount: sel.length,
+      allSelected: allSelected,
+      onSelectAll: () => setState(() => allSelected ? _selectedIds.removeAll(all) : _selectedIds.addAll(all)),
+      onDone: _exitManage,
+      actions: [
+        KcBatchAction(icon: Icons.toggle_on_outlined, label: l10n?.tr('enable', '启用') ?? '启用', onPressed: () => setActive(true)),
+        KcBatchAction(icon: Icons.toggle_off_outlined, label: l10n?.tr('disable', '停用') ?? '停用', onPressed: () => setActive(false)),
+        KcBatchAction(
+          key: const ValueKey('mcp.batch.delete'),
+          icon: Icons.delete_outline,
+          label: l10n?.delete ?? '删除',
+          danger: true,
+          onPressed: () async {
+            final ok = await ConfirmDialog.show(
+              context: context,
+              title: l10n?.confirmDelete ?? '确认删除',
+              message: (l10n?.tr('batch_delete_mcp_confirm', '确定要删除选中的 {n} 个 MCP 服务器吗？') ?? '确定要删除选中的 {n} 个 MCP 服务器吗？')
+                  .replaceAll('{n}', '${picked.length}'),
+              confirmText: l10n?.delete ?? '删除',
+              isDangerous: true,
+            );
+            if (ok != true) return;
+            for (final s in picked) {
+              await viewModel.deleteServer(s.id!);
+            }
+            setState(() => _selectedIds.removeAll(picked.map((s) => s.id)));
+          },
+        ),
+      ],
+    );
+  }
+
   Widget _buildServerList(
     BuildContext context,
     McpViewModel viewModel,
@@ -346,7 +404,13 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
 
         // 构建卡片列表
         final cardWidgets = servers.map((server) {
-          return McpCard(
+          return KcSelectableCard(
+            key: ValueKey('sel-${server.id}'),
+            manage: isEditMode,
+            selected: _selectedIds.contains(server.id),
+            checkKey: ValueKey('mcpCard.select.${server.id}'),
+            onSelect: (v) => setState(() => v ? _selectedIds.add(server.id!) : _selectedIds.remove(server.id)),
+            child: McpCard(
             key: ValueKey(server.id), // 使用稳定的key，不包含isActive状态
             server: server,
             isEditMode: isEditMode,
@@ -362,13 +426,15 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
             onOpenDocs: server.docs != null && server.docs!.isNotEmpty
                 ? () => UrlLauncherService().openUrl(server.docs!)
                 : null,
-          );
+          ));
         }).toList();
 
         // 编辑模式下使用 ReorderableWrap
         if (isEditMode) {
-          return Padding(
-            padding: const EdgeInsets.all(padding),
+          // 与网格同样的 padding；底部为悬浮批量栏预留（form_v3.md §13.4）
+          return SingleChildScrollView(
+            child: Padding(
+            padding: const EdgeInsets.fromLTRB(padding, padding, padding, padding + kcFloatingBarReserve),
             child: ReorderableWrap(
               spacing: cardSpacing,
               runSpacing: cardSpacing,
@@ -403,7 +469,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                 );
               }).toList(),
             ),
-          );
+          ));
         }
 
         // 非编辑模式使用普通 GridView
