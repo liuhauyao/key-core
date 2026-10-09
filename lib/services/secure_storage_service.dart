@@ -3,14 +3,14 @@ import 'dart:io';
 
 class SecureStorageService {
   static const _storage = FlutterSecureStorage(
-    aOptions: const AndroidOptions(encryptedSharedPreferences: true),
-    iOptions: const IOSOptions(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
       accountName: 'Key Core',
     ),
-    wOptions: const WindowsOptions(useBackwardCompatibility: false),
-    lOptions: const LinuxOptions(),
-    mOptions: const MacOsOptions(
+    wOptions: WindowsOptions(useBackwardCompatibility: false),
+    lOptions: LinuxOptions(),
+    mOptions: MacOsOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
   );

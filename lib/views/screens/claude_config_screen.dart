@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/key_card.dart';
 import '../widgets/official_key_card.dart';
@@ -12,8 +11,6 @@ import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/claude_config_service.dart';
 import '../../services/settings_service.dart';
-import '../../utils/platform_icon_service.dart';
-import '../../models/platform_type.dart';
 import 'key_form_page.dart';
 
 /// 环境变量项
@@ -173,7 +170,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                localizations?.claudeConfigNotFoundLoad(configDir ?? localizations?.unknown ?? '未知') ?? '未找到 ClaudeCode 配置文件，可能 CLI 工具未安装或配置文件路径不正确。当前路径：${configDir ?? "未知"}',
+                localizations?.claudeConfigNotFoundLoad(configDir ?? localizations.unknown ?? '未知') ?? '未找到 ClaudeCode 配置文件，可能 CLI 工具未安装或配置文件路径不正确。当前路径：${configDir ?? "未知"}',
               ),
               duration: const Duration(seconds: 4),
               backgroundColor: Colors.orange,
@@ -327,7 +324,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
               content: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -983,7 +980,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                                   width: 36,
                                   height: 36,
                                   padding: EdgeInsets.zero,
-                                  child: Icon(
+                                  child: const Icon(
                                     Icons.delete_outline,
                                     size: 18,
                                     color: Colors.red,

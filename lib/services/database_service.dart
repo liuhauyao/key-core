@@ -196,7 +196,7 @@ class DatabaseService {
   Future<bool> _columnExists(Database db, String tableName, String columnName) async {
     try {
       final result = await db.rawQuery(
-        "PRAGMA table_info($tableName)",
+        'PRAGMA table_info($tableName)',
       );
       return result.any((row) => row['name'] == columnName);
     } catch (e) {
@@ -749,7 +749,7 @@ class DatabaseService {
     final db = await database;
     final results = await db.query(
       'providers',
-      where: "supported_tools LIKE ?",
+      where: 'supported_tools LIKE ?',
       whereArgs: ['%$tool%'],
       orderBy: 'created_at DESC',
     );

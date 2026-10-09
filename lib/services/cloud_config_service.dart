@@ -99,8 +99,12 @@ class CloudConfigService {
     final v2Parts = version2.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     
     // 补齐长度
-    while (v1Parts.length < v2Parts.length) v1Parts.add(0);
-    while (v2Parts.length < v1Parts.length) v2Parts.add(0);
+    while (v1Parts.length < v2Parts.length) {
+      v1Parts.add(0);
+    }
+    while (v2Parts.length < v1Parts.length) {
+      v2Parts.add(0);
+    }
     
     for (int i = 0; i < v1Parts.length; i++) {
       if (v1Parts[i] < v2Parts[i]) return -1;

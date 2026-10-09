@@ -1044,7 +1044,7 @@ class OpenClawConfigService {
       }
     }
 
-    await file.writeAsString(newLines.join('\n') + '\n');
+    await file.writeAsString('${newLines.join('\n')}\n');
   }
 
   /// 读取当前模型配置

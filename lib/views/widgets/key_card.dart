@@ -7,7 +7,6 @@ import 'dart:async';
 import '../../models/ai_key.dart';
 import '../../models/model_info.dart';
 import '../../models/platform_category.dart';
-import '../../models/platform_type.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../services/key_validation_service.dart';
@@ -261,12 +260,12 @@ class _KeyCardState extends State<KeyCard> {
       SnackBar(
         content: Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(localizations?.syncing ?? '同步中...'),
             ),
@@ -280,15 +279,15 @@ class _KeyCardState extends State<KeyCard> {
                 scaffoldMessenger.showSnackBar(
                   SnackBar(
                     content: Text(localizations?.syncCancelled ?? '已取消同步'),
-                    duration: Duration(seconds: 2),
+                    duration: const Duration(seconds: 2),
                   ),
                 );
               },
-              child: Text(localizations?.cancel ?? '取消', style: TextStyle(color: Colors.white)),
+              child: Text(localizations?.cancel ?? '取消', style: const TextStyle(color: Colors.white)),
             ),
           ],
         ),
-        duration: Duration(seconds: 12), // 10秒超时 + 2秒缓冲
+        duration: const Duration(seconds: 12), // 10秒超时 + 2秒缓冲
       ),
     );
 
@@ -298,7 +297,7 @@ class _KeyCardState extends State<KeyCard> {
       if (decryptedKey == null) {
         scaffoldMessenger.hideCurrentSnackBar();
         scaffoldMessenger.showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('同步失败，检查密钥或者网络'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
@@ -329,7 +328,7 @@ class _KeyCardState extends State<KeyCard> {
         if (!cancelled && mounted) {
           scaffoldMessenger.hideCurrentSnackBar();
           scaffoldMessenger.showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('同步失败，检查密钥或者网络'),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 3),
@@ -379,7 +378,7 @@ class _KeyCardState extends State<KeyCard> {
           SnackBar(
             content: Text(message),
             backgroundColor: result.success ? Colors.green : Colors.red,
-            duration: Duration(seconds: 3),
+            duration: const Duration(seconds: 3),
           ),
         );
 
@@ -395,7 +394,7 @@ class _KeyCardState extends State<KeyCard> {
       if (!cancelled && mounted) {
         scaffoldMessenger.hideCurrentSnackBar();
         scaffoldMessenger.showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('同步失败，检查密钥或者网络'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
@@ -584,7 +583,7 @@ class _KeyCardState extends State<KeyCard> {
   Widget _buildBalanceDisplay(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations) {
     final balanceData = _cachedBalance;
     if (balanceData == null) {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
 
@@ -709,7 +708,7 @@ class _KeyCardState extends State<KeyCard> {
           }
           
           // Moonshot/Kimi 格式
-          if (balanceText == null && data != null) {
+          if (balanceText == null) {
             final availableBalance = data['available_balance'] as num?;
             final cashBalance = data['cash_balance'] as num?;
             final voucherBalance = data['voucher_balance'] as num?;
@@ -761,7 +760,7 @@ class _KeyCardState extends State<KeyCard> {
                 
                 // 构建 Tooltip 明细
                 final details = <String>[];
-                details.add(localizations?.totalBalanceDetail(balanceText) ?? '总余额: ${balanceText}');
+                details.add(localizations?.totalBalanceDetail(balanceText) ?? '总余额: $balanceText');
                 
                 final grantedBalance = firstBalance['granted_balance'];
                 if (grantedBalance != null) {
@@ -808,10 +807,10 @@ class _KeyCardState extends State<KeyCard> {
     if (balanceText == null) {
       // 如果余额数据存在（不为null），说明有余额查询支持，应该显示0
       // 如果余额数据为null，说明不支持余额查询，不显示
-      if (balanceData != null && balanceData.isNotEmpty) {
+      if (balanceData.isNotEmpty) {
         balanceText = '¥0.00';
       } else {
-        return SizedBox.shrink();
+        return const SizedBox.shrink();
       }
     }
 
@@ -1127,7 +1126,7 @@ class _KeyCardState extends State<KeyCard> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${widget.aiKey.platform}',
+                    widget.aiKey.platform,
                     style: shadTheme.textTheme.small.copyWith(
                       fontSize: 11,
                       color: shadTheme.colorScheme.mutedForeground,

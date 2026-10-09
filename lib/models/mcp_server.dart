@@ -216,7 +216,7 @@ class McpServer extends Equatable {
       'cwd': cwd,
       'url': url,
       'headers': headers != null ? jsonEncode(headers) : null,
-      'tags': tags != null ? tags!.join(',') : null,
+      'tags': tags?.join(','),
       'homepage': homepage,
       'docs': docs,
       'is_active': isActive ? 1 : 0,

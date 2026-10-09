@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/key_card.dart';
 import '../widgets/official_key_card.dart';
@@ -175,7 +174,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                localizations?.codexConfigNotFoundLoad(configDir ?? localizations?.unknown ?? '未知') ?? '未找到 Codex 配置文件，可能 CLI 工具未安装或配置文件路径不正确。当前路径：${configDir ?? "未知"}',
+                localizations?.codexConfigNotFoundLoad(configDir ?? localizations.unknown ?? '未知') ?? '未找到 Codex 配置文件，可能 CLI 工具未安装或配置文件路径不正确。当前路径：${configDir ?? "未知"}',
               ),
               duration: const Duration(seconds: 4),
               backgroundColor: Colors.orange,
@@ -399,7 +398,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
               content: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -1269,7 +1268,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.close, size: 16),
+                          const Icon(Icons.close, size: 16),
                           const SizedBox(width: 6),
                           Text(localizations?.cancel ?? '取消'),
                         ],
@@ -1310,7 +1309,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.check, size: 16),
+                          const Icon(Icons.check, size: 16),
                           const SizedBox(width: 6),
                           Text(localizations?.save ?? '保存'),
                         ],

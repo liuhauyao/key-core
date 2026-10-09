@@ -59,7 +59,7 @@ class _ImeSafeTextFieldState extends State<ImeSafeTextField> {
       enableSuggestions: false,
       autocorrect: false,
       enableIMEPersonalizedLearning: false,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 14,
         height: 1.2, // 减小行高以匹配 ShadInputFormField
       ),

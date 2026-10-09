@@ -17,7 +17,6 @@ import 'services/macos_preferences_bridge.dart';
 import 'services/tray_menu_bridge.dart';
 import 'services/macos_bookmark_service.dart';
 import 'services/region_filter_service.dart';
-import 'dart:io';
 import 'package:window_manager/window_manager.dart';
 import 'config/provider_config.dart';
 import 'utils/platform_presets.dart';
@@ -123,7 +122,7 @@ void main() async {
   }
   
   // 获取当前语言设置并检查语言包更新
-  final currentLanguage = await settingsService.getLanguage();
+  final currentLanguage = settingsService.getLanguage();
   languagePackService.checkLanguagePackUpdate(currentLanguage).then((hasUpdate) {
     if (hasUpdate) {
     }
@@ -235,15 +234,15 @@ class KeyCoreApp extends StatelessWidget {
           // 配置 Shadcn UI 主题
           final shadLightTheme = ShadThemeData(
             brightness: Brightness.light,
-            colorScheme: ShadSlateColorScheme.light(
-              primary: const Color(0xFF007AFF),
+            colorScheme: const ShadSlateColorScheme.light(
+              primary: Color(0xFF007AFF),
             ),
           );
           
           final shadDarkTheme = ShadThemeData(
             brightness: Brightness.dark,
-            colorScheme: ShadSlateColorScheme.dark(
-              primary: const Color(0xFF007AFF),
+            colorScheme: const ShadSlateColorScheme.dark(
+              primary: Color(0xFF007AFF),
             ),
           );
           

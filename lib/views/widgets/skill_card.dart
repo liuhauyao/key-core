@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/skill.dart';
 import '../../utils/app_localizations.dart';
 

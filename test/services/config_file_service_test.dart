@@ -113,7 +113,7 @@ void main() {
 
       // 创建多个备份
       for (int i = 2; i <= 4; i++) {
-        await Future.delayed(Duration(milliseconds: 10)); // 确保时间戳不同
+        await Future.delayed(const Duration(milliseconds: 10)); // 确保时间戳不同
         await service.writeJsonConfig(
           configPath,
           {'version': i},
@@ -148,7 +148,7 @@ void main() {
 
       // 创建 10 个备份
       for (int i = 2; i <= 11; i++) {
-        await Future.delayed(Duration(milliseconds: 10));
+        await Future.delayed(const Duration(milliseconds: 10));
         await service.writeJsonConfig(
           configPath,
           {'version': i},

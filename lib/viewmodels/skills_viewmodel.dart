@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
-import '../models/mcp_server.dart';
 import '../models/skill.dart';
 import '../services/skills_database_service.dart';
 import '../services/skills_path_service.dart';

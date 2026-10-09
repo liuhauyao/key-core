@@ -358,7 +358,7 @@ class _McpExportDialogState extends State<McpExportDialog> {
                                           ],
                                         ),
                                         secondary: server.isActive
-                                            ? Icon(
+                                            ? const Icon(
                                                 Icons.check_circle,
                                                 size: 20,
                                                 color: Colors.green,
@@ -385,7 +385,7 @@ class _McpExportDialogState extends State<McpExportDialog> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.error_outline, size: 20, color: Colors.red),
+                                const Icon(Icons.error_outline, size: 20, color: Colors.red),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -427,7 +427,7 @@ class _McpExportDialogState extends State<McpExportDialog> {
                             ? null
                             : _exportToTool,
                         leading: _isLoading
-                            ? SizedBox(
+                            ? const SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(

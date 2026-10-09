@@ -26,9 +26,6 @@ import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/first_launch_service.dart';
 import '../../services/settings_service.dart';
-import '../../services/key_validation_service.dart';
-import '../../services/model_list_service.dart';
-import '../widgets/model_list_dialog.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../viewmodels/providers_viewmodel.dart';
 import '../../utils/app_localizations.dart';
@@ -322,7 +319,7 @@ class _MainScreenState extends State<MainScreen> {
                     content: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        SizedBox(
+                        const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
@@ -412,7 +409,7 @@ class _MainScreenState extends State<MainScreen> {
                             case AppType.skills:
                               return const SkillsConfigScreen();
                             case AppType.settings:
-                              return SettingsScreen(key: _settingsScreenKey);
+                              return const SettingsScreen(key: _settingsScreenKey);
                           }
                         }).toList(),
                       );
