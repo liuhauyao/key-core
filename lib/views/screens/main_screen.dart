@@ -181,6 +181,10 @@ class _MainScreenState extends State<MainScreen> {
         final currentPage = _pageController.page?.round();
         if (currentPage == pageIndex) {
           _lastRefreshedPageIndex = pageIndex;
+          // 动画结束再兜底触发一次首次加载：PageView 不保活，页面滑出后 State 会被重建，
+          // 只靠 onPageChanged 时可能拿到旧的 / 尚未挂载的 State，导致工具页显示「暂无密钥」直到手动刷新。
+          // refresh() 在已加载过时是空操作，不会重复读取。
+          _triggerPageLoad(pageIndex);
         }
       }
       // 只有当这是最新的目标页面时才清除标记

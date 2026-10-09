@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -30,6 +31,7 @@ class CodexConfigScreen extends StatefulWidget {
 }
 
 class CodexConfigScreenState extends State<CodexConfigScreen> {
+  Timer? _selfLoadTimer;
   List<AIKey> _codexKeys = [];
   List<AIKey> _filteredKeys = []; // 过滤后的密钥列表
   AIKey? _currentKey;
@@ -45,6 +47,12 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
   @override
   void initState() {
     super.initState();
+    // PageView 不保活：页面滑出后 State 会被重建，而外部 refresh() 只在翻页回调里触发，
+    // 重建后的 State 可能等不到首次加载（表现为「暂无密钥」直到手动点刷新）。
+    // 停留超过一次翻页动画（300ms）仍挂载 → 视为真正可见，自行触发首次加载；路过的页面已销毁，不会加载。
+    _selfLoadTimer = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) refresh();
+    });
     // 监听搜索框变化
     _searchController.addListener(_onSearchChanged);
     // 不在 initState 中加载，等待页面真正可见时再加载
@@ -63,6 +71,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
 
   @override
   void dispose() {
+    _selfLoadTimer?.cancel();
     _searchController.dispose();
     // 移除 ViewModel 监听（使用保存的引用，避免访问已停用的 context）
     _viewModel?.removeListener(_onViewModelChanged);
