@@ -10,6 +10,7 @@ import '../widgets/confirm_dialog.dart';
 import '../widgets/skill_card.dart';
 import '../widgets/skill_details_dialog.dart';
 import 'skill_form_page.dart';
+import '../widgets/kc_toast.dart';
 import 'skills_sync_page.dart';
 
 class SkillsConfigScreen extends StatefulWidget {
@@ -639,15 +640,9 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     final success = await viewModel.importFromFolder(selectedDir);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
+    showKcToast(context, success
               ? (localizations?.skillsImportSuccess ?? 'Skill imported')
-              : (viewModel.errorMessage ?? localizations?.skillsImportFailed ?? 'Import failed'),
-        ),
-      ),
-    );
+              : (viewModel.errorMessage ?? localizations?.skillsImportFailed ?? 'Import failed'), kind: KcToastKind.success);
   }
 
   Future<void> _deleteSkill(BuildContext context, Skill skill, SkillsViewModel viewModel) async {
@@ -664,15 +659,9 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     final success = await viewModel.deleteSkill(skill);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
+    showKcToast(context, success
               ? (localizations?.skillsDeleteSuccess ?? 'Skill deleted')
-              : (viewModel.errorMessage ?? localizations?.skillsDeleteFailed ?? 'Delete failed'),
-        ),
-      ),
-    );
+              : (viewModel.errorMessage ?? localizations?.skillsDeleteFailed ?? 'Delete failed'), kind: KcToastKind.success);
   }
 
   // ── Batch operations ──
@@ -687,11 +676,9 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     _clearSelection();
     if (!mounted) return;
     final loc = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(active
+    showKcToast(context, active
           ? '${loc?.skillsActive ?? 'Active'}: $count'
-          : '${loc?.skillsInactive ?? 'Inactive'}: $count')),
-    );
+          : '${loc?.skillsInactive ?? 'Inactive'}: $count', kind: KcToastKind.success);
   }
 
   Future<void> _batchDelete(
@@ -711,9 +698,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     final count = await viewModel.batchDelete(selected);
     _clearSelection();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$count ${(loc?.delete ?? 'deleted').toLowerCase()}')),
-    );
+    showKcToast(context, '$count ${(loc?.delete ?? 'deleted').toLowerCase()}', kind: KcToastKind.success);
   }
 
   Future<void> _batchSyncToTool(
@@ -725,9 +710,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     _clearSelection();
     if (!mounted) return;
     final loc = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$count ${(loc?.skillsSync ?? 'synced').toLowerCase()}')),
-    );
+    showKcToast(context, '$count ${(loc?.skillsSync ?? 'synced').toLowerCase()}', kind: KcToastKind.success);
   }
 
   Future<void> _syncAllSkills(BuildContext context, SkillsViewModel viewModel) async {
@@ -743,13 +726,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     }
 
     final loc = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          loc?.skillsFullSyncComplete(totalSynced, totalConflicts) ??
-              'Full sync completed: $totalSynced synced, $totalConflicts conflicts',
-        ),
-      ),
-    );
+    showKcToast(context, loc?.skillsFullSyncComplete(totalSynced, totalConflicts) ??
+              'Full sync completed: $totalSynced synced, $totalConflicts conflicts', kind: KcToastKind.success);
   }
 }

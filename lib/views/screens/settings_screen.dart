@@ -28,6 +28,7 @@ import '../../services/macos_bookmark_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/region_filter_service.dart';
 import '../../constants/app_constants.dart';
+import '../widgets/kc_toast.dart';
 import '../../theme/kc_tokens.dart';
 
 /// 设置分组枚举
@@ -269,14 +270,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
         if (mounted) {
           final localizations = AppLocalizations.of(context);
           if (localizations != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(localizations.configUpdateSuccess),
-                duration: const Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-                width: 300,
-              ),
-            );
+            showKcToast(context, localizations.configUpdateSuccess, kind: KcToastKind.success);
           }
         }
       } else {
@@ -440,34 +434,19 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
         
         final localizations = AppLocalizations.of(context);
         if (localizations != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(localizations.configUpdateSuccess),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          showKcToast(context, localizations.configUpdateSuccess, kind: KcToastKind.success);
         }
       } else {
         final localizations = AppLocalizations.of(context);
         if (localizations != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(localizations.configAlreadyLatest),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          showKcToast(context, localizations.configAlreadyLatest, kind: KcToastKind.success);
         }
       }
     } catch (e) {
       if (!mounted) return;
       final localizations = AppLocalizations.of(context);
       if (localizations != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${localizations.configUpdateCheckFailed}: $e'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showKcToast(context, '${localizations.configUpdateCheckFailed}: $e', kind: KcToastKind.success);
       }
     } finally {
       if (mounted) {
@@ -1051,9 +1030,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                       onPressed: () async {
                         await skillsViewModel.syncAll(replaceExisting: false);
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(localizations.skillsSyncAllDone)),
-                          );
+                          showKcToast(context, localizations.skillsSyncAllDone, kind: KcToastKind.success);
                         }
                       },
                       child: Text(localizations.skillsSyncAll),
@@ -1158,37 +1135,19 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
           });
           
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(restored 
+            showKcToast(context, restored 
                   ? '授权成功，应用已获得用户主目录访问权限'
-                  : '授权已保存，但权限恢复失败，请重启应用'),
-                backgroundColor: restored ? Colors.green : Colors.orange,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+                  : '授权已保存，但权限恢复失败，请重启应用', kind: restored ? KcToastKind.success : KcToastKind.warning);
           }
         } else {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('授权失败，请重试'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
+            showKcToast(context, '授权失败，请重试', kind: KcToastKind.error);
           }
         }
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('授权失败: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showKcToast(context, '授权失败: $e', kind: KcToastKind.error);
       }
     }
   }
@@ -1456,12 +1415,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                                     'Language changed to ${selectedLang.nativeName}';
               
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(successMessage),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                showKcToast(context, successMessage, kind: KcToastKind.success);
               }
             }
           },
@@ -1581,12 +1535,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
             onChanged: (value) async {
               await settingsViewModel.setMinimizeToTray(value);
               if (value && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(localizations.minimizeToTrayEnabled),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
+                showKcToast(context, localizations.minimizeToTrayEnabled, kind: KcToastKind.success);
               }
             },
             activeColor: shadTheme.colorScheme.primary,
@@ -1817,13 +1766,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
             }
           }
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: importResult.errorCount > 0 ? Colors.orange : Colors.green,
-              duration: Duration(seconds: importResult.errorCount > 0 ? 5 : 3),
-            ),
-          );
+          showKcToast(context, message, kind: importResult.errorCount > 0 ? KcToastKind.warning : KcToastKind.success);
         } else {
           // 显示失败消息
           String errorMessage = localizations.importFailed;
@@ -1842,24 +1785,12 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
             }
           }
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          showKcToast(context, errorMessage, kind: KcToastKind.error);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${localizations.importFailed}: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        showKcToast(context, '${localizations.importFailed}: ${e.toString()}', kind: KcToastKind.error);
       }
     }
   }
@@ -1888,13 +1819,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
       // 3. 显示结果
       if (mounted) {
         if (exportedPath != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(localizations.exportResult(exportedPath)),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          showKcToast(context, localizations.exportResult(exportedPath), kind: KcToastKind.success);
         } else {
           // 检查是否有错误信息
           String errorMessage = localizations.exportFailed;
@@ -1910,24 +1835,12 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
             }
           }
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          showKcToast(context, errorMessage, kind: KcToastKind.error);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${localizations.exportFailed}: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        showKcToast(context, '${localizations.exportFailed}: ${e.toString()}', kind: KcToastKind.error);
       }
     }
   }
@@ -1994,12 +1907,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                   });
 
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(value ? localizations.regionRestrictionsEnabled : localizations.regionRestrictionsDisabled),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+                    showKcToast(context, value ? localizations.regionRestrictionsEnabled : localizations.regionRestrictionsDisabled, kind: KcToastKind.success);
 
                     // 通知其他组件刷新
                     final keyManagerViewModel = context.read<KeyManagerViewModel>();
@@ -2011,12 +1919,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                   }
                 } catch (e) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(localizations.regionRestrictionsFailed),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+                    showKcToast(context, localizations.regionRestrictionsFailed, kind: KcToastKind.success);
                   }
                 }
               },

@@ -11,6 +11,7 @@ import 'mcp_form_page.dart';
 import '../../utils/app_localizations.dart';
 import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
+import '../widgets/kc_toast.dart';
 import 'dart:convert';
 
 /// MCP 配置管理页面
@@ -445,25 +446,12 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
     );
 
     if (result != null) {
-      // 保存 ScaffoldMessenger 引用，避免异步操作后 context 失效
-      final scaffoldMessenger = ScaffoldMessenger.of(context);
       final success = await viewModel.updateServer(result);
       if (!mounted) return; // 检查 widget 是否仍然挂载
       if (success) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(localizations?.mcpServerUpdated ?? 'MCP 服务器更新成功'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showKcToast(this.context, localizations?.mcpServerUpdated ?? 'MCP 服务器更新成功', kind: KcToastKind.success);
       } else {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(viewModel.errorMessage ?? (localizations?.mcpUpdateFailed ?? '更新失败')),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showKcToast(this.context, viewModel.errorMessage ?? (localizations?.mcpUpdateFailed ?? '更新失败'), kind: KcToastKind.error);
       }
     }
   }
@@ -596,39 +584,15 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
 
   void _showSnackBar(BuildContext context, String message, {bool isError = false}) {
     if (!mounted) return; // 检查 widget 是否仍然挂载
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : null,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showKcToast(context, message, kind: isError ? KcToastKind.error : KcToastKind.success);
   }
 
   /// 安全地显示 SnackBar，避免在 widget 销毁时访问失效的 context
   void _showSnackBarSafe(BuildContext context, String message, {bool isError = false}) {
     if (!mounted) return; // 检查 widget 是否仍然挂载
-    
-    try {
-      // 尝试查找最近的 ScaffoldMessenger
-      final scaffoldMessenger = ScaffoldMessenger.maybeOf(context);
-      if (scaffoldMessenger != null) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: isError ? Colors.red : null,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      } else {
-        // 如果找不到 ScaffoldMessenger，打印日志而不是崩溃
-        print('无法显示 SnackBar: $message');
-      }
-    } catch (e) {
-      // 捕获任何异常，避免崩溃
-      print('显示 SnackBar 时出错: $e, 消息: $message');
-    }
+    showKcToast(this.context, message, kind: isError ? KcToastKind.error : KcToastKind.success);
   }
+
 }
 
 /// MCP 服务器详情弹窗

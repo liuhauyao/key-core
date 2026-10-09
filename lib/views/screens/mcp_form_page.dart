@@ -9,6 +9,7 @@ import '../../utils/mcp_server_presets.dart';
 import '../../utils/ime_friendly_formatter.dart';
 import '../widgets/icon_picker.dart';
 import '../widgets/ime_safe_text_field.dart';
+import '../widgets/kc_toast.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 /// JSON 输入格式化器，自动去除 mcpServers 包装
@@ -315,12 +316,7 @@ class _McpFormPageState extends State<McpFormPage> {
   Map<String, dynamic>? _parseJsonConfig() {
     final localizations = AppLocalizations.of(context);
     if (_jsonConfigController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localizations?.mcpJsonConfigRequired ?? '请输入JSON配置'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showKcToast(context, localizations?.mcpJsonConfigRequired ?? '请输入JSON配置', kind: KcToastKind.error);
       return null;
     }
 
@@ -349,20 +345,10 @@ class _McpFormPageState extends State<McpFormPage> {
       }
       
       // 不支持没有唯一标识的格式
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localizations?.mcpJsonConfigError ?? 'JSON配置格式错误: 必须包含MCP唯一标识，格式为 {"唯一标识": {配置}} 或 {"mcpServers": {"唯一标识": {配置}}}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showKcToast(context, localizations?.mcpJsonConfigError ?? 'JSON配置格式错误: 必须包含MCP唯一标识，格式为 {"唯一标识": {配置}} 或 {"mcpServers": {"唯一标识": {配置}}}', kind: KcToastKind.error);
       return null;
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localizations?.mcpJsonConfigErrorDetail(e.toString()) ?? 'JSON配置格式错误: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showKcToast(context, localizations?.mcpJsonConfigErrorDetail(e.toString()) ?? 'JSON配置格式错误: ${e.toString()}', kind: KcToastKind.error);
       return null;
     }
   }
@@ -380,12 +366,7 @@ class _McpFormPageState extends State<McpFormPage> {
       // 验证配置对象必须包含command或url字段
       final localizations = AppLocalizations.of(context);
       if (!config.containsKey('command') && !config.containsKey('url')) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-            content: Text(localizations?.mcpJsonConfigMissingField ?? 'JSON配置错误: 配置必须包含command或url字段'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          showKcToast(context, localizations?.mcpJsonConfigMissingField ?? 'JSON配置错误: 配置必须包含command或url字段', kind: KcToastKind.error);
           return;
         }
 
@@ -949,20 +930,9 @@ class _McpFormPageState extends State<McpFormPage> {
                   setState(() {
                     _jsonConfigController.text = formatted;
                   });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(localizations?.mcpJsonFormatted ?? 'JSON已格式化'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
+                  showKcToast(context, localizations?.mcpJsonFormatted ?? 'JSON已格式化', kind: KcToastKind.success);
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(localizations?.mcpJsonFormatError ?? 'JSON格式错误，无法格式化'),
-                      backgroundColor: Colors.red,
-                      duration: const Duration(seconds: 2),
-                ),
-                  );
+                  showKcToast(context, localizations?.mcpJsonFormatError ?? 'JSON格式错误，无法格式化', kind: KcToastKind.error);
                 }
               },
               child: Row(

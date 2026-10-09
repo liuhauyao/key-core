@@ -4,6 +4,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../models/mcp_server.dart';
 import '../../viewmodels/settings_viewmodel.dart';
+import '../../theme/kc_tokens.dart';
+import 'kc_toast.dart';
 import '../../utils/app_localizations.dart';
 
 /// 工具配置卡片组件
@@ -52,13 +54,7 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
 
       if (!isValid) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('无法启用：未找到 ${widget.tool.displayName} 配置文件'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          showKcToast(context, '无法启用：未找到 ${widget.tool.displayName} 配置文件', kind: KcToastKind.error);
         }
         return;
       }
@@ -66,13 +62,7 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
 
     final success = await widget.viewModel.setToolEnabled(widget.tool, enabled);
     if (!success && enabled && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('启用失败：配置文件不存在'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      showKcToast(context, '启用失败：配置文件不存在', kind: KcToastKind.error);
     }
   }
 
@@ -92,23 +82,12 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
         }
         
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('已设置配置目录: $selectedDirectory'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          showKcToast(context, '已设置配置目录: $selectedDirectory', kind: KcToastKind.success);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('选择目录失败: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showKcToast(context, '选择目录失败: $e', kind: KcToastKind.error);
       }
     }
   }
@@ -122,12 +101,7 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
     }
     
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已重置为默认目录'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showKcToast(context, '已重置为默认目录', kind: KcToastKind.success);
     }
   }
 
@@ -143,9 +117,9 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
 
     return Card(
       elevation: isEnabled ? 2 : 1,
-      shadowColor: Colors.black.withOpacity(0.1),
+      shadowColor: context.kc.shadowColor,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(KcRadius.panel),
         side: BorderSide(
           color: isEnabled
               ? shadTheme.colorScheme.primary
@@ -157,7 +131,7 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
           ? shadTheme.colorScheme.primary.withOpacity(0.05)
           : shadTheme.colorScheme.background,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(KcRadius.panel),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: SizedBox(
@@ -216,8 +190,8 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: isValid
-                                      ? Colors.green.withOpacity(0.2)
-                                      : Colors.orange.withOpacity(0.2),
+                                      ? context.kc.okSoft
+                                      : context.kc.warnSoft,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -225,7 +199,7 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
                                       ? (AppLocalizations.of(context)?.configValid ?? '配置正常')
                                       : (AppLocalizations.of(context)?.configMissing ?? '配置缺失'),
                                   style: shadTheme.textTheme.small.copyWith(
-                                    color: isValid ? Colors.green : Colors.orange,
+                                    color: isValid ? context.kc.okText : context.kc.warnText,
                                     fontSize: 10,
                                   ),
                                 ),

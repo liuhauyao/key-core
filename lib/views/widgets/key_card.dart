@@ -17,6 +17,7 @@ import 'package:provider/provider.dart';
 import 'model_list_dialog.dart';
 import 'kc_logo.dart';
 import '../../models/mcp_server.dart' show AiToolType;
+import 'kc_toast.dart';
 import '../../theme/kc_tokens.dart';
 
 /// 卡片使用模式
@@ -236,12 +237,7 @@ class _KeyCardState extends State<KeyCard> {
                 }
               } else {
                 if (dialogContext.mounted) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    SnackBar(
-                      content: Text(result.error ?? localizations?.updateModelListFailed ?? '更新模型列表失败'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  showKcToast(dialogContext, result.error ?? localizations?.updateModelListFailed ?? '更新模型列表失败', kind: KcToastKind.error);
                 }
               }
             }
@@ -249,12 +245,7 @@ class _KeyCardState extends State<KeyCard> {
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)?.noCachedModelsPleaseSync ?? '暂无缓存的模型列表，请先同步'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      showKcToast(context, AppLocalizations.of(context)?.noCachedModelsPleaseSync ?? '暂无缓存的模型列表，请先同步', kind: KcToastKind.warning);
     }
   }
 
@@ -516,9 +507,7 @@ class _KeyCardState extends State<KeyCard> {
       final decryptedKey = await viewModel.getDecryptedKey(widget.aiKey.id!);
       if (decryptedKey == null) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(localizations?.cannotDecryptKey ?? '无法解密密钥'), backgroundColor: Colors.red),
-        );
+        showKcToast(context, localizations?.cannotDecryptKey ?? '无法解密密钥', kind: KcToastKind.error);
         return;
       }
 
@@ -584,15 +573,11 @@ class _KeyCardState extends State<KeyCard> {
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.error ?? (localizations?.queryBalanceFailed ?? '查询余额失败')), backgroundColor: Colors.red),
-        );
+        showKcToast(context, result.error ?? (localizations?.queryBalanceFailed ?? '查询余额失败'), kind: KcToastKind.error);
       }
     } catch (e) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations?.queryBalanceFailedWithError(e.toString()) ?? '查询余额失败：${e.toString()}'), backgroundColor: Colors.red),
-      );
+      showKcToast(context, localizations?.queryBalanceFailedWithError(e.toString()) ?? '查询余额失败：${e.toString()}', kind: KcToastKind.error);
     }
   }
 

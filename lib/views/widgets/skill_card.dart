@@ -3,6 +3,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/skill.dart';
 import '../../utils/app_localizations.dart';
+import '../../theme/kc_tokens.dart';
+import 'kc_logo.dart';
 
 class SkillCard extends StatefulWidget {
   final Skill skill;
@@ -52,38 +54,22 @@ class _SkillCardState extends State<SkillCard> {
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(KcRadius.panel),
             color: widget.isSelected
-                ? shadTheme.colorScheme.primary.withOpacity(0.12)
+                ? Color.alphaBlend(context.kc.actionSoft, shadTheme.colorScheme.card)
                 : isActive
-                    ? Color.alphaBlend(
-                        shadTheme.colorScheme.primary.withOpacity(0.04),
-                        shadTheme.colorScheme.background,
-                      )
-                    : shadTheme.colorScheme.muted.withOpacity(0.5),
+                    ? shadTheme.colorScheme.card
+                    : Color.alphaBlend(context.kc.subtle.withValues(alpha: 0.5), shadTheme.colorScheme.card),
             border: Border.all(
               color: widget.isSelected
                   ? shadTheme.colorScheme.primary
-                  : isActive
-                      ? shadTheme.colorScheme.primary.withOpacity(0.3)
-                      : shadTheme.colorScheme.border,
-              width: widget.isSelected ? 2 : 1,
+                  : (_isHovering && !widget.isEditMode ? shadTheme.colorScheme.input : shadTheme.colorScheme.border),
+              width: widget.isSelected ? 1.5 : 1,
             ),
-            boxShadow: (_isHovering || widget.isSelected) && !widget.isEditMode
-                ? [
-                    BoxShadow(
-                      color: (widget.isSelected
-                              ? shadTheme.colorScheme.primary
-                              : shadTheme.colorScheme.primary)
-                          .withOpacity(0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            boxShadow: _isHovering && !widget.isEditMode ? context.kc.shadowMd : context.kc.shadowSm,
           ),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(KcSpace.x3),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -99,18 +85,10 @@ class _SkillCardState extends State<SkillCard> {
                           size: 22,
                         ),
                       ),
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: shadTheme.colorScheme.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.psychology_outlined,
-                        size: 20,
-                        color: shadTheme.colorScheme.primary,
-                      ),
+                    KcLogoBox(
+                      background: context.kc.actionSoft,
+                      bordered: false,
+                      child: Icon(Icons.psychology_outlined, size: 20, color: context.kc.actionText),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -119,18 +97,13 @@ class _SkillCardState extends State<SkillCard> {
                         children: [
                           Text(
                             widget.skill.name,
-                            style: shadTheme.textTheme.p.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: shadTheme.colorScheme.foreground,
-                            ),
+                            style: KcType.strong.copyWith(color: shadTheme.colorScheme.foreground),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             widget.skill.relativePath,
-                            style: shadTheme.textTheme.small.copyWith(
-                              color: shadTheme.colorScheme.mutedForeground,
-                            ),
+                            style: KcType.mono.copyWith(fontSize: 11, color: shadTheme.colorScheme.mutedForeground),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -138,10 +111,18 @@ class _SkillCardState extends State<SkillCard> {
                       ),
                     ),
                     if (!widget.isEditMode && !widget.isSelected && widget.onToggleActive != null)
-                      Switch(
-                        value: isActive,
-                        onChanged: widget.onToggleActive,
-                        activeColor: shadTheme.colorScheme.primary,
+                      SizedBox(
+                        height: 24,
+                        child: FittedBox(
+                          child: Switch(
+                            value: isActive,
+                            onChanged: widget.onToggleActive,
+                            activeColor: shadTheme.colorScheme.primary,
+                            inactiveThumbColor: Colors.white,
+                            inactiveTrackColor: shadTheme.colorScheme.border,
+                            trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -150,10 +131,7 @@ class _SkillCardState extends State<SkillCard> {
                   child: Text(
                     widget.skill.description ??
                         (localizations?.skillsNoDescription ?? 'No description'),
-                    style: shadTheme.textTheme.small.copyWith(
-                      color: shadTheme.colorScheme.mutedForeground,
-                      height: 1.4,
-                    ),
+                    style: KcType.caption.copyWith(color: context.kc.text2, height: 1.4),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -192,14 +170,11 @@ class _SkillCardState extends State<SkillCard> {
     if (iconPath == null) {
       return Icon(Icons.extension, size: 16, color: shadTheme.colorScheme.mutedForeground);
     }
-    return SvgPicture.asset(
-      iconPath,
-      width: 16,
-      height: 16,
-      colorFilter: ColorFilter.mode(
-        shadTheme.colorScheme.mutedForeground,
-        BlendMode.srcIn,
-      ),
+    // 真实彩色 logo（白底小圆），与钥匙包工具 chip 一致
+    return KcLogoBox(
+      size: 18,
+      circle: true,
+      child: SvgPicture.asset(iconPath, width: 12, height: 12, allowDrawingOutsideViewBox: true),
     );
   }
 
@@ -207,43 +182,36 @@ class _SkillCardState extends State<SkillCard> {
     if (widget.skill.hasConflict) {
       return _badge(
         localizations?.skillsSyncConflict ?? 'Conflict',
-        shadTheme.colorScheme.destructive,
+        context.kc.dangerText,
         shadTheme,
+        bg: context.kc.dangerSoft,
       );
     }
     if (widget.skill.needsSync) {
       return _badge(
         localizations?.skillsSyncPending ?? 'Pending',
-        Colors.orange,
+        context.kc.warnText,
         shadTheme,
+        bg: context.kc.warnSoft,
       );
     }
     if (widget.skill.syncStatus.values.any((s) => s == SkillSyncState.synced)) {
       return _badge(
         localizations?.skillsSyncSynced ?? 'Synced',
-        Colors.green,
+        context.kc.okText,
         shadTheme,
+        bg: context.kc.okSoft,
       );
     }
     return const SizedBox.shrink();
   }
 
-  Widget _badge(String text, Color color, ShadThemeData shadTheme) {
+  Widget _badge(String text, Color color, ShadThemeData shadTheme, {required Color bg}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.25)),
-      ),
-      child: Text(
-        text,
-        style: shadTheme.textTheme.small.copyWith(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
+      height: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [Text(text, style: KcType.badge.copyWith(color: color))]),
     );
   }
 
@@ -257,9 +225,7 @@ class _SkillCardState extends State<SkillCard> {
       child: Icon(
         icon,
         size: 16,
-        color: isDestructive
-            ? shadTheme.colorScheme.destructive
-            : shadTheme.colorScheme.mutedForeground,
+        color: isDestructive ? context.kc.dangerText : context.kc.text2,
       ),
     );
   }

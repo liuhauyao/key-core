@@ -5,6 +5,7 @@ import '../../models/skill.dart';
 import '../../services/skills_path_service.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/skills_viewmodel.dart';
+import '../widgets/kc_toast.dart';
 import '../widgets/confirm_dialog.dart';
 
 class SkillsSyncPage extends StatefulWidget {
@@ -247,14 +248,8 @@ class _SkillsSyncPageState extends State<SkillsSyncPage> {
     if (!mounted || summary == null) return;
 
     await _scanTool();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          localizations?.skillsImportComplete(summary.imported, summary.skipped, summary.failed) ??
-              'Imported ${summary.imported}, skipped ${summary.skipped}, failed ${summary.failed}',
-        ),
-      ),
-    );
+    showKcToast(context, localizations?.skillsImportComplete(summary.imported, summary.skipped, summary.failed) ??
+              'Imported ${summary.imported}, skipped ${summary.skipped}, failed ${summary.failed}', kind: KcToastKind.success);
   }
 
   Future<void> _syncToTool(BuildContext context, bool replaceExisting) async {
@@ -276,14 +271,8 @@ class _SkillsSyncPageState extends State<SkillsSyncPage> {
     if (!mounted || summary == null) return;
 
     await _scanTool();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          localizations?.skillsSyncComplete(summary.synced, summary.skipped, summary.conflicts, summary.failed) ??
-              'Synced ${summary.synced}, conflicts ${summary.conflicts}, failed ${summary.failed}',
-        ),
-      ),
-    );
+    showKcToast(context, localizations?.skillsSyncComplete(summary.synced, summary.skipped, summary.conflicts, summary.failed) ??
+              'Synced ${summary.synced}, conflicts ${summary.conflicts}, failed ${summary.failed}', kind: KcToastKind.success);
   }
 
   Future<void> _migrateTool(BuildContext context) async {
@@ -303,13 +292,7 @@ class _SkillsSyncPageState extends State<SkillsSyncPage> {
     if (!mounted || result == null) return;
 
     await _scanTool();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          localizations?.skillsMigrateComplete(result.importSummary.imported) ??
-              'Migrated ${result.importSummary.imported} skills',
-        ),
-      ),
-    );
+    showKcToast(context, localizations?.skillsMigrateComplete(result.importSummary.imported) ??
+              'Migrated ${result.importSummary.imported} skills', kind: KcToastKind.success);
   }
 }

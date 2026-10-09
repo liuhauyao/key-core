@@ -60,7 +60,6 @@ class _MainScreenState extends State<MainScreen> {
   AppType _activeApp = AppType.keyManager;
   SettingsCategory _settingsCategory = SettingsCategory.general;
   _KeySegment _segment = _KeySegment.all;
-  bool _previousLoadingState = false;
   int? _lastRefreshedPageIndex; // 记录上次刷新的页面索引，避免重复刷新
   int? _targetPageIndex; // 记录目标页面索引，用于区分中间页面和目标页面
   final ScrollController _keyListScrollController = ScrollController();
@@ -301,39 +300,6 @@ class _MainScreenState extends State<MainScreen> {
         builder: (context, viewModel, child) {
           final localizations = AppLocalizations.of(context);
           
-          // 只在状态从 false 变为 true 时显示一次通知
-          if (viewModel.isLoading && !_previousLoadingState) {
-            _previousLoadingState = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(localizations?.loading ?? '加载中...'),
-                      ],
-                    ),
-                    duration: const Duration(seconds: 1),
-                    backgroundColor: Colors.black87,
-                  ),
-                );
-              }
-            });
-          } else if (!viewModel.isLoading) {
-            _previousLoadingState = false;
-          }
           
           return SafeArea(
             top: false, // macOS 沉浸式标题栏：不预留顶部安全区域
@@ -1039,29 +1005,16 @@ class _MainScreenState extends State<MainScreen> {
     );
 
     if (result != null) {
-      // 保存 ScaffoldMessenger 引用，避免异步操作后 context 失效
-      final scaffoldMessenger = ScaffoldMessenger.of(context);
       final success = await viewModel.updateKey(result);
       if (!mounted) return; // 检查 widget 是否仍然挂载
       if (success) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(localizations?.keyUpdatedSuccess ?? '密钥更新成功'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showKcToast(this.context, localizations?.keyUpdatedSuccess ?? '密钥更新成功', kind: KcToastKind.success);
         // 强制刷新 ClaudeCode、Codex 和 Gemini 页面（因为更新了密钥）
         _claudeConfigScreenKey.currentState?.refresh(force: true);
         _codexConfigScreenKey.currentState?.refresh(force: true);
         _geminiConfigScreenKey.currentState?.refresh(force: true);
       } else {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(viewModel.errorMessage ?? (localizations?.updateFailed ?? '更新失败')),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showKcToast(this.context, viewModel.errorMessage ?? (localizations?.updateFailed ?? '更新失败'), kind: KcToastKind.error);
       }
     }
   }

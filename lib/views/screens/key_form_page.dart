@@ -12,7 +12,6 @@ import '../../utils/platform_presets.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../config/provider_config.dart';
-import '../widgets/platform_category_tabs.dart';
 import '../widgets/icon_picker.dart';
 import '../../models/platform_category.dart';
 import '../../services/codex_config_service.dart';
@@ -33,6 +32,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/kc_tokens.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/kc_logo.dart';
+import '../widgets/kc_toast.dart';
 import '../widgets/key_card.dart' show toolConfigPathHint;
 
 /// 密钥编辑表单页面
@@ -1595,9 +1595,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   Future<void> _handleValidate() async {
     final localizations = AppLocalizations.of(context);
     if (_keyValueController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations?.enterKeyValueFirst ?? '请先输入密钥值')),
-      );
+      showKcToast(context, localizations?.enterKeyValueFirst ?? '请先输入密钥值', kind: KcToastKind.success);
       return;
     }
 
@@ -1677,16 +1675,9 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
           await _cacheService.saveValidationStatus(tempKey, true);
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result.isValid
+        showKcToast(context, result.isValid
                   ? (result.message ?? '密钥有效')
-                  : (result.message ?? '密钥无效'),
-            ),
-            backgroundColor: result.isValid ? Colors.green : Colors.red,
-          ),
-        );
+                  : (result.message ?? '密钥无效'), kind: result.isValid ? KcToastKind.success : KcToastKind.error);
       }
     } catch (e) {
       if (mounted) {
@@ -1696,12 +1687,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
         });
 
         final localizations = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.validationFailedWithError(e.toString()) ?? '校验失败：${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showKcToast(context, localizations?.validationFailedWithError(e.toString()) ?? '校验失败：${e.toString()}', kind: KcToastKind.error);
       }
     }
   }
@@ -1710,9 +1696,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   Future<void> _handleViewModels() async {
     final localizations = AppLocalizations.of(context);
     if (_keyValueController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations?.enterKeyValueFirst ?? '请先输入密钥值')),
-      );
+      showKcToast(context, localizations?.enterKeyValueFirst ?? '请先输入密钥值', kind: KcToastKind.success);
       return;
     }
 
@@ -1787,12 +1771,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result.error ?? '查询模型列表失败'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          showKcToast(context, result.error ?? '查询模型列表失败', kind: KcToastKind.error);
         }
       }
     } catch (e) {
@@ -1803,12 +1782,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
 
       if (mounted) {
         final localizations = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.queryFailedWithError(e.toString()) ?? '查询失败：${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showKcToast(context, localizations?.queryFailedWithError(e.toString()) ?? '查询失败：${e.toString()}', kind: KcToastKind.error);
       }
     }
   }
@@ -2632,12 +2606,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                       onPressed: () async {
                         await _clipboardService.copyToClipboard(command);
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(localizations?.keyCopied ?? '已复制'),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
+                          showKcToast(context, localizations?.keyCopied ?? '已复制', kind: KcToastKind.success);
                         }
                       },
                       tooltip: localizations?.copy ?? '复制',
