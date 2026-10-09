@@ -562,5 +562,7 @@
   "enable": "啟用",
   "disable": "停用",
   "batch_delete_mcp_confirm": "確定要刪除選中的 {n} 個 MCP 伺服器嗎？",
-  "uninstall": "解除安裝"
+  "uninstall": "解除安裝",
+  "sidebar_official_tip": "{tool} 目前使用：官方登入",
+  "official_login": "官方登入"
 }

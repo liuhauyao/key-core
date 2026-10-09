@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../models/mcp_server.dart' show AiToolType;
+import '../../models/ai_key.dart';
 import '../../models/platform_type.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../theme/kc_tokens.dart';
@@ -225,4 +226,156 @@ class KcPlatformLogo extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 侧栏工具行 trailing（form_v3.md §8）：20px 白底圆角（5）方块，内含 13px logo。
+///
+/// - 自有密钥：该密钥的供应商 logo；
+/// - [KeyLogoChip.official]：厂商官方标志 + 右下角 11px 蓝色 ✓；
+/// - [KeyLogoChip.none]：20px 虚线方块，中间 4px 灰点。
+class KeyLogoChip extends StatelessWidget {
+  const KeyLogoChip({super.key, required AIKey this.aiKey})
+      : tool = null,
+        _none = false;
+  const KeyLogoChip.official({super.key, required AiToolType this.tool})
+      : aiKey = null,
+        _none = false;
+  const KeyLogoChip.none({super.key})
+      : aiKey = null,
+        tool = null,
+        _none = true;
+
+  final AIKey? aiKey;
+  final AiToolType? tool;
+  final bool _none;
+
+  static const double size = 20;
+
+  /// 官方登录时显示的厂商标志
+  static PlatformType officialVendor(AiToolType tool) {
+    switch (tool) {
+      case AiToolType.codex:
+        return PlatformType.openAI;
+      case AiToolType.gemini:
+        return PlatformType.google;
+      default:
+        return PlatformType.anthropic;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final kc = context.kc;
+    if (_none) {
+      return SizedBox(
+        key: key ?? const ValueKey('keyLogoChip.none'),
+        width: size,
+        height: size,
+        child: CustomPaint(
+          painter: _DashedBoxPainter(color: kc.text2.withValues(alpha: 0.55)),
+          child: Center(
+            child: Container(width: 4, height: 4, decoration: BoxDecoration(color: kc.text2.withValues(alpha: 0.55), shape: BoxShape.circle)),
+          ),
+        ),
+      );
+    }
+    if (tool != null) {
+      return SizedBox(
+        width: size + 3,
+        height: size + 3,
+        child: Stack(clipBehavior: Clip.none, children: [
+          KcPlatformLogo(platform: officialVendor(tool!), size: size, logoSize: 13, radius: 5),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 11,
+              height: 11,
+              decoration: BoxDecoration(
+                color: const Color(0xFF007AFF),
+                shape: BoxShape.circle,
+                border: Border.all(color: kc.sidebar, width: 1.5),
+              ),
+              child: const Icon(Icons.check, size: 7, color: Colors.white),
+            ),
+          ),
+        ]),
+      );
+    }
+    final k = aiKey!;
+    return KcPlatformLogo(platform: k.platformType, customIconFileName: k.icon, name: k.name, size: size, logoSize: 13, radius: 5);
+  }
+}
+
+/// OpenClaw 多个已启用：最多叠放 3 个 logo（每个左移 6px，1.5px 底色描边），后接「+N」。
+class KeyLogoStack extends StatelessWidget {
+  const KeyLogoStack({super.key, required this.keys, this.max = 3});
+
+  final List<AIKey> keys;
+  final int max;
+
+  @override
+  Widget build(BuildContext context) {
+    final kc = context.kc;
+    final shown = keys.take(max).toList();
+    final extra = keys.length - shown.length;
+    const s = KeyLogoChip.size;
+    const step = s - 6;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      SizedBox(
+        width: s + step * (shown.length - 1),
+        height: s,
+        child: Stack(children: [
+          for (var i = 0; i < shown.length; i++)
+            Positioned(
+              left: step * i,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: kc.sidebar, width: 1.5),
+                ),
+                child: KcPlatformLogo(
+                    platform: shown[i].platformType, customIconFileName: shown[i].icon, name: shown[i].name, size: s - 3, logoSize: 11, radius: 5),
+              ),
+            ),
+        ]),
+      ),
+      if (extra > 0) ...[
+        const SizedBox(width: 3),
+        Container(
+          key: const ValueKey('keyLogoStack.more'),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          height: 16,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(8)),
+          child: Text('+$extra', style: KcType.badge.copyWith(fontSize: 10, color: kc.text2, fontFeatures: KcType.tabular)),
+        ),
+      ],
+    ]);
+  }
+}
+
+class _DashedBoxPainter extends CustomPainter {
+  _DashedBoxPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final rrect = RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(5)).deflate(0.5);
+    final path = Path()..addRRect(rrect);
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        canvas.drawPath(metric.extractPath(d, d + 2.5), paint);
+        d += 5;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBoxPainter old) => old.color != color;
 }
