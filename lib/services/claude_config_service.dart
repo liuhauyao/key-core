@@ -9,6 +9,7 @@ import '../services/settings_service.dart';
 import '../services/platform_config_path_service.dart';
 import '../models/mcp_server.dart' show AiToolType;
 import 'live_config/key_field_floor.dart';
+import 'live_config/live_state.dart';
 import 'live_config/live_config_writer.dart';
 
 /// Claude 配置服务
@@ -232,13 +233,18 @@ class ClaudeConfigService {
 
       final settingsPath = await _getSettingsFilePath();
       final configPath = await _getConfigFilePath();
+      final statePath = await LiveState.path();
+      final previous = await _readLiveState(statePath);
+      var written = <String, dynamic>{};
 
       await LiveConfigWriter.instance.apply(AiToolType.claudecode, [
         LiveEdit.json(
           settingsPath,
-          (settings) => applyProviderToSettings(settings, key, apiKey),
+          (settings) => written = applyProviderToSettings(settings, key, apiKey, previous: previous),
           containsSecrets: true,
         ),
+        LiveEdit(statePath, (current) => LiveState.edit(statePath, _liveStateTool, written).transform(current),
+            containsSecrets: true),
         // primaryApiKey 用于 VS Code 插件联动
         LiveEdit.json(
           configPath,
@@ -260,18 +266,66 @@ class ClaudeConfigService {
     }
   }
 
+  static const String _liveStateTool = 'claudecode';
+
+  Future<Map<String, dynamic>> _readLiveState(String statePath) async {
+    try {
+      final f = File(statePath);
+      if (!await f.exists()) return {};
+      return LiveState.readSection(await f.readAsString(), _liveStateTool);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// 移除上一把密钥写入、且值未被用户改动的供应商专属 env
+  static void _removePreviousExtraEnv(Map<String, dynamic> env, Map<String, dynamic> previous) {
+    final prevEnv = previous['extraEnv'];
+    if (prevEnv is! Map) return;
+    prevEnv.forEach((k, v) {
+      if (env[k] == v) env.remove(k);
+    });
+  }
+
   /// 把密钥的关键字段写入 settings.json 文档（纯函数，便于测试）。
   ///
   /// 先清空 Key Core 拥有的关键字段，再写入该密钥的值；`env` 中的其他变量与
   /// 顶层其他键保持不变。
-  static void applyProviderToSettings(Map<String, dynamic> settings, AIKey key, String apiKey) {
+  ///
+  /// - 密钥写入 [AIKey.claudeCodeApiKeyField]（缺省 `ANTHROPIC_AUTH_TOKEN`，部分供应商为
+  ///   `ANTHROPIC_API_KEY` / `AWS_BEARER_TOKEN_BEDROCK`）；
+  /// - [AIKey.claudeCodeExtraEnv] 为供应商专属 env：切入时写入；[previous] 记录上一把密钥
+  ///   写入的值，切走时只删除值未被改动过的（借鉴 CC Switch `CLAUDE_EXCLUSIVE_ENV`）。
+  ///
+  /// 返回需要记入 live-state 的内容。
+  static Map<String, dynamic> applyProviderToSettings(
+    Map<String, dynamic> settings,
+    AIKey key,
+    String apiKey, {
+    Map<String, dynamic> previous = const {},
+  }) {
     final env = _ensureEnv(settings);
 
-    for (final k in KeyFieldFloor.claudeKeysClearedOnSwitch) {
-      if (k != KeyFieldFloor.claudeAuthToken) env.remove(k);
-    }
+    final keyField = KeyFieldFloor.claudeApiKeyFields.contains(key.claudeCodeApiKeyField)
+        ? key.claudeCodeApiKeyField
+        : KeyFieldFloor.claudeAuthToken;
 
-    env[KeyFieldFloor.claudeAuthToken] = apiKey;
+    _removePreviousExtraEnv(env, previous);
+    for (final k in KeyFieldFloor.claudeKeysClearedOnSwitch) {
+      // 本次要写入的密钥字段原地覆盖，保持用户文件中的键顺序
+      if (k != keyField) env.remove(k);
+    }
+    env[keyField] = apiKey;
+
+    final extra = <String, String>{};
+    key.claudeCodeExtraEnv.forEach((k, v) {
+      // 关键字段由上面的逻辑负责，不允许通过额外 env 覆盖
+      if (KeyFieldFloor.claudeApiKeyFields.contains(k) || k == KeyFieldFloor.claudeBaseUrl) return;
+      if (KeyFieldFloor.claudeModelKeys.contains(k) && (env[k] != null)) return;
+      if (v.isEmpty) return;
+      env[k] = v;
+      extra[k] = v;
+    });
 
     final values = <String, String?>{
       KeyFieldFloor.claudeBaseUrl: key.claudeCodeBaseUrl,
@@ -283,6 +337,11 @@ class ClaudeConfigService {
     values.forEach((name, value) {
       if (value != null && value.isNotEmpty) env[name] = value;
     });
+
+    return {
+      if (keyField != KeyFieldFloor.claudeAuthToken) 'apiKeyField': keyField,
+      if (extra.isNotEmpty) 'extraEnv': extra,
+    };
   }
 
   /// 取得 settings.json 中的 env 对象（不存在或类型不对时新建）
@@ -317,6 +376,10 @@ class ClaudeConfigService {
           // 如果没有，尝试 ANTHROPIC_API_KEY（兼容性）
           if ((apiKey == null || apiKey.isEmpty) && envMap.containsKey('ANTHROPIC_API_KEY')) {
             apiKey = envMap['ANTHROPIC_API_KEY'] as String?;
+          }
+          if ((apiKey == null || apiKey.isEmpty) &&
+              envMap.containsKey(KeyFieldFloor.claudeBedrockBearerToken)) {
+            apiKey = envMap[KeyFieldFloor.claudeBedrockBearerToken] as String?;
           }
           
           if (apiKey != null && apiKey.isNotEmpty) {
@@ -410,13 +473,16 @@ class ClaudeConfigService {
 
       final settingsPath = await _getSettingsFilePath();
       final configPath = await _getConfigFilePath();
+      final statePath = await LiveState.path();
+      final previous = await _readLiveState(statePath);
 
       await LiveConfigWriter.instance.apply(AiToolType.claudecode, [
         LiveEdit.json(
           settingsPath,
-          (settings) => applyOfficialToSettings(settings, officialApiKey),
+          (settings) => applyOfficialToSettings(settings, officialApiKey, previous: previous),
           containsSecrets: true,
         ),
+        LiveState.edit(statePath, _liveStateTool, const {}),
         LiveEdit.json(
           configPath,
           (config) {
@@ -445,11 +511,22 @@ class ClaudeConfigService {
   ///
   /// 与以往行为一致：移除地址、模型与第三方密钥，有官方 Key 时写入 ANTHROPIC_AUTH_TOKEN；
   /// 用户在官方配置中自定义的其他 env 变量保持不变。
-  static void applyOfficialToSettings(Map<String, dynamic> settings, String? officialApiKey) {
+  static void applyOfficialToSettings(
+    Map<String, dynamic> settings,
+    String? officialApiKey, {
+    Map<String, dynamic> previous = const {},
+  }) {
     final env = _ensureEnv(settings);
     for (final k in KeyFieldFloor.claudeOfficialManagedKeys) {
       env.remove(k);
     }
+    // 上一把第三方密钥若写在 ANTHROPIC_API_KEY / AWS_BEARER_TOKEN_BEDROCK，切回官方必须清除，
+    // 否则 Claude Code 会拿第三方密钥请求官方地址
+    final prevField = previous['apiKeyField'];
+    if (prevField is String && KeyFieldFloor.claudeApiKeyFields.contains(prevField)) {
+      env.remove(prevField);
+    }
+    _removePreviousExtraEnv(env, previous);
     if (officialApiKey != null && officialApiKey.isNotEmpty) {
       env[KeyFieldFloor.claudeAuthToken] = officialApiKey;
     }

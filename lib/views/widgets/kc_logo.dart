@@ -31,6 +31,15 @@ String kcToolLogoAsset(AiToolType tool) {
       return 'assets/icons/platforms/cursor.svg';
     case AiToolType.windsurf:
       return 'assets/icons/platforms/windsurf.svg';
+    // 仅同步 MCP / Skills 的工具：有品牌 logo 的用真实 logo，没有的用通用终端图标
+    case AiToolType.grokBuild:
+      return 'assets/icons/platforms/grok.svg';
+    case AiToolType.hermes:
+      return 'assets/icons/platforms/nousresearch.svg';
+    case AiToolType.mcode:
+      return 'assets/icons/platforms/minimax-color.svg';
+    default:
+      return 'assets/icons/platforms/tool-generic.svg';
   }
 }
 
@@ -51,6 +60,12 @@ String kcToolShortName(AiToolType tool) {
       return 'Cursor';
     case AiToolType.windsurf:
       return 'Windsurf';
+    case AiToolType.grokBuild:
+      return 'Grok';
+    case AiToolType.mcode:
+      return 'MiniMax';
+    default:
+      return tool.displayName;
   }
 }
 

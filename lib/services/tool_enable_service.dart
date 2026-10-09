@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/mcp_server.dart';
 import 'settings_service.dart';
 import 'ai_tool_config_service.dart';
+import 'live_config/live_config_writer.dart';
 
 /// 工具启用状态管理服务
 class ToolEnableService {
@@ -121,49 +122,32 @@ class ToolEnableService {
   }
   
   /// 为指定工具创建默认配置文件
+  ///
+  /// 经 [LiveConfigWriter] 原子写入：只在文件不存在或为空时写入默认内容，
+  /// 写入前若文件被其他程序写入了内容则保持原样（以往直接 writeAsString，可能覆盖刚写入的配置）。
   Future<bool> _createDefaultConfig(AiToolType tool, File configFile) async {
     try {
       final defaultConfig = _generateDefaultConfig(tool);
-      await configFile.writeAsString(defaultConfig);
-      
-      // Codex 需要同时创建 auth.json 文件
+      final edits = <LiveEdit>[
+        LiveEdit(configFile.path,
+            (current) => (current == null || current.trim().isEmpty) ? defaultConfig : current),
+      ];
+      // Codex 需要同时创建 auth.json 文件（已存在则不覆盖）
       if (tool == AiToolType.codex) {
-        await _createCodexAuthFile(configFile.parent.path);
+        edits.add(LiveEdit(
+          '${configFile.parent.path}/auth.json',
+          (current) => current ?? const JsonEncoder.withIndent('  ').convert({'OPENAI_API_KEY': ''}),
+          containsSecrets: true,
+        ));
       }
-      
+      await LiveConfigWriter.instance.apply(tool, edits);
       return true;
     } catch (e) {
       print('ToolEnableService: 创建默认配置文件失败: $e');
       return false;
     }
   }
-  
-  /// 为 Codex 创建 auth.json 文件
-  Future<void> _createCodexAuthFile(String configDir) async {
-    try {
-      final authFilePath = '$configDir/auth.json';
-      final authFile = File(authFilePath);
-      
-      // 如果 auth.json 已存在，不覆盖
-      if (await authFile.exists()) {
-        print('ToolEnableService: auth.json 已存在，跳过创建');
-        return;
-      }
-      
-      // 创建默认的 auth.json
-      final defaultAuth = <String, dynamic>{
-        'OPENAI_API_KEY': '',
-      };
-      await authFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(defaultAuth),
-      );
-      print('ToolEnableService: 创建默认 auth.json 成功: $authFilePath');
-    } catch (e) {
-      print('ToolEnableService: 创建 auth.json 失败: $e');
-      // 不抛出异常，因为这不是关键错误
-    }
-  }
-  
+
   /// 生成工具的默认配置内容
   String _generateDefaultConfig(AiToolType tool) {
     switch (tool) {
@@ -203,6 +187,22 @@ class ToolEnableService {
 
       case AiToolType.claudeDesktop:
         // Claude Desktop 使用 claude_desktop_config.json 格式
+        return const JsonEncoder.withIndent('  ').convert({
+          'mcpServers': <String, dynamic>{},
+        });
+
+      case AiToolType.opencode:
+        return const JsonEncoder.withIndent('  ').convert({
+          r'$schema': 'https://opencode.ai/config.json',
+        });
+
+      case AiToolType.grokBuild:
+      case AiToolType.hermes:
+        // TOML / YAML：空文件即可
+        return '';
+
+      case AiToolType.pi:
+      case AiToolType.mcode:
         return const JsonEncoder.withIndent('  ').convert({
           'mcpServers': <String, dynamic>{},
         });

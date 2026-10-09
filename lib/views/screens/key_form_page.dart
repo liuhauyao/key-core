@@ -77,6 +77,12 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
 
   // Claude Desktop 配置控制器
   late TextEditingController _claudeDesktopBaseUrlController;
+  late TextEditingController _geminiBaseUrlController;
+  late TextEditingController _geminiModelController;
+
+  /// 预设带来的工具附加配置（apiKeyField/env、wireApi/reasoningEffort），随密钥保存
+  Map<String, dynamic>? _claudeCodeExtraConfig;
+  Map<String, dynamic>? _codexExtraConfig;
   late TextEditingController _claudeDesktopSonnetController;
   late TextEditingController _claudeDesktopHaikuController;
   late TextEditingController _claudeDesktopOpusController;
@@ -186,6 +192,10 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     );
 
     // Claude Desktop 配置控制器
+    _geminiBaseUrlController = TextEditingController(text: widget.editingKey?.geminiBaseUrl ?? '');
+    _geminiModelController = TextEditingController(text: widget.editingKey?.geminiModel ?? '');
+    _claudeCodeExtraConfig = widget.editingKey?.claudeCodeConfig;
+    _codexExtraConfig = widget.editingKey?.codexConfig;
     _claudeDesktopBaseUrlController = TextEditingController(
       text: widget.editingKey?.claudeDesktopBaseUrl ?? '',
     );
@@ -516,6 +526,8 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     _openclawBaseUrlController.dispose();
     _openclawModelController.dispose();
     _claudeDesktopBaseUrlController.dispose();
+    _geminiBaseUrlController.dispose();
+    _geminiModelController.dispose();
     _claudeDesktopSonnetController.dispose();
     _claudeDesktopHaikuController.dispose();
     _claudeDesktopOpusController.dispose();
@@ -646,28 +658,53 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
               _claudeCodeOpusModelController.clear();
             }
 
-            // 自动填充 Claude Desktop 地址（与 Claude Code 使用相同的 Anthropic 兼容地址）
-            if (claudeCodeProvider != null && claudeCodeProvider.baseUrl.isNotEmpty) {
-              if (!_enableClaudeDesktop) {
-                _enableClaudeDesktop = true;
-              }
-              if (_claudeDesktopBaseUrlController.text.isEmpty) {
-                _claudeDesktopBaseUrlController.text = claudeCodeProvider.baseUrl;
-              }
-              // 自动填充模型映射
-              if (claudeCodeProvider.modelConfig.sonnetModel?.isNotEmpty == true &&
-                  _claudeDesktopSonnetController.text.isEmpty) {
-                _claudeDesktopSonnetController.text = claudeCodeProvider.modelConfig.sonnetModel!;
-              }
-              if (claudeCodeProvider.modelConfig.haikuModel?.isNotEmpty == true &&
-                  _claudeDesktopHaikuController.text.isEmpty) {
-                _claudeDesktopHaikuController.text = claudeCodeProvider.modelConfig.haikuModel!;
-              }
-              if (claudeCodeProvider.modelConfig.opusModel?.isNotEmpty == true &&
-                  _claudeDesktopOpusController.text.isEmpty) {
-                _claudeDesktopOpusController.text = claudeCodeProvider.modelConfig.opusModel!;
-              }
+            final preset = ProviderConfig.getPresetByPlatformId(platform.id);
+
+            // Claude Code 的密钥字段 / 附加环境变量（如 ANTHROPIC_API_KEY、Bedrock 区域）
+            final cc = preset?.claudeCode;
+            _claudeCodeExtraConfig = (cc != null && (cc.apiKeyField != null || (cc.env?.isNotEmpty ?? false)))
+                ? {
+                    if (cc.apiKeyField != null) 'apiKeyField': cc.apiKeyField,
+                    if (cc.env?.isNotEmpty ?? false) 'env': Map<String, String>.from(cc.env!),
+                  }
+                : null;
+
+            // Claude Desktop：只有预设声明了直连（claude-* 模型名可用）时才自动开启并填充；
+            // 旧逻辑对任何有 Claude Code 端点的预设都自动开启，导致不支持直连的供应商在 Desktop 中不可用
+            final desktop = preset?.claudeDesktop;
+            if (desktop != null && desktop.baseUrl.isNotEmpty) {
+              _enableClaudeDesktop = true;
+              _claudeDesktopBaseUrlController.text = desktop.baseUrl;
+              _claudeDesktopSonnetController.text = desktop.modelConfig.sonnetModel ?? '';
+              _claudeDesktopHaikuController.text = desktop.modelConfig.haikuModel ?? '';
+              _claudeDesktopOpusController.text = desktop.modelConfig.opusModel ?? '';
+            } else {
+              _enableClaudeDesktop = false;
+              _claudeDesktopBaseUrlController.clear();
+              _claudeDesktopSonnetController.clear();
+              _claudeDesktopHaikuController.clear();
+              _claudeDesktopOpusController.clear();
             }
+
+            // Gemini CLI：预设提供第三方 Gemini 端点时填充
+            final gemini = preset?.gemini;
+            if (gemini != null && gemini.baseUrl.isNotEmpty) {
+              _enableGemini = true;
+              _geminiBaseUrlController.text = gemini.baseUrl;
+              _geminiModelController.text = gemini.model;
+            } else {
+              _geminiBaseUrlController.clear();
+              _geminiModelController.clear();
+            }
+
+            // Codex：wire_api / 推理强度
+            final cx = preset?.codex;
+            _codexExtraConfig = (cx != null && (cx.wireApi != null || cx.reasoningEffort != null))
+                ? {
+                    if (cx.wireApi != null) 'wireApi': cx.wireApi,
+                    if (cx.reasoningEffort != null) 'reasoningEffort': cx.reasoningEffort,
+                  }
+                : null;
 
             if (codexProvider != null) {
               _enableCodex = true;
@@ -1861,8 +1898,14 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
             : null,
         enableGemini: _enableGemini,
         geminiApiEndpoint: null,
-        geminiModel: null,
-        geminiBaseUrl: null,
+        geminiModel: _enableGemini && _geminiModelController.text.trim().isNotEmpty
+            ? _geminiModelController.text.trim()
+            : null,
+        geminiBaseUrl: _enableGemini && _geminiBaseUrlController.text.trim().isNotEmpty
+            ? _geminiBaseUrlController.text.trim()
+            : null,
+        codexConfig: _codexExtraConfig,
+        claudeCodeConfig: _claudeCodeExtraConfig,
         enableOpenclaw: _enableOpenclaw,
         openclawBaseUrl: _openclawBaseUrlController.text.trim().isNotEmpty
             ? _openclawBaseUrlController.text.trim()
@@ -2194,7 +2237,36 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
               ),
             ],
           ),
-          // Gemini 只支持官方 API，无需额外配置
+          // 第三方 Gemini 端点（留空则使用官方 API）
+          if (_enableGemini) ...[
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: ImeSafeTextField(
+                    controller: _geminiBaseUrlController,
+                    labelText: localizations?.requestUrl ?? '请求地址',
+                    hintText: 'https://generativelanguage.googleapis.com',
+                    prefixIcon: Icon(Icons.link, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                    keyboardType: TextInputType.url,
+                    isDark: Theme.of(context).brightness == Brightness.dark,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ImeSafeTextField(
+                    controller: _geminiModelController,
+                    labelText: localizations?.modelName ?? '模型名称',
+                    hintText: 'gemini-2.5-pro',
+                    prefixIcon: Icon(Icons.smart_toy, size: 18, color: shadTheme.colorScheme.mutedForeground),
+                    suffixIcon: _buildModelPickerButton(context, _geminiModelController),
+                    isDark: Theme.of(context).brightness == Brightness.dark,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
     );
   }
@@ -2526,11 +2598,12 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
         codexBaseUrl: _codexBaseUrlController.text.isNotEmpty 
             ? _codexBaseUrlController.text 
             : null,
+        codexConfig: _codexExtraConfig,
         enableCodex: true,
       );
       
       final providerConfig = await _codexConfigService.getProviderConfig(tempKey);
-      return !providerConfig.supportsAuthJson && providerConfig.envKeyName != null;
+      return providerConfig.needsEnvVar;
     } catch (e) {
       return false;
     }
@@ -2661,6 +2734,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
         codexBaseUrl: _codexBaseUrlController.text.isNotEmpty 
             ? _codexBaseUrlController.text 
             : null,
+        codexConfig: _codexExtraConfig,
         enableCodex: true,
       );
       

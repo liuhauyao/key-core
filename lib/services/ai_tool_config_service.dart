@@ -40,7 +40,23 @@ class AiToolConfigService {
         } else {
           return path.join(home, '.config', 'Claude');
         }
+      case AiToolType.opencode:
+        return path.join(home, '.config', 'opencode');
+      case AiToolType.grokBuild:
+        return path.join(home, '.grok');
+      case AiToolType.hermes:
+        return _envDir('HERMES_HOME') ?? path.join(home, '.hermes');
+      case AiToolType.pi:
+        return _envDir('PI_CODING_AGENT_DIR') ?? path.join(home, '.pi', 'agent');
+      case AiToolType.mcode:
+        return _envDir('MINIMAX_DATA_DIR') ?? path.join(home, '.minimax');
     }
+  }
+
+  /// 读取工具约定的目录环境变量（与 CC Switch 一致）
+  static String? _envDir(String name) {
+    final v = Platform.environment[name]?.trim();
+    return (v == null || v.isEmpty) ? null : v;
   }
 
   /// 获取工具的配置文件路径
@@ -67,6 +83,20 @@ class AiToolConfigService {
       case AiToolType.claudeDesktop:
         // Claude Desktop 使用 claude_desktop_config.json 文件
         return path.join(configDir, 'claude_desktop_config.json');
+      case AiToolType.opencode:
+        // OpenCode：opencode.json（若用户只有 opencode.jsonc 则使用它；含注释时解析失败会中止写入）
+        final json = path.join(configDir, 'opencode.json');
+        final jsonc = path.join(configDir, 'opencode.jsonc');
+        if (!File(json).existsSync() && File(jsonc).existsSync()) return jsonc;
+        return json;
+      case AiToolType.grokBuild:
+        return path.join(configDir, 'config.toml');
+      case AiToolType.hermes:
+        return path.join(configDir, 'config.yaml');
+      case AiToolType.pi:
+        return path.join(configDir, 'mcp.json');
+      case AiToolType.mcode:
+        return path.join(configDir, 'mcp.json');
     }
   }
 

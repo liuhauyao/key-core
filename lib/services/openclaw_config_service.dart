@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/mcp_server.dart';
 import 'ai_tool_config_service.dart';
 import 'live_config/live_config_writer.dart';
+import '../config/provider_config.dart';
+import '../models/unified_provider_config.dart';
 
 /// OpenClaw 模型定义（写入 openclaw.json 的 models.providers[id].models 数组）
 class OpenClawModelDef {
@@ -628,11 +630,66 @@ class OpenClawConfigService {
     ),
   };
 
+  /// 查找平台对应的 OpenClaw 供应商信息：
+  /// 先查内置映射（官方内置 provider，含精确模型定义），否则由供应商预设的 `openclaw` 块动态生成，
+  /// 这样新增的预设（app_config.json）无需改代码即可应用到 OpenClaw。
+  static OpenClawPlatformInfo? platformInfoFor(String platformId) {
+    final builtin = platformMapping[platformId];
+    if (builtin != null) return builtin;
+    final preset = ProviderConfig.getPresetByPlatformId(platformId);
+    if (preset == null) return null;
+    return platformInfoFromPreset(preset);
+  }
+
+  /// 由供应商预设生成 OpenClaw 供应商信息（纯函数）
+  static OpenClawPlatformInfo? platformInfoFromPreset(UnifiedProviderConfig preset) {
+    final oc = preset.openclaw;
+    if (oc == null || oc.baseUrl.isEmpty) return null;
+    final providerId = preset.id
+        .replaceAllMapped(RegExp(r'([a-z0-9])([A-Z])'), (m) => '${m[1]}-${m[2]}')
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9-]'), '-');
+    final envKey = '${providerId.toUpperCase().replaceAll('-', '_')}_API_KEY';
+    final presetModels = oc.models ?? const <OpenClawPresetModel>[];
+    final models = <OpenClawModelDef>[
+      for (final m in presetModels)
+        OpenClawModelDef(
+          id: m.id,
+          name: m.name,
+          reasoning: m.reasoning ?? false,
+          input: m.input ?? const ['text'],
+          contextWindow: m.contextWindow ?? 128000,
+          maxTokens: m.maxTokens ?? 8192,
+        ),
+      if (presetModels.isEmpty && oc.model.isNotEmpty)
+        OpenClawModelDef(id: oc.model, name: oc.model, contextWindow: 128000, maxTokens: 8192),
+    ];
+    return OpenClawPlatformInfo(
+      envKey: envKey,
+      openclawProviderId: providerId,
+      isBuiltin: false,
+      baseUrl: oc.baseUrl,
+      apiType: (oc.api == null || oc.api!.isEmpty) ? 'openai-completions' : oc.api!,
+      displayName: preset.name,
+      models: models,
+    );
+  }
+
+  /// 所有可用的 OpenClaw 供应商信息（内置映射 + 预设）
+  static Iterable<OpenClawPlatformInfo> get _allPlatformInfos sync* {
+    yield* platformMapping.values;
+    for (final p in ProviderConfig.allPresets) {
+      if (platformMapping.containsKey(p.platformType)) continue;
+      final info = platformInfoFromPreset(p);
+      if (info != null) yield info;
+    }
+  }
+
   /// 获取记录的"已应用"密钥 ID（SharedPreferences 中存的 envKey → keyId）
   Future<Map<String, int>> getAppliedKeyIds() async {
     final prefs = await SharedPreferences.getInstance();
     final result = <String, int>{};
-    for (final info in platformMapping.values) {
+    for (final info in _allPlatformInfos) {
       final keyId = prefs.getInt('$_prefPrefix${info.envKey}');
       if (keyId != null) {
         result[info.envKey] = keyId;
@@ -665,7 +722,7 @@ class OpenClawConfigService {
     String? openclawBaseUrl,
     String? openclawModel,
   }) async {
-    final info = platformMapping[platformId];
+    final info = platformInfoFor(platformId);
     if (info == null) {
       return const OpenClawApplyResult();
     }
@@ -849,7 +906,7 @@ class OpenClawConfigService {
   ///   2. 移除 auth.profiles[providerId:default]
   ///   3. 移除 models.providers[providerId]
   Future<void> removeProviderKey({required String platformId}) async {
-    final info = platformMapping[platformId];
+    final info = platformInfoFor(platformId);
     if (info == null) return;
 
     final providerId = info.openclawProviderId;

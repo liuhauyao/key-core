@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:convert';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../models/ai_key.dart';
 import '../models/platform_type.dart';
@@ -10,7 +9,6 @@ import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
 import '../services/cloud_config_service.dart';
 import '../services/region_filter_service.dart';
-import '../models/cloud_config.dart' as cloud;
 import '../services/platform_config_path_service.dart';
 import '../models/mcp_server.dart' show AiToolType;
 import 'live_config/key_field_floor.dart';
@@ -33,13 +31,44 @@ class CodexProviderConfig {
   /// wire_api 值
   final String wireApi;
 
+  /// 密钥放在哪里：
+  /// - `bearerToken`：写入 provider 表的 `experimental_bearer_token`（Codex ≥ 0.149 的自定义
+  ///   provider 不再读 auth.json 里的 Key，CC Switch v4 也采用此写法）；
+  /// - `authJson`：写入 auth.json（旧版 Codex / 官方 OpenAI）；
+  /// - `env`：只写 `env_key`，由用户在环境变量中提供。
+  final String keyPlacement;
+
   const CodexProviderConfig({
     required this.supportsAuthJson,
     this.envKeyName,
     required this.requiresOpenaiAuth,
     this.authJsonKey,
     this.wireApi = 'chat',
-  });
+    String? keyPlacement,
+  }) : keyPlacement = keyPlacement ??
+            (supportsAuthJson && authJsonKey != null ? 'authJson' : 'env');
+
+  bool get useBearerToken => keyPlacement == 'bearerToken';
+
+  /// 是否需要用户自行设置环境变量
+  bool get needsEnvVar => keyPlacement == 'env' && envKeyName != null;
+
+  /// 按密钥自身的设置（`AIKey.codexConfig`）覆盖规则
+  CodexProviderConfig withKeyOverrides(Map<String, dynamic>? overrides) {
+    if (overrides == null) return this;
+    final placement = overrides['keyPlacement'];
+    final wire = overrides['wireApi'];
+    return CodexProviderConfig(
+      supportsAuthJson: supportsAuthJson,
+      envKeyName: envKeyName,
+      requiresOpenaiAuth: requiresOpenaiAuth,
+      authJsonKey: authJsonKey,
+      wireApi: wire is String && wire.isNotEmpty ? wire : wireApi,
+      keyPlacement: placement is String && const {'bearerToken', 'authJson', 'env'}.contains(placement)
+          ? placement
+          : keyPlacement,
+    );
+  }
 }
 
 /// Codex 配置服务
@@ -121,7 +150,8 @@ class CodexConfigService {
               requiresOpenaiAuth: rule.requiresOpenaiAuth,
               authJsonKey: rule.authJsonKey,
               wireApi: rule.wireApi,
-            );
+              keyPlacement: rule.keyPlacement,
+            ).withKeyOverrides(key.codexConfig);
           }
         }
 
@@ -134,7 +164,8 @@ class CodexConfigService {
           requiresOpenaiAuth: defaultRule.requiresOpenaiAuth,
           authJsonKey: defaultRule.authJsonKey,
           wireApi: defaultRule.wireApi,
-        );
+          keyPlacement: defaultRule.keyPlacement,
+        ).withKeyOverrides(key.codexConfig);
       }
     } catch (e, stackTrace) {
       // 如果云端配置加载失败，使用硬编码逻辑（向后兼容）
@@ -514,41 +545,65 @@ class CodexConfigService {
   /// 1. 顶层配置（model_provider, model, model_reasoning_effort, disable_response_storage）
   /// 2. model_providers section
   /// 注意：末尾不包含空行，由调用者决定如何添加分隔符
-  Future<String> _generateConfigToml(AIKey key) async {
+  /// 从 config.toml 读取 Key Core provider 表中的 experimental_bearer_token（纯函数）
+  static String? readBearerToken(String toml) {
+    for (final t in _splitToml(toml).tables) {
+      if (t.name != 'model_providers.$keycoreProviderId') continue;
+      for (final l in t.lines) {
+        if (_assignedKey(l) != 'experimental_bearer_token') continue;
+        final m = RegExp(r'=\s*"((?:[^"\\]|\\.)*)"').firstMatch(l);
+        if (m == null) return null;
+        final v = m.group(1)!.replaceAllMapped(RegExp(r'\\(.)'), (x) => x.group(1) == 'n' ? '\n' : x.group(1)!);
+        return v.trim().isEmpty ? null : v.trim();
+      }
+    }
+    return null;
+  }
+
+  /// TOML 基本字符串转义
+  static String _tomlString(String v) =>
+      '"${v.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n')}"';
+
+  /// 生成 Key Core 的 config.toml 片段（纯函数，便于测试）
+  ///
+  /// - 路由表固定为 `[model_providers.keycore]`；
+  /// - `bearerToken` 模式把密钥写成 `experimental_bearer_token`，`requires_openai_auth`
+  ///   只有在 auth.json 中仍有 ChatGPT 登录时才为 true（否则 Codex 会卡在登录页，
+  ///   规则同 CC Switch `live/project/codex.rs`）；
+  /// - `model_reasoning_effort` 优先取密钥的 `codexConfig.reasoningEffort`。
+  static String buildConfigToml(
+    AIKey key,
+    CodexProviderConfig providerConfig, {
+    String? apiKey,
+    bool loginOnDisk = false,
+  }) {
     final baseUrl = key.codexBaseUrl ?? 'https://api.openai.com/v1';
     final model = key.codexModel ?? 'gpt-5-codex';
-
-    // 获取供应商配置
-    final providerConfig = await _getProviderConfig(key);
-
-    // 清理供应商名称，确保符合TOML键名规范
-    final providerName = key.name
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9_]'), '_')
-        .replaceAll(RegExp(r'^_+|_+$'), '');
-
-    final cleanProviderName = providerName.isEmpty ? 'custom' : providerName;
+    final effortRaw = key.codexConfig?['reasoningEffort'];
+    final effort = effortRaw is String && effortRaw.trim().isNotEmpty ? effortRaw.trim() : 'high';
+    const id = keycoreProviderId;
 
     final buffer = StringBuffer();
     // 顶层配置（必须在文件开头）
-    buffer.writeln('model_provider = "$cleanProviderName"');
-    buffer.writeln('model = "$model"');
-    buffer.writeln('model_reasoning_effort = "high"');
+    buffer.writeln('model_provider = "$id"');
+    buffer.writeln('model = ${_tomlString(model)}');
+    buffer.writeln('model_reasoning_effort = ${_tomlString(effort)}');
     buffer.writeln('disable_response_storage = true');
     buffer.writeln('');
-    // model_providers section
-    buffer.writeln('[model_providers.$cleanProviderName]');
-    buffer.writeln('name = "$cleanProviderName"');
-    buffer.writeln('base_url = "$baseUrl"');
+    buffer.writeln('[model_providers.$id]');
+    buffer.writeln('name = ${_tomlString(key.name.trim().isEmpty ? id : key.name.trim())}');
+    buffer.writeln('base_url = ${_tomlString(baseUrl)}');
     buffer.writeln('wire_api = "${providerConfig.wireApi}"');
-    buffer
-        .writeln('requires_openai_auth = ${providerConfig.requiresOpenaiAuth}');
-
-    // 如果不支持 auth.json，设置 env_key（只写变量名，不写值）
-    if (!providerConfig.supportsAuthJson && providerConfig.envKeyName != null) {
-      buffer.writeln('env_key = "${providerConfig.envKeyName}"');
+    if (providerConfig.useBearerToken && apiKey != null && apiKey.isNotEmpty) {
+      buffer.writeln('requires_openai_auth = $loginOnDisk');
+      buffer.writeln('experimental_bearer_token = ${_tomlString(apiKey)}');
+    } else {
+      buffer.writeln('requires_openai_auth = ${providerConfig.requiresOpenaiAuth}');
+      // 不使用 auth.json 时设置 env_key（只写变量名，不写值）
+      if (providerConfig.keyPlacement == 'env' && providerConfig.envKeyName != null) {
+        buffer.writeln('env_key = "${providerConfig.envKeyName}"');
+      }
     }
-
     return buffer.toString();
   }
 
@@ -575,31 +630,37 @@ class CodexConfigService {
       // 获取供应商配置
       final providerConfig = await _getProviderConfig(key);
 
-      // 生成新的 config.toml 片段（我们添加的配置）
-      final newConfigToml = await _generateConfigToml(key);
-
-      if (!(providerConfig.supportsAuthJson && providerConfig.authJsonKey != null)) {
+      if (providerConfig.keyPlacement == 'env') {
         print(
             'CodexConfigService: 提示：需要在系统环境变量中设置 ${providerConfig.envKeyName}');
       }
 
       final authPath = await _getAuthFilePath();
       final configPath = await _getConfigFilePath();
+      var loginOnDisk = false;
 
       // auth.json 与 config.toml 作为一次操作提交：任一文件读取/解析失败则都不写入
       await LiveConfigWriter.instance.apply(AiToolType.codex, [
         LiveEdit.json(
           authPath,
-          (auth) => applyProviderToAuth(
-            auth,
-            apiKey: apiKey,
-            authJsonKey: providerConfig.supportsAuthJson ? providerConfig.authJsonKey : null,
-          ),
+          (auth) {
+            applyProviderToAuth(
+              auth,
+              apiKey: apiKey,
+              authJsonKey: providerConfig.keyPlacement == 'authJson' ? providerConfig.authJsonKey : null,
+            );
+            loginOnDisk = auth['tokens'] is Map && (auth['tokens'] as Map).isNotEmpty;
+          },
           containsSecrets: true,
         ),
         LiveEdit.text(
           configPath,
-          (existing) => mergeConfigToml(existing, newConfigToml),
+          (existing) => mergeConfigToml(
+            existing,
+            buildConfigToml(key, providerConfig, apiKey: apiKey, loginOnDisk: loginOnDisk),
+          ),
+          // bearerToken 模式下 config.toml 含密钥
+          containsSecrets: providerConfig.useBearerToken,
         ),
       ]);
 
@@ -636,9 +697,22 @@ class CodexConfigService {
   ///
   /// TOML 规定顶层键必须位于第一个表之前，因此新片段置顶；用户的其他配置逐行保留。
   static String mergeConfigToml(String existing, String newConfigToml) {
-    final merged = _removeOurConfig(existing).trimRight();
-    if (merged.isEmpty) return newConfigToml;
-    return '$newConfigToml\n$merged';
+    final ours = _splitToml(newConfigToml.trimRight());
+    final rest = _splitToml(_removeOurConfig(existing));
+    final out = <String>[..._trimBlank(ours.preamble)];
+    final userTop = _trimBlank(rest.preamble);
+    if (userTop.isNotEmpty) {
+      out
+        ..add('')
+        ..addAll(userTop);
+    }
+    // 顶层键必须位于第一张表之前：先写全部顶层键，再写我们的 provider 表，最后是用户的表
+    for (final t in [...ours.tables, ...rest.tables]) {
+      out
+        ..add('')
+        ..addAll(_trimBlank(t.lines));
+    }
+    return '${out.join('\n')}\n';
   }
 
   /// 备份当前配置
@@ -652,6 +726,15 @@ class CodexConfigService {
   /// 如果使用环境变量，返回 null（无法从应用内读取系统环境变量）
   Future<String?> getCurrentApiKey() async {
     try {
+      // bearerToken 模式：密钥在 config.toml 的 Key Core provider 表里
+      try {
+        final configFile = File(await _getConfigFilePath());
+        if (await configFile.exists()) {
+          final bearer = readBearerToken(await configFile.readAsString());
+          if (bearer != null) return bearer;
+        }
+      } catch (_) {}
+
       final auth = await readAuth();
       if (auth == null) {
         print('CodexConfigService: 无法读取 auth.json');
@@ -713,8 +796,7 @@ class CodexConfigService {
       final providerConfig = await _getProviderConfig(key);
 
       // 如果不支持 auth.json，需要环境变量
-      if (!providerConfig.supportsAuthJson &&
-          providerConfig.envKeyName != null) {
+      if (providerConfig.needsEnvVar) {
         // 解密密钥值
         String apiKey = key.keyValue;
         final hasPassword = await _authService.hasMasterPassword();
@@ -779,51 +861,21 @@ class CodexConfigService {
         return null;
       }
 
-      final lines = configText.split('\n');
-      String? modelProvider;
+      // 只读取 model_provider 指向的那张表的 base_url（旧实现会取到最后一张 provider 表）
+      final parsed = _splitToml(configText);
+      final modelProvider = parsed.preamble
+          .where((l) => _assignedKey(l) == 'model_provider')
+          .map((l) => RegExp(r'=\s*"([^"]+)"').firstMatch(l)?.group(1))
+          .whereType<String>()
+          .firstOrNull;
       String? baseUrl;
-      String? currentProviderSection;
-      bool inProviderSection = false;
-
-      for (final line in lines) {
-        final trimmed = line.trim();
-
-        // 解析 model_provider
-        if (trimmed.startsWith('model_provider =') ||
-            trimmed.startsWith('model_provider=')) {
-          final match =
-              RegExp(r'model_provider\s*=\s*"([^"]+)"').firstMatch(trimmed);
-          if (match != null) {
-            modelProvider = match.group(1);
-          }
-        }
-
-        // 检测进入 provider section
-        if (trimmed.startsWith('[model_providers.') && trimmed.endsWith(']')) {
-          final match =
-              RegExp(r'\[model_providers\.([^\]]+)\]').firstMatch(trimmed);
-          if (match != null) {
-            currentProviderSection = match.group(1);
-            inProviderSection = true;
-          }
-        }
-
-        // 如果在 provider section 中，解析 base_url
-        if (inProviderSection &&
-            (trimmed.startsWith('base_url =') ||
-                trimmed.startsWith('base_url='))) {
-          final match = RegExp(r'base_url\s*=\s*"([^"]+)"').firstMatch(trimmed);
-          if (match != null) {
-            baseUrl = match.group(1);
-          }
-        }
-
-        // 检测离开 provider section（遇到新的 section）
-        if (inProviderSection && trimmed.isNotEmpty) {
-          // 如果遇到新的 section 头（但不是 model_providers section），说明离开了当前 section
-          if (trimmed.startsWith('[') &&
-              !trimmed.startsWith('[model_providers.')) {
-            inProviderSection = false;
+      if (modelProvider != null) {
+        for (final t in parsed.tables) {
+          var id = t.name.startsWith('model_providers.') ? t.name.substring(16).trim() : null;
+          if (id != null && id.startsWith('"') && id.endsWith('"')) id = id.substring(1, id.length - 1);
+          if (id == modelProvider) {
+            baseUrl = _stringValue(t.lines, 'base_url');
+            break;
           }
         }
       }
@@ -927,230 +979,115 @@ class CodexConfigService {
     _cachedIsOfficialTime = null;
   }
 
-  /// 移除我们添加的配置项
-  /// 只删除我们生成的配置，保留用户的其他配置
-  /// 同时清理配置块前后的空行，避免空行累积
-  static String _removeOurConfig(String configContent) {
-    if (configContent.trim().isEmpty) {
-      return configContent;
+  /// Key Core 写入 config.toml 的路由表 id（固定，与 CC Switch 的 `custom` 同理：
+  /// 切换密钥不改变表 id，Codex 的会话历史不会因换密钥而分桶）
+  static const String keycoreProviderId = 'keycore';
+
+  /// 我们写入的顶层键
+  static const Set<String> _ourTopLevelKeys = {
+    'model_provider',
+    'model',
+    'model_reasoning_effort',
+    'disable_response_storage',
+  };
+
+  /// 旧版本 Key Core 写入 provider 表的全部键（用于识别并清理旧版按密钥名命名的表）
+  static const Set<String> _legacyProviderKeys = {
+    'name',
+    'base_url',
+    'wire_api',
+    'requires_openai_auth',
+    'env_key',
+    'experimental_bearer_token',
+  };
+
+  static final RegExp _tableHeader = RegExp(r'^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$');
+  static final RegExp _assignment = RegExp(r'^\s*([A-Za-z0-9_\-]+|"[^"]*")\s*=');
+
+  /// 把 config.toml 切成“顶层区”与若干“表”（表头行 + 表体），逐行保留原文。
+  static ({List<String> preamble, List<({String name, List<String> lines})> tables}) _splitToml(
+      String content) {
+    final preamble = <String>[];
+    final tables = <({String name, List<String> lines})>[];
+    List<String>? current;
+    var inMultiline = false;
+    for (final line in content.split('\n')) {
+      final header = inMultiline ? null : _tableHeader.firstMatch(line);
+      if (header != null) {
+        current = [line];
+        tables.add((name: header.group(1)!.trim(), lines: current));
+      } else {
+        (current ?? preamble).add(line);
+      }
+      // 粗略跟踪多行字符串/数组，避免把其中的 "[x]" 误认为表头
+      final quotes = '"""'.allMatches(line).length + "'''".allMatches(line).length;
+      if (quotes.isOdd) inMultiline = !inMultiline;
     }
-
-    final lines = configContent.split('\n');
-    final result = <String>[];
-    bool inOurProviderSection = false;
-    int providerSectionIndent = 0;
-    bool inLegacyConfigBlock = false; // 标记是否在遗留的配置块中
-    int emptyLinesBeforeBlock = 0; // 配置块前的空行数
-    bool justEndedBlock = false; // 刚刚结束配置块
-
-    // 我们添加的顶层配置项
-    final ourTopLevelKeys = {
-      'model_provider',
-      'model',
-      'model_reasoning_effort',
-      'disable_response_storage',
-    };
-
-    // 我们添加的 provider section 内的配置项
-    final ourProviderKeys = {
-      'name',
-      'base_url',
-      'wire_api',
-      'requires_openai_auth',
-      'env_key', // 新增：环境变量名配置
-    };
-
-    /// 检查一行是否是我们添加的配置项
-    bool isOurConfigKey(String trimmed, Set<String> keys) {
-      for (final key in keys) {
-        if (trimmed.startsWith('$key =') || trimmed.startsWith('$key=')) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    /// 检查下一行是否是我们添加的配置项
-    bool isNextOurConfig(
-        List<String> lines, int currentIndex, Set<String> keys) {
-      for (int j = currentIndex + 1; j < lines.length; j++) {
-        final nextTrimmed = lines[j].trim();
-        if (nextTrimmed.isEmpty) {
-          continue; // 跳过连续的空行
-        }
-        if (nextTrimmed.startsWith('#')) {
-          return false; // 遇到注释，不是我们的配置
-        }
-        return isOurConfigKey(nextTrimmed, keys);
-      }
-      return false;
-    }
-
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      final trimmed = line.trim();
-
-      // 检查是否是section头 [xxx]
-      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-        final sectionName = trimmed.substring(1, trimmed.length - 1).trim();
-
-        // 结束遗留配置块
-        if (inLegacyConfigBlock || justEndedBlock) {
-          // 清理配置块后的空行
-          while (result.isNotEmpty && result.last.trim().isEmpty) {
-            result.removeLast();
-          }
-          justEndedBlock = false;
-        }
-        inLegacyConfigBlock = false;
-        emptyLinesBeforeBlock = 0;
-
-        // 检查是否是我们的model_providers section
-        if (sectionName.startsWith('model_providers.')) {
-          inOurProviderSection = true;
-          providerSectionIndent = _getIndentLevel(line);
-          // 清理section前的空行（如果存在）
-          while (result.isNotEmpty && result.last.trim().isEmpty) {
-            result.removeLast();
-          }
-          // 跳过这个section头
-          continue;
-        } else {
-          // 遇到其他section，结束我们的section
-          inOurProviderSection = false;
-          result.add(line);
-          continue;
-        }
-      }
-
-      // 如果在我们添加的provider section中，跳过所有行
-      if (inOurProviderSection) {
-        final currentIndent = _getIndentLevel(line);
-        // 如果缩进小于等于section头的缩进，说明已经离开了这个section
-        if (currentIndent <= providerSectionIndent &&
-            trimmed.isNotEmpty &&
-            !trimmed.startsWith('#')) {
-          inOurProviderSection = false;
-          // 清理section后的空行
-          while (result.isNotEmpty && result.last.trim().isEmpty) {
-            result.removeLast();
-          }
-          // 不跳过这一行，继续处理
-        } else {
-          // 仍在我们的section中，跳过这一行
-          continue;
-        }
-      }
-
-      // 处理遗留的配置块（没有section头，但包含我们的配置项）
-      if (trimmed.isEmpty) {
-        // 空行：如果在遗留配置块中，检查下一行是否还是我们的配置
-        if (inLegacyConfigBlock) {
-          // 检查下一行是否还是我们的配置项
-          bool nextIsOurConfig = isNextOurConfig(lines, i, ourProviderKeys);
-
-          if (!nextIsOurConfig) {
-            // 下一行不是我们的配置，结束配置块
-            inLegacyConfigBlock = false;
-            justEndedBlock = true;
-            // 跳过这个空行（不保留，因为是我们添加的配置块后的空行）
-            continue;
-          }
-          // 如果在配置块中且下一行还是我们的配置，跳过这个空行
-          continue;
-        } else if (justEndedBlock) {
-          // 刚刚结束配置块，跳过后续的空行
-          continue;
-        } else {
-          // 检查下一行是否是我们配置的开始
-          bool nextIsOurConfig = isNextOurConfig(lines, i, ourProviderKeys) ||
-              isNextOurConfig(lines, i, ourTopLevelKeys);
-
-          if (nextIsOurConfig) {
-            // 下一行是我们的配置，记录这个空行，但不立即添加
-            emptyLinesBeforeBlock++;
-            continue;
-          } else {
-            // 不在配置块中，保留空行
-            result.add(line);
-            continue;
-          }
-        }
-      }
-
-      // 检查是否是注释
-      if (trimmed.startsWith('#')) {
-        // 注释会结束遗留配置块
-        if (inLegacyConfigBlock || justEndedBlock) {
-          // 清理配置块后的空行
-          while (result.isNotEmpty && result.last.trim().isEmpty) {
-            result.removeLast();
-          }
-          inLegacyConfigBlock = false;
-          justEndedBlock = false;
-          emptyLinesBeforeBlock = 0;
-        }
-        result.add(line);
-        continue;
-      }
-
-      // 检查是否是我们的顶层配置项（无论出现在哪里，包括在 MCP 服务器节中）
-      // 这些配置项应该只在文件顶层，如果出现在其他地方（如 MCP 服务器节中），也应该删除
-      if (isOurConfigKey(trimmed, ourTopLevelKeys)) {
-        // 清理配置块前的空行
-        emptyLinesBeforeBlock = 0;
-        // 跳过顶层配置项（无论出现在哪里）
-        continue;
-      }
-
-      // 检查是否是我们的provider配置项
-      if (isOurConfigKey(trimmed, ourProviderKeys)) {
-        // 清理配置块前的空行（不保留）
-        emptyLinesBeforeBlock = 0;
-        // 开始或继续遗留配置块
-        inLegacyConfigBlock = true;
-        justEndedBlock = false;
-        // 跳过这一行
-        continue;
-      }
-
-      // 不是我们的配置项
-      if (inLegacyConfigBlock || justEndedBlock) {
-        // 遇到非我们的配置项，结束配置块
-        inLegacyConfigBlock = false;
-        justEndedBlock = false;
-        emptyLinesBeforeBlock = 0;
-        // 清理配置块后的空行
-        while (result.isNotEmpty && result.last.trim().isEmpty) {
-          result.removeLast();
-        }
-      }
-
-      // 保留这一行
-      result.add(line);
-    }
-
-    // 清理末尾的空行
-    while (result.isNotEmpty && result.last.trim().isEmpty) {
-      result.removeLast();
-    }
-
-    return result.join('\n');
+    return (preamble: preamble, tables: tables);
   }
 
-  /// 获取行的缩进级别（空格数）
-  static int _getIndentLevel(String line) {
-    int indent = 0;
-    for (int i = 0; i < line.length; i++) {
-      if (line[i] == ' ') {
-        indent++;
-      } else if (line[i] == '\t') {
-        indent += 4; // 将tab视为4个空格
-      } else {
-        break;
+  static String? _assignedKey(String line) {
+    final t = line.trimLeft();
+    if (t.isEmpty || t.startsWith('#')) return null;
+    final m = _assignment.firstMatch(line);
+    if (m == null) return null;
+    var k = m.group(1)!;
+    if (k.startsWith('"')) k = k.substring(1, k.length - 1);
+    return k;
+  }
+
+  static String? _stringValue(List<String> lines, String key) {
+    for (final l in lines) {
+      if (_assignedKey(l) == key) {
+        final m = RegExp(r'=\s*"([^"]*)"').firstMatch(l);
+        return m?.group(1);
       }
     }
-    return indent;
+    return null;
+  }
+
+  /// 是否为 Key Core 写入的 provider 表：固定 id，或旧版“按密钥名命名、只含我们写的键”的表
+  static bool _isOurProviderTable(({String name, List<String> lines}) table) {
+    if (!table.name.startsWith('model_providers.')) return false;
+    var id = table.name.substring('model_providers.'.length).trim();
+    if (id.startsWith('"') && id.endsWith('"')) id = id.substring(1, id.length - 1);
+    if (id == keycoreProviderId) return true;
+    final keys = table.lines.skip(1).map(_assignedKey).whereType<String>().toSet();
+    if (keys.isEmpty || !keys.every(_legacyProviderKeys.contains)) return false;
+    return _stringValue(table.lines, 'name') == id;
+  }
+
+  static List<String> _trimBlank(List<String> lines) {
+    var a = 0, b = lines.length;
+    while (a < b && lines[a].trim().isEmpty) {
+      a++;
+    }
+    while (b > a && lines[b - 1].trim().isEmpty) {
+      b--;
+    }
+    return lines.sublist(a, b);
+  }
+
+  /// 移除我们添加的配置项（纯函数）
+  ///
+  /// - 顶层区：只删除我们写的 4 个顶层键，其余顶层设置（approval_policy 等）与注释保留；
+  /// - 表：只删除 Key Core 的 provider 表；用户自己的 `[model_providers.*]`、MCP、projects 等原样保留。
+  ///
+  /// 旧实现会删除所有 `[model_providers.*]` 表头并把其中不认识的键遗留到上一张表里，
+  /// 还会把用户的顶层设置挪到我们的 provider 表之后（变成 provider 的字段），已修复。
+  static String _removeOurConfig(String configContent) {
+    if (configContent.trim().isEmpty) return configContent;
+    final split = _splitToml(configContent);
+    final out = <String>[];
+    out.addAll(_trimBlank(
+        split.preamble.where((l) => !_ourTopLevelKeys.contains(_assignedKey(l))).toList()));
+    for (final t in split.tables) {
+      if (_isOurProviderTable(t)) continue;
+      final body = _trimBlank(t.lines);
+      if (out.isNotEmpty) out.add('');
+      out.addAll(body);
+    }
+    return out.join('\n');
   }
 
   /// 切换回官方配置

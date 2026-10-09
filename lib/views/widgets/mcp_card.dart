@@ -20,6 +20,9 @@ class McpCard extends StatefulWidget {
   final VoidCallback? onOpenDocs;
   final VoidCallback? onViewDetails;
 
+  /// 按工具启用（打开工具开关列表）
+  final VoidCallback? onManageApps;
+
   const McpCard({
     super.key,
     required this.server,
@@ -31,6 +34,7 @@ class McpCard extends StatefulWidget {
     this.onOpenHomepage,
     this.onOpenDocs,
     this.onViewDetails,
+    this.onManageApps,
   });
 
   @override
@@ -302,6 +306,15 @@ class _McpCardState extends State<McpCard> {
                   onPressed: widget.onViewDetails,
                 ),
                 const SizedBox(width: 8),
+                if (widget.onManageApps != null) ...[
+                  _buildActionButton(
+                    context,
+                    icon: Icons.apps_outlined,
+                    tooltip: '按工具启用',
+                    onPressed: widget.onManageApps,
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 if (widget.server.homepage != null && widget.server.homepage!.isNotEmpty)
                   _buildActionButton(
                     context,

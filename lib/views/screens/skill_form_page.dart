@@ -113,7 +113,7 @@ class _SkillFormPageState extends State<SkillFormPage> {
       _showTemplatePicker = false;
       _loadExistingSkill();
     } else {
-      _enabledTools.addAll(SkillsPathService.supportedTools);
+      _enabledTools.addAll(SkillsPathService.defaultEnabledTools);
     }
   }
 

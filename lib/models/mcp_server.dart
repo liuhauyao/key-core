@@ -40,7 +40,18 @@ enum AiToolType {
   windsurf,
   gemini,
   openclaw,
-  claudeDesktop;
+  claudeDesktop,
+  // 以下工具仅作为 MCP / Skills / 提示词的同步目标（与 CC Switch v4 对齐）
+  opencode,
+  grokBuild,
+  hermes,
+  pi,
+  mcode;
+
+  /// 新增的同步目标工具（不参与密钥切换、首次启动目录授权）
+  static const Set<AiToolType> syncOnlyTools = {opencode, grokBuild, hermes, pi, mcode};
+
+  bool get isSyncOnly => syncOnlyTools.contains(this);
 
   String get value {
     switch (this) {
@@ -58,6 +69,16 @@ enum AiToolType {
         return 'openclaw';
       case AiToolType.claudeDesktop:
         return 'claude_desktop';
+      case AiToolType.opencode:
+        return 'opencode';
+      case AiToolType.grokBuild:
+        return 'grok_build';
+      case AiToolType.hermes:
+        return 'hermes';
+      case AiToolType.pi:
+        return 'pi';
+      case AiToolType.mcode:
+        return 'mcode';
     }
   }
 
@@ -77,6 +98,16 @@ enum AiToolType {
         return 'OpenClaw';
       case AiToolType.claudeDesktop:
         return 'Claude Desktop';
+      case AiToolType.opencode:
+        return 'OpenCode';
+      case AiToolType.grokBuild:
+        return 'Grok Build';
+      case AiToolType.hermes:
+        return 'Hermes';
+      case AiToolType.pi:
+        return 'Pi';
+      case AiToolType.mcode:
+        return 'MiniMax Code';
     }
   }
 
@@ -97,6 +128,15 @@ enum AiToolType {
         return 'assets/icons/platforms/openclaw-color.svg';
       case AiToolType.claudeDesktop:
         return 'assets/icons/platforms/anthropic.svg';
+      case AiToolType.hermes:
+        return 'assets/icons/platforms/nousresearch.svg';
+      case AiToolType.opencode:
+      case AiToolType.pi:
+        return null;
+      case AiToolType.grokBuild:
+        return 'assets/icons/platforms/grok.svg';
+      case AiToolType.mcode:
+        return 'assets/icons/platforms/minimax-color.svg';
     }
   }
 
@@ -116,6 +156,16 @@ enum AiToolType {
         return AiToolType.openclaw;
       case 'claude_desktop':
         return AiToolType.claudeDesktop;
+      case 'opencode':
+        return AiToolType.opencode;
+      case 'grok_build':
+        return AiToolType.grokBuild;
+      case 'hermes':
+        return AiToolType.hermes;
+      case 'pi':
+        return AiToolType.pi;
+      case 'mcode':
+        return AiToolType.mcode;
       default:
         return AiToolType.cursor;
     }

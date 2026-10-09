@@ -246,6 +246,13 @@ class ImportService {
             enableOpenclaw: keyMap['enable_openclaw'] as bool? ?? false,
             openclawBaseUrl: keyMap['openclaw_base_url'] as String?,
             openclawModel: keyMap['openclaw_model'] as String?,
+            claudeCodeConfig: _jsonMap(keyMap['claude_code_config']),
+            enableClaudeDesktop: keyMap['enable_claude_desktop'] as bool? ?? false,
+            claudeDesktopBaseUrl: keyMap['claude_desktop_base_url'] as String?,
+            claudeDesktopModel: keyMap['claude_desktop_model'] as String?,
+            claudeDesktopSonnetModel: keyMap['claude_desktop_sonnet_model'] as String?,
+            claudeDesktopHaikuModel: keyMap['claude_desktop_haiku_model'] as String?,
+            claudeDesktopOpusModel: keyMap['claude_desktop_opus_model'] as String?,
           );
 
           if (existingKey != null) {
@@ -475,3 +482,14 @@ class ImportResult {
   }
 }
 
+/// 导出文件中的 JSON 对象字段既可能是 Map 也可能是 JSON 字符串
+Map<String, dynamic>? _jsonMap(Object? v) {
+  if (v is Map) return v.cast<String, dynamic>();
+  if (v is String && v.isNotEmpty) {
+    try {
+      final d = jsonDecode(v);
+      if (d is Map) return d.cast<String, dynamic>();
+    } catch (_) {}
+  }
+  return null;
+}

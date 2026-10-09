@@ -109,19 +109,85 @@ void main() {
   databaseFactory = databaseFactoryFfi;
   final service = DatabaseService.instance;
 
-  test('schema version is 17', () {
-    expect(DatabaseService.schemaVersion, 17);
+  test('schema version is 19', () {
+    expect(DatabaseService.schemaVersion, 21);
   });
 
-  test('fresh install (v17) has no providers table and has all ai_keys columns', () async {
+  test('upgrade v18 -> v19 creates mcp_server_apps (idempotent)', () async {
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, 15);
+    await db.execute('DROP TABLE mcp_server_apps');
+    expect(await _tables(db), isNot(contains('mcp_server_apps')));
+    await service.runUpgradeForTest(db, 18, 19);
+    await service.runUpgradeForTest(db, 18, 19);
+    expect(await _tables(db), contains('mcp_server_apps'));
+    expect(await _columns(db, 'mcp_server_apps'), {'server_id', 'tool', 'created_at'});
+    await db.close();
+  });
+
+  test('upgrade v20 -> v21 creates prompts (idempotent)', () async {
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, 15);
+    await db.execute('DROP TABLE prompts');
+    await service.runUpgradeForTest(db, 20, 21);
+    await service.runUpgradeForTest(db, 20, 21);
+    expect(await _tables(db), contains('prompts'));
+    expect(await _columns(db, 'prompts'),
+        {'id', 'tool', 'name', 'content', 'description', 'enabled', 'created_at', 'updated_at'});
+    await db.close();
+  });
+
+  test('upgrade v19 -> v20 adds skills source/hash columns and keeps rows', () async {
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, 15);
+    for (final c in ['source_repo', 'source_ref', 'source_subdir', 'content_hash']) {
+      await db.execute('ALTER TABLE skills DROP COLUMN $c');
+    }
+    await db.insert('skills', {
+      'skill_id': 'pdf',
+      'relative_path': 'pdf',
+      'name': 'pdf',
+      'created_at': '2026-01-01T00:00:00.000',
+      'updated_at': '2026-01-01T00:00:00.000',
+    });
+    await service.runUpgradeForTest(db, 19, 20);
+    await service.runUpgradeForTest(db, 19, 20);
+    expect(await _columns(db, 'skills'),
+        containsAll(['source_repo', 'source_ref', 'source_subdir', 'content_hash']));
+    final row = (await db.query('skills')).single;
+    expect(row['skill_id'], 'pdf');
+    expect(row['content_hash'], isNull);
+    await db.close();
+  });
+
+  test('upgrade v17 -> v18 adds claude_code_config and keeps keys', () async {
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, 15);
+    await db.insert('ai_keys', _aiKeyRow('Existing', 'sk-existing'));
+    // 当前 DDL 已含新列；删除它来模拟 v17 的表结构
+    await db.execute('ALTER TABLE ai_keys DROP COLUMN claude_code_config');
+    expect(await _columns(db, 'ai_keys'), isNot(contains('claude_code_config')));
+
+    await service.runUpgradeForTest(db, 17, 18);
+    expect(await _columns(db, 'ai_keys'), contains('claude_code_config'));
+    final row = (await db.query('ai_keys')).single;
+    expect(row['key_value'], 'sk-existing');
+    expect(AIKey.fromMap(row).claudeCodeApiKeyField, 'ANTHROPIC_AUTH_TOKEN');
+
+    // 再次升级（重复执行）不应报错
+    await service.runUpgradeForTest(db, 17, 18);
+    await db.close();
+  });
+
+  test('fresh install (v18) has no providers table and has all ai_keys columns', () async {
     final db = await _memoryDb();
     await service.runCreateForTest(db, DatabaseService.schemaVersion);
     final tables = await _tables(db);
-    expect(tables, containsAll(['ai_keys', 'mcp_servers', 'skills']));
+    expect(tables, containsAll(['ai_keys', 'mcp_servers', 'skills', 'mcp_server_apps']));
     expect(tables, isNot(contains('providers')));
     expect(
       await _columns(db, 'ai_keys'),
-      containsAll(['enable_claude_desktop', 'claude_desktop_opus_model', 'enable_openclaw']),
+      containsAll(['enable_claude_desktop', 'claude_desktop_opus_model', 'enable_openclaw', 'claude_code_config']),
     );
     await db.close();
   });
@@ -251,6 +317,9 @@ void main() {
       ]),
     );
     expect(await _tables(db), isNot(contains('providers')));
+    // 该分支的 v14 没有 skills 表，v20 迁移会补建
+    expect(await _tables(db), contains('skills'));
+    expect(await _columns(db, 'skills'), contains('content_hash'));
     final rows = await db.query('ai_keys');
     expect(rows.single['key_value'], 'sk-early');
     await db.close();
@@ -259,7 +328,7 @@ void main() {
   test('opening a database from a newer app version is refused (no silent downgrade)', () async {
     final db = await _memoryDb();
     await expectLater(
-      service.runDowngradeForTest(db, 18, DatabaseService.schemaVersion),
+      service.runDowngradeForTest(db, DatabaseService.schemaVersion + 1, DatabaseService.schemaVersion),
       throwsA(isA<DatabaseVersionTooNewException>()),
     );
     await db.close();
@@ -270,7 +339,7 @@ void main() {
     addTearDown(() => dir.delete(recursive: true));
     final path = p.join(dir.path, 'key_core.db');
     final newer = await databaseFactoryFfi.openDatabase(path,
-        options: OpenDatabaseOptions(version: 18, onCreate: (db, v) async {}));
+        options: OpenDatabaseOptions(version: DatabaseService.schemaVersion + 1, onCreate: (db, v) async {}));
     await newer.close();
 
     await expectLater(
@@ -286,7 +355,7 @@ void main() {
 
     final check = await databaseFactoryFfi.openDatabase(path,
         options: OpenDatabaseOptions(readOnly: true, singleInstance: false));
-    expect(await check.getVersion(), 18);
+    expect(await check.getVersion(), DatabaseService.schemaVersion + 1);
     await check.close();
   });
 

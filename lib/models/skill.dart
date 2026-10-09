@@ -6,77 +6,50 @@ import 'mcp_server.dart';
 enum SkillTargetTool {
   cursor,
   claudecode,
-  codex;
+  codex,
+  // 与 CC Switch v4.0.6 对齐的其他工具
+  gemini,
+  opencode,
+  grokBuild,
+  openclaw,
+  hermes,
+  pi,
+  mcode;
 
-  String get value {
-    switch (this) {
-      case SkillTargetTool.cursor:
-        return 'cursor';
-      case SkillTargetTool.claudecode:
-        return 'claudecode';
-      case SkillTargetTool.codex:
-        return 'codex';
-    }
-  }
+  static const Map<SkillTargetTool, AiToolType> _aiTools = {
+    SkillTargetTool.cursor: AiToolType.cursor,
+    SkillTargetTool.claudecode: AiToolType.claudecode,
+    SkillTargetTool.codex: AiToolType.codex,
+    SkillTargetTool.gemini: AiToolType.gemini,
+    SkillTargetTool.opencode: AiToolType.opencode,
+    SkillTargetTool.grokBuild: AiToolType.grokBuild,
+    SkillTargetTool.openclaw: AiToolType.openclaw,
+    SkillTargetTool.hermes: AiToolType.hermes,
+    SkillTargetTool.pi: AiToolType.pi,
+    SkillTargetTool.mcode: AiToolType.mcode,
+  };
 
-  String get displayName {
-    switch (this) {
-      case SkillTargetTool.cursor:
-        return 'Cursor';
-      case SkillTargetTool.claudecode:
-        return 'ClaudeCode';
-      case SkillTargetTool.codex:
-        return 'Codex';
-    }
-  }
+  String get value => _aiTools[this]!.value;
 
-  String? get iconPath {
-    switch (this) {
-      case SkillTargetTool.cursor:
-        return 'assets/icons/platforms/cursor.svg';
-      case SkillTargetTool.claudecode:
-        return 'assets/icons/platforms/anthropic.svg';
-      case SkillTargetTool.codex:
-        return 'assets/icons/platforms/openai.svg';
-    }
-  }
+  String get displayName => _aiTools[this]!.displayName;
+
+  String? get iconPath => _aiTools[this]!.iconPath;
 
   static SkillTargetTool fromString(String value) {
-    switch (value) {
-      case 'cursor':
-        return SkillTargetTool.cursor;
-      case 'claudecode':
-        return SkillTargetTool.claudecode;
-      case 'codex':
-        return SkillTargetTool.codex;
-      default:
-        return SkillTargetTool.cursor;
+    for (final t in SkillTargetTool.values) {
+      if (t.value == value) return t;
     }
+    return SkillTargetTool.cursor;
   }
 
   static SkillTargetTool? fromAiToolType(AiToolType tool) {
-    switch (tool) {
-      case AiToolType.cursor:
-        return SkillTargetTool.cursor;
-      case AiToolType.claudecode:
-        return SkillTargetTool.claudecode;
-      case AiToolType.codex:
-        return SkillTargetTool.codex;
-      default:
-        return null;
+    for (final e in _aiTools.entries) {
+      if (e.value == tool) return e.key;
     }
+    return null;
   }
 
-  AiToolType toAiToolType() {
-    switch (this) {
-      case SkillTargetTool.cursor:
-        return AiToolType.cursor;
-      case SkillTargetTool.claudecode:
-        return AiToolType.claudecode;
-      case SkillTargetTool.codex:
-        return AiToolType.codex;
-    }
-  }
+  AiToolType toAiToolType() => _aiTools[this]!;
 }
 
 /// Skill 同步状态
@@ -155,6 +128,18 @@ class Skill extends Equatable {
   final int sortOrder;
   final bool isActive;
   final SkillTargetTool? sourceTool;
+
+  /// 来源仓库 `owner/name`（从仓库 / skills.sh 安装时记录）
+  final String? sourceRepo;
+
+  /// 来源分支（为空表示默认分支）
+  final String? sourceRef;
+
+  /// 在仓库中的目录
+  final String? sourceSubdir;
+
+  /// 安装 / 更新时的内容哈希（用于检查更新与本地修改）
+  final String? contentHash;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -171,6 +156,10 @@ class Skill extends Equatable {
     this.sortOrder = 0,
     this.isActive = true,
     this.sourceTool,
+    this.sourceRepo,
+    this.sourceRef,
+    this.sourceSubdir,
+    this.contentHash,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -188,6 +177,10 @@ class Skill extends Equatable {
     int? sortOrder,
     bool? isActive,
     SkillTargetTool? sourceTool,
+    String? sourceRepo,
+    String? sourceRef,
+    String? sourceSubdir,
+    String? contentHash,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -204,6 +197,10 @@ class Skill extends Equatable {
       sortOrder: sortOrder ?? this.sortOrder,
       isActive: isActive ?? this.isActive,
       sourceTool: sourceTool ?? this.sourceTool,
+      sourceRepo: sourceRepo ?? this.sourceRepo,
+      sourceRef: sourceRef ?? this.sourceRef,
+      sourceSubdir: sourceSubdir ?? this.sourceSubdir,
+      contentHash: contentHash ?? this.contentHash,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -234,6 +231,10 @@ class Skill extends Equatable {
       'sort_order': sortOrder,
       'is_active': isActive ? 1 : 0,
       'source_tool': sourceTool?.value,
+      'source_repo': sourceRepo,
+      'source_ref': sourceRef,
+      'source_subdir': sourceSubdir,
+      'content_hash': contentHash,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -284,6 +285,10 @@ class Skill extends Equatable {
       sortOrder: map['sort_order']?.toInt() ?? 0,
       isActive: (map['is_active']?.toInt() ?? 1) == 1,
       sourceTool: sourceTool,
+      sourceRepo: map['source_repo'] as String?,
+      sourceRef: map['source_ref'] as String?,
+      sourceSubdir: map['source_subdir'] as String?,
+      contentHash: map['content_hash'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
     );
@@ -303,6 +308,10 @@ class Skill extends Equatable {
         sortOrder,
         isActive,
         sourceTool,
+        sourceRepo,
+        sourceRef,
+        sourceSubdir,
+        contentHash,
         createdAt,
         updatedAt,
       ];
