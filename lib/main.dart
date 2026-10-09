@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'config/edition.dart';
 import 'theme/kc_tokens.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -141,24 +142,9 @@ void main() async {
   // App Store 版本：禁用自动检查，但保留手动检查功能（用户可在设置中手动触发）
   // 非 App Store 版本：允许自动检查更新
   // 检测是否为 App Store 版本：检查应用 receipt 文件（App Store 应用会有 receipt）
-  bool isAppStoreVersion = false;
-  if (Platform.isMacOS) {
-    try {
-      final appPath = Platform.resolvedExecutable;
-      // App Store 应用会有 _MASReceipt 目录
-      // 路径格式：/Applications/AppName.app/Contents/MacOS/AppName
-      // receipt 路径：/Applications/AppName.app/Contents/_MASReceipt/receipt
-      final appBundlePath = appPath.split('/Contents/MacOS/').first;
-      final receiptPath = '$appBundlePath/Contents/_MASReceipt/receipt';
-      final receiptFile = File(receiptPath);
-      isAppStoreVersion = await receiptFile.exists();
-      if (isAppStoreVersion) {
-      }
-    } catch (e) {
-      // 如果检测失败，默认允许更新检查（非 App Store 版本）
-    }
-  }
-  
+  // 发行版本由编译期 KC_EDITION 决定（lib/config/edition.dart），不再运行时探测 receipt
+  const isAppStoreVersion = Edition.isAppStore;
+
   // 仅在非 App Store 版本时自动检查更新
   // App Store 版本的用户可以通过设置页面的"检查更新"按钮手动触发更新
   if (!isAppStoreVersion) {

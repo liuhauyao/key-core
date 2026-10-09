@@ -40,11 +40,49 @@ rm -rf ~/.pub-cache/hosted/pub.dev/sqlite3-*/.dart_tool 2>/dev/null || true
 rm -rf .dart_tool/hooks_runner/sqlite3 2>/dev/null || true
 
 # 5. 先运行 Flutter 构建来生成必要的文件（这会生成 Flutter-Generated.xcconfig 等）
-echo "5. 预构建 Flutter 文件（生成必要的资源文件）..."
-flutter build macos --release > /tmp/flutter_build.log 2>&1 || {
-    echo "警告: Flutter 构建失败，但继续..."
-    cat /tmp/flutter_build.log | tail -20
+#    KC_EDITION=appstore 是编译期常量（lib/config/edition.dart）；flutter build 会把 dart-define
+#    写进 Flutter-Generated.xcconfig 的 DART_DEFINES，随后 Xcode Archive 沿用同一份配置。
+#    KC_APPSTORE_ID：上架后在环境变量里给出真实数字 ID；未给出时沿用代码中明确标注的占位符。
+echo "5. 预构建 Flutter 文件（KC_EDITION=appstore）..."
+DEFINES=(--dart-define=KC_EDITION=appstore)
+if [ -n "${KC_APPSTORE_ID:-}" ]; then
+    DEFINES+=("--dart-define=KC_APPSTORE_ID=${KC_APPSTORE_ID}")
+else
+    echo "⚠️  未设置 KC_APPSTORE_ID，App Store 链接使用占位符 APP_STORE_ID_PLACEHOLDER（上架前必须提供）"
+fi
+flutter build macos --release "${DEFINES[@]}" > /tmp/flutter_build.log 2>&1 || {
+    echo "错误: Flutter 构建失败"
+    tail -20 /tmp/flutter_build.log
+    exit 1
 }
+
+# 5.1 校验 edition 已写入 Xcode 配置（Archive 依赖它）
+echo "5.1 校验 KC_EDITION 已写入 Flutter-Generated.xcconfig..."
+XC=macos/Flutter/ephemeral/Flutter-Generated.xcconfig
+EXPECTED_DEFINE=$(printf 'KC_EDITION=appstore' | base64)
+if ! grep -q "DART_DEFINES=.*${EXPECTED_DEFINE}" "$XC" 2>/dev/null; then
+    echo "✗ 错误: $XC 中没有 KC_EDITION=appstore（DART_DEFINES），Archive 会构建成开源版"
+    exit 1
+fi
+echo "✓ KC_EDITION=appstore"
+
+# 5.2 产物检查：App Store 版的 Dart 产物里不能残留仓库 / 许可证 / GitHub Releases 链接常量
+#     （lib/config/oss_links.dart 只在 Edition.isOss 分支引用，应被 tree-shake 掉）
+echo "5.2 检查产物中是否残留开源仓库地址..."
+APP_BIN=$(find build/macos/Build/Products/Release -path '*App.framework/Versions/A/App' -type f | head -1)
+if [ -z "$APP_BIN" ]; then
+    echo "✗ 错误: 找不到 App.framework 产物"
+    exit 1
+fi
+#     注意：配置模板 / 语言包的远程数据地址（raw.githubusercontent.com、api.github.com/repos/…/contents、gitee）
+#     两个版本都允许，不在检查范围；这里只检查 UI 链接常量（仓库主页 / 许可证 / issues / releases）。
+LEAKS=$(LC_ALL=C grep -a -o -E '(https://)?github\.com/liuhauyao/key-core(/(releases|blob|issues)[^"[:space:]]{0,40})?' "$APP_BIN" | sort -u || true)
+if [ -n "$LEAKS" ]; then
+    echo "✗ 错误: App Store 产物中发现开源仓库链接："
+    echo "$LEAKS"
+    exit 1
+fi
+echo "✓ 产物中没有仓库 / Releases 链接"
 
 # 5. 确保 ephemeral 目录存在
 echo "5. 确保 Flutter ephemeral 文件存在..."

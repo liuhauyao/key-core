@@ -30,6 +30,8 @@ import '../../services/region_filter_service.dart';
 import '../../constants/app_constants.dart';
 import '../widgets/kc_toast.dart';
 import '../../theme/kc_tokens.dart';
+import '../../config/edition.dart';
+import '../widgets/app_update_section.dart';
 
 /// 设置分组枚举
 enum SettingsCategory {
@@ -181,20 +183,6 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     }
   }
 
-  /// 检测是否为 App Store 版本
-  Future<bool> _isAppStoreVersion() async {
-    if (!Platform.isMacOS) return false;
-    try {
-      final appPath = Platform.resolvedExecutable;
-      final appBundlePath = appPath.split('/Contents/MacOS/').first;
-      final receiptPath = '$appBundlePath/Contents/_MASReceipt/receipt';
-      final receiptFile = File(receiptPath);
-      return await receiptFile.exists();
-    } catch (e) {
-      return false;
-    }
-  }
-  
   /// 自动后台检查配置更新（静默刷新，不显示加载状态）
   Future<void> _autoCheckForUpdates() async {
     // 延迟 500ms 执行，避免影响页面初始化
@@ -203,8 +191,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     if (!mounted) return;
     
     // App Store 版本：跳过自动检查（用户可通过设置中的"检查更新"按钮手动触发）
-    final isAppStore = await _isAppStoreVersion();
-    if (isAppStore) {
+    if (Edition.isAppStore) {
       print('SettingsScreen: App Store 版本，跳过自动配置更新检查');
       return;
     }
@@ -713,6 +700,8 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
           ],
           const SizedBox(height: 20),
           Text(localizations.aboutIntroText, style: bodyStyle),
+          const SizedBox(height: 20),
+          AppUpdateSection(currentVersion: (!loading && info != null) ? info.version : null),
           const SizedBox(height: 28),
           Text(localizations.aboutCopyright, style: footerStyle),
         ],
