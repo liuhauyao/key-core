@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import '../widgets/kc_manage_scaffold.dart';
 import '../../theme/kc_tokens.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -69,7 +70,12 @@ class _PromptsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<PromptsViewModel>();
-    return Scaffold(
+    // Esc 关闭（与其它全页一致）
+    return CallbackShortcuts(
+      bindings: {const SingleActivator(LogicalKeyboardKey.escape): () => Navigator.of(context).maybePop()},
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
       appBar: KcWindowHeader(
         title: AppLocalizations.of(context)?.tr('prompts_title', '系统提示词') ?? '系统提示词',
         actions: [
@@ -179,6 +185,8 @@ class _PromptsView extends StatelessWidget {
           ),
         ]);
       }),
+    ),
+      ),
     );
   }
 }

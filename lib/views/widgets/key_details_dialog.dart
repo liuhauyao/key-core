@@ -739,7 +739,7 @@ class _NewToolsSectionState extends State<NewToolsSection> {
                   const SizedBox(width: KcSpace.x3),
                   KcToolLogo(tool: tool, size: 22),
                   const SizedBox(width: 10),
-                  Text(kcToolName(tool), style: KcType.strong.copyWith(color: cs.foreground)),
+                  Text(tool.displayName, style: KcType.strong.copyWith(color: cs.foreground)),
                   if (status != null) ...[
                     const SizedBox(width: 8),
                     Container(

@@ -897,5 +897,8 @@
   "mcp_template": "Start from a template",
   "mcp_config_json": "Server config (JSON)",
   "mcp_form_footer_hint": "After saving, use \"Enable per tool\" on the card to write it into each tool",
-  "skills_all_categories": "All categories"
+  "skills_all_categories": "All categories",
+  "mcp_sync_target": "Sync target",
+  "mcp_add_blank": "Add manually (paste JSON)",
+  "mcp_from_template": "From template"
 }

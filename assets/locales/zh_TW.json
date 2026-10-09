@@ -732,5 +732,8 @@
   "mcp_template": "從範本開始",
   "mcp_config_json": "服務設定（JSON）",
   "mcp_form_footer_hint": "儲存後在卡片上「按工具啟用」寫入各工具設定",
-  "skills_all_categories": "全部分類"
+  "skills_all_categories": "全部分類",
+  "mcp_sync_target": "同步目標",
+  "mcp_add_blank": "手動新增（貼上 JSON）",
+  "mcp_from_template": "從範本"
 }

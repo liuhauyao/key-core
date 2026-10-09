@@ -1377,7 +1377,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                 const SizedBox(width: KcSpace.x3),
                 KcToolLogo(tool: tool, size: 22),
                 const SizedBox(width: 10),
-                Expanded(child: Text(kcToolName(tool), style: KcType.strong.copyWith(color: cs.foreground))),
+                Expanded(child: Text(tool.displayName, style: KcType.strong.copyWith(color: cs.foreground))),
                 Switch.adaptive(
                   key: ValueKey('keyForm.moreTool.${tool.value}'),
                   value: _toolConfigs[tool.value]?['enabled'] == true,

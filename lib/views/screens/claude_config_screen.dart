@@ -1,3 +1,4 @@
+import '../widgets/kc_segmented.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -705,67 +706,22 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
 
   /// 构建 Section 切换按钮组
   Widget _buildSectionToggle(ShadThemeData shadTheme) {
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: shadTheme.colorScheme.border,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildToggleTab(
-            label: 'Claude Code',
-            isActive: _selectedSection == ClaudeSection.claudeCode,
-            onTap: () => setState(() {
-              _selectedSection = ClaudeSection.claudeCode;
-              _desktopSearchController.clear();
-            }),
-            shadTheme: shadTheme,
-          ),
-          _buildToggleTab(
-            label: 'Claude Desktop',
-            isActive: _selectedSection == ClaudeSection.claudeDesktop,
-            onTap: () => setState(() {
-              _selectedSection = ClaudeSection.claudeDesktop;
-              _searchController.clear();
-            }),
-            shadTheme: shadTheme,
-          ),
-        ],
-      ),
+    // 统一分段控件（KcSegmented），取代旧的自绘 tab 条
+    return KcSegmented<ClaudeSection>(
+      key: const ValueKey('claude.section'),
+      value: _selectedSection,
+      onChanged: (v) => setState(() {
+        _selectedSection = v;
+        _searchController.clear();
+        _desktopSearchController.clear();
+      }),
+      items: const [
+        (ClaudeSection.claudeCode, 'Claude Code', null),
+        (ClaudeSection.claudeDesktop, 'Claude Desktop', null),
+      ],
     );
   }
 
-  Widget _buildToggleTab({
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-    required ShadThemeData shadTheme,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: isActive ? shadTheme.colorScheme.background : Colors.transparent,
-          borderRadius: BorderRadius.circular(5),
-        ),
-        child: Text(
-          label,
-          style: shadTheme.textTheme.small.copyWith(
-            color: isActive
-                ? shadTheme.colorScheme.foreground
-                : shadTheme.colorScheme.mutedForeground,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
 
   /// 构建 Claude Desktop 内容区
   Widget _buildDesktopContent(ShadThemeData shadTheme, AppLocalizations? localizations) {

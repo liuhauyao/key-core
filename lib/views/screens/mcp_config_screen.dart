@@ -1,3 +1,5 @@
+import '../../models/mcp_server_category.dart';
+import '../../utils/mcp_server_presets.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -158,13 +160,39 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
               onPressed: _exitManage,
               child: Text(t('done', '完成')),
             )
-          : ShadButton(
-              key: const ValueKey('mcp.add'),
-              height: KcSize.control,
-              width: 112,
-              leading: const Icon(Icons.add, size: 16),
-              onPressed: () => _showAddMcpPage(context),
-              child: Text(t('mcp_add_short', '添加服务'), maxLines: 1, overflow: TextOverflow.clip),
+          : PopupMenuButton<String>(
+              key: const ValueKey('mcp.addMenu'),
+              tooltip: '',
+              position: PopupMenuPosition.under,
+              onSelected: (v) {
+                if (v == 'blank') {
+                  _showAddMcpPage(context);
+                } else if (v == 'import') {
+                  _importFromEnabledTools(context, viewModel);
+                } else {
+                  _showAddMcpPage(context, category: McpServerPresets.allCategories.firstWhere((c) => c.name == v));
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'blank', child: Row(children: [const Icon(Icons.add, size: 16), const SizedBox(width: 8), Text(t('mcp_add_blank', '手动添加（粘贴 JSON）'))])),
+                const PopupMenuDivider(),
+                PopupMenuItem(enabled: false, height: 28, child: Text(t('mcp_from_template', '从模板'), style: KcType.caption)),
+                for (final c in McpServerPresets.allCategories)
+                  PopupMenuItem(value: c.name, height: 36, child: Padding(padding: const EdgeInsets.only(left: 24), child: Text(c.getValue(context)))),
+                const PopupMenuDivider(),
+                PopupMenuItem(value: 'import', child: Row(children: [const Icon(Icons.download_outlined, size: 16), const SizedBox(width: 8), Text(t('mcp_menu_import', '从已启用的工具导入'))])),
+              ],
+              child: IgnorePointer(
+                child: ShadButton(
+                  key: const ValueKey('mcp.add'),
+                  height: KcSize.control,
+                  width: 112,
+                  leading: const Icon(Icons.add, size: 16),
+                  trailing: const Icon(Icons.expand_more, size: 14),
+                  onPressed: () {},
+                  child: Text(t('add', '添加')),
+                ),
+              ),
             ),
     );
     if (all.isEmpty) return header;
@@ -412,13 +440,13 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
     );
   }
 
-  Future<void> _showAddMcpPage(BuildContext context) async {
+  Future<void> _showAddMcpPage(BuildContext context, {McpServerCategory? category}) async {
     final viewModel = context.read<McpViewModel>();
     final localizations = AppLocalizations.of(context);
 
     final result = await Navigator.of(context).push<McpServer>(
       MaterialPageRoute(
-        builder: (context) => const McpFormPage(),
+        builder: (context) => McpFormPage(initialCategory: category),
       ),
     );
 
@@ -587,7 +615,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                               KcToolLogo(tool: tool, size: 22),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: Text(kcToolName(tool), maxLines: 1, overflow: TextOverflow.ellipsis,
+                                child: Text(tool.displayName, maxLines: 1, overflow: TextOverflow.ellipsis,
                                     style: KcType.strong.copyWith(color: cs.foreground)),
                               ),
                               if (!avail)

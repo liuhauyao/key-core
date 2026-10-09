@@ -1,3 +1,5 @@
+import '../../theme/kc_tokens.dart';
+import '../widgets/kc_manage_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -350,7 +352,6 @@ class _McpSyncPageState extends State<McpSyncPage> {
     // 统一顶栏（form_v3.md §10 / §12.2）：工具分段放在标题之后，不再压在红绿灯所在行
     return KcWindowHeader(
       title: localizations?.tr('mcp_sync_title', 'MCP 同步') ?? 'MCP 同步',
-      center: _buildToolSwitcher(context, shadTheme),
       onClose: () async {
                   // 检查是否有未保存的变更
                   if (_hasUnsavedChanges()) {
@@ -367,42 +368,9 @@ class _McpSyncPageState extends State<McpSyncPage> {
     );
   }
 
-  /// 构建工具切换滑块
-  Widget _buildToolSwitcher(BuildContext context, ShadThemeData shadTheme) {
-    final enabledTools = _getEnabledTools(context);
-    if (enabledTools.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: shadTheme.colorScheme.muted,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          AppLocalizations.of(context)?.mcpNoEnabledTools ?? '没有已启用的工具',
-          style: shadTheme.textTheme.small.copyWith(
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: shadTheme.colorScheme.border,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: enabledTools.map((tool) {
-          final isSelected = _selectedTool == tool;
-          return GestureDetector(
-            onTap: () async {
-              if (_selectedTool == tool) return;
+  /// 切换同步目标工具（保留「未保存变更」确认）
+  Future<void> _selectTool(AiToolType tool) async {
+      if (_selectedTool == tool) return;
               
               // 检查是否有未保存的变更
               if (_hasUnsavedChanges()) {
@@ -441,43 +409,26 @@ class _McpSyncPageState extends State<McpSyncPage> {
                 }
               });
               _readFromTool();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? shadTheme.colorScheme.background
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (tool.iconPath != null)
-                    SvgPicture.asset(
-                      tool.iconPath!,
-                      width: 16,
-                      height: 16,
-                      // 所有图标都显示原始颜色，不使用 colorFilter
-                      allowDrawingOutsideViewBox: true,
-                    ),
-                  if (tool.iconPath != null) const SizedBox(width: 6),
-                  Text(
-                    tool.displayName,
-                    style: shadTheme.textTheme.small.copyWith(
-                      color: isSelected
-                          ? shadTheme.colorScheme.foreground
-                          : shadTheme.colorScheme.mutedForeground,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
+  }
+
+  /// 工具选择：筛选行里的弹出菜单（取代旧的顶栏分段条）
+  Widget _buildToolSwitcher(BuildContext context, ShadThemeData shadTheme) {
+    final enabledTools = _getEnabledTools(context);
+    final l = AppLocalizations.of(context);
+    if (enabledTools.isEmpty) {
+      return Text(l?.mcpNoEnabledTools ?? '没有已启用的工具', style: KcType.caption.copyWith(color: shadTheme.colorScheme.mutedForeground));
+    }
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Text(l?.tr('mcp_sync_target', '同步目标') ?? '同步目标', style: KcType.caption.copyWith(color: shadTheme.colorScheme.mutedForeground)),
+      const SizedBox(width: 8),
+      KcFilterMenuButton<AiToolType>(
+        key: const ValueKey('mcpSync.tool'),
+        label: _selectedTool?.displayName ?? enabledTools.first.displayName,
+        selected: _selectedTool,
+        onSelected: _selectTool,
+        items: [for (final t in enabledTools) (t, t.displayName, null)],
       ),
-    );
+    ]);
   }
 
   /// 构建简化的列表项
@@ -1425,6 +1376,10 @@ class _McpSyncPageState extends State<McpSyncPage> {
           children: [
             // macOS 26 风格：沉浸式标题栏
             _buildImmersiveTitleBar(context),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, 0),
+              child: Align(alignment: Alignment.centerLeft, child: _buildToolSwitcher(context, shadTheme)),
+            ),
             // 分割线（与上方切换滑块之间添加边距）
             Container(
               padding: const EdgeInsets.only(top: 12),
