@@ -24,6 +24,7 @@ import 'utils/platform_presets.dart';
 import 'utils/mcp_server_presets.dart';
 import 'utils/platform_icon_service.dart';
 import 'services/platform_registry.dart';
+import 'services/platform/window_chrome.dart';
 
 // 全局 NavigatorKey，用于保持导航状态
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -32,6 +33,8 @@ void main() async {
   print('🚀 MAIN: 应用main函数开始执行');
   WidgetsFlutterBinding.ensureInitialized();
   print('🔧 MAIN: WidgetsFlutterBinding.ensureInitialized() 完成');
+  // macOS：监听全屏状态，决定顶栏是否给红绿灯让位（form_v3.md §10）
+  await WindowChrome.init();
   
   // Windows/Linux: 初始化 window_manager（用于窗口管理）
   if (Platform.isWindows || Platform.isLinux) {

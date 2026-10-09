@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../models/mcp_server.dart';
 import '../../models/prompt.dart';
+import '../widgets/kc_window_header.dart';
+import '../../utils/app_localizations.dart';
 import '../widgets/kc_toast.dart';
 import '../../viewmodels/prompts_viewmodel.dart';
 
@@ -65,8 +67,8 @@ class _PromptsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<PromptsViewModel>();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('系统提示词'),
+      appBar: KcWindowHeader(
+        title: AppLocalizations.of(context)?.tr('prompts_title', '系统提示词') ?? '系统提示词',
         actions: [
           IconButton(
             tooltip: '从当前文件导入',
@@ -80,6 +82,7 @@ class _PromptsView extends StatelessWidget {
           ),
           IconButton(tooltip: '新建', icon: const Icon(Icons.add), onPressed: () => _edit(context, vm)),
         ],
+        onClose: () => Navigator.of(context).pop(),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

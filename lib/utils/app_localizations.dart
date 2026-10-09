@@ -1138,6 +1138,12 @@ class AppLocalizations {
     },
   };
 
+  /// v3 新文案：查不到时用 [fallback]（中文），避免界面显示 key。
+  String tr(String key, String fallback) {
+    final v = translate(key);
+    return v == key ? fallback : v;
+  }
+
   String translate(String key) {
     // 优先使用从JSON加载的翻译
     if (_jsonTranslations != null && _jsonTranslations!.containsKey(key)) {

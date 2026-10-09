@@ -7,6 +7,7 @@ import '../../models/mcp_server_category.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/mcp_server_presets.dart';
 import '../../utils/ime_friendly_formatter.dart';
+import '../widgets/kc_window_header.dart';
 import '../widgets/icon_picker.dart';
 import '../widgets/ime_safe_text_field.dart';
 import '../widgets/kc_toast.dart';
@@ -618,53 +619,14 @@ class _McpFormPageState extends State<McpFormPage> {
 
   /// macOS 26 风格：沉浸式标题栏（与界面融为一体）
   Widget _buildImmersiveTitleBar(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
     final localizations = AppLocalizations.of(context);
-    
-    return Container(
-      height: 56, // 与主页标题栏高度一致
-      padding: const EdgeInsets.only(top: 20, left: 20), // 与主页 padding top 一致
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.background,
-        // 移除底部边框
-      ),
-      child: Stack(
-        children: [
-          // 新建模式：分类切换滑块居中显示，与主页位置一致
-          // 编辑模式：显示"编辑MCP服务器"标题
-          Center(
-            child: _isEditMode
-                ? Text(
-                    localizations?.editMcpServer ?? '编辑MCP服务器',
-                    style: shadTheme.textTheme.p.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: shadTheme.colorScheme.foreground,
-                    ),
-                  )
-                : _buildCategorySwitcher(context, shadTheme), // 新建模式下在标题栏显示分类切换滑块
-          ),
-          // 右侧：关闭按钮，与分组切换滑块同一高度（垂直居中）
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: ShadButton.ghost(
-                width: 30,
-                height: 30,
-                padding: EdgeInsets.zero,
-                child: Icon(
-                  Icons.close,
-                  size: 20,
-                  color: shadTheme.colorScheme.mutedForeground,
-                ),
-                onPressed: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
+    // 统一顶栏（form_v3.md §10）：分段控件放在标题之后，不再居中压在红绿灯所在行
+    return KcWindowHeader(
+      title: _isEditMode
+          ? (localizations?.editMcpServer ?? '编辑MCP服务器')
+          : (localizations?.tr('mcp_add_server', '添加 MCP 服务器') ?? '添加 MCP 服务器'),
+      center: _isEditMode ? null : _buildCategorySwitcher(context, ShadTheme.of(context)),
+      onClose: () => Navigator.of(context).popUntil((route) => route.isFirst),
     );
   }
 

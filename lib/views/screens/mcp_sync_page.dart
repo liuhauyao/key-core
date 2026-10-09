@@ -11,6 +11,7 @@ import '../../utils/mcp_comparison.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/url_launcher_service.dart';
 import '../../views/widgets/confirm_dialog.dart';
+import '../widgets/kc_window_header.dart';
 import '../widgets/kc_toast.dart';
 import 'dart:convert';
 
@@ -345,34 +346,12 @@ class _McpSyncPageState extends State<McpSyncPage> {
   /// macOS 26 风格：沉浸式标题栏（与界面融为一体）
   Widget _buildImmersiveTitleBar(BuildContext context) {
     final shadTheme = ShadTheme.of(context);
-    
-    return Container(
-      height: 56,
-      padding: const EdgeInsets.only(top: 20, left: 20),
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.background,
-      ),
-      child: Stack(
-        children: [
-          // 工具切换滑块居中显示
-          Center(
-            child: _buildToolSwitcher(context, shadTheme),
-          ),
-          // 右侧：关闭按钮
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: ShadButton.ghost(
-                width: 30,
-                height: 30,
-                padding: EdgeInsets.zero,
-                child: Icon(
-                  Icons.close,
-                  size: 20,
-                  color: shadTheme.colorScheme.mutedForeground,
-                ),
-                onPressed: () async {
+    final localizations = AppLocalizations.of(context);
+    // 统一顶栏（form_v3.md §10 / §12.2）：工具分段放在标题之后，不再压在红绿灯所在行
+    return KcWindowHeader(
+      title: localizations?.tr('mcp_sync_title', 'MCP 同步') ?? 'MCP 同步',
+      center: _buildToolSwitcher(context, shadTheme),
+      onClose: () async {
                   // 检查是否有未保存的变更
                   if (_hasUnsavedChanges()) {
                     final shouldClose = await _showUnsavedChangesDialog(isClosing: true);
@@ -385,11 +364,6 @@ class _McpSyncPageState extends State<McpSyncPage> {
                   }
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

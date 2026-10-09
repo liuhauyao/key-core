@@ -5,6 +5,7 @@ import '../../models/skill.dart';
 import '../../services/skill_parser_service.dart';
 import '../../services/skills_path_service.dart';
 import '../../utils/app_localizations.dart';
+import '../widgets/kc_window_header.dart';
 import '../widgets/kc_toast.dart';
 import '../../viewmodels/skills_viewmodel.dart';
 
@@ -192,27 +193,18 @@ class _SkillFormPageState extends State<SkillFormPage> {
 
     return Scaffold(
       backgroundColor: shadTheme.colorScheme.background,
-      appBar: AppBar(
-        backgroundColor: shadTheme.colorScheme.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(false),
-        ),
-        title: Text(
-          _isEditing
-              ? (localizations?.skillsEdit ?? 'Edit Skill')
-              : (localizations?.skillsCreate ?? 'Create Skill'),
-        ),
+      appBar: KcWindowHeader(
+        title: _isEditing
+            ? (localizations?.skillsEdit ?? 'Edit Skill')
+            : (localizations?.skillsCreate ?? 'Create Skill'),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: ShadButton(
-              onPressed: _isSaving || _isLoading ? null : _save,
-              child: Text(localizations?.save ?? 'Save'),
-            ),
+          ShadButton(
+            height: 30,
+            onPressed: _isSaving || _isLoading ? null : _save,
+            child: Text(localizations?.save ?? 'Save'),
           ),
         ],
+        onClose: () => Navigator.of(context).pop(false),
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: shadTheme.colorScheme.primary))

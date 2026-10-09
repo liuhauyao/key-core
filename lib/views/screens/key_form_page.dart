@@ -32,6 +32,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/kc_tokens.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/kc_logo.dart';
+import '../widgets/kc_window_header.dart';
 import '../widgets/kc_toast.dart';
 import '../widgets/key_card.dart' show toolConfigPathHint;
 
@@ -1180,43 +1181,17 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       if (platform != null) platform == PlatformType.custom ? (localizations?.custom ?? '自定义') : platform.value,
       if (_nameController.text.trim().isNotEmpty) _nameController.text.trim(),
     ].join(' · ');
-    return Container(
-      height: 56,
-      padding: const EdgeInsets.only(left: KcSpace.page, right: KcSpace.x4),
-      child: Row(
-        children: [
-          if (platform != null) ...[
-            KcPlatformLogo(platform: platform, customIconFileName: _selectedIcon, name: _nameController.text, size: 32, logoSize: 20),
-            const SizedBox(width: KcSpace.x3),
-          ],
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _isEditMode ? (localizations?.editKeyTitle ?? '编辑密钥') : (localizations?.addKeyTitle ?? '添加密钥'),
-                  key: const ValueKey('keyForm.title'),
-                  style: KcType.title.copyWith(color: shadTheme.colorScheme.foreground),
-                ),
-                if (subtitle.isNotEmpty)
-                  Text(subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: KcType.caption.copyWith(color: shadTheme.colorScheme.mutedForeground)),
-              ],
-            ),
-          ),
-          ShadButton.ghost(
-            key: const ValueKey('keyForm.close'),
-            width: 32,
-            height: 32,
-            padding: EdgeInsets.zero,
-            child: Icon(Icons.close, size: 20, color: shadTheme.colorScheme.mutedForeground),
-            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-          ),
-        ],
-      ),
+    // 统一顶栏：高 52，macOS 非全屏时内缩 96 给红绿灯让位（form_v3.md §0 / §10）
+    return KcWindowHeader(
+      key: const ValueKey('keyForm.header'),
+      title: _isEditMode ? (localizations?.editKeyTitle ?? '编辑密钥') : (localizations?.addKeyTitle ?? '添加密钥'),
+      titleKey: const ValueKey('keyForm.title'),
+      subtitle: subtitle,
+      leading: platform != null
+          ? KcPlatformLogo(platform: platform, customIconFileName: _selectedIcon, name: _nameController.text, size: 28, logoSize: 18)
+          : null,
+      closeKey: const ValueKey('keyForm.close'),
+      onClose: () => Navigator.of(context).popUntil((route) => route.isFirst),
     );
   }
 
