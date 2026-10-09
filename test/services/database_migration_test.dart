@@ -110,7 +110,7 @@ void main() {
   final service = DatabaseService.instance;
 
   test('schema version is 19', () {
-    expect(DatabaseService.schemaVersion, 19);
+    expect(DatabaseService.schemaVersion, 20);
   });
 
   test('upgrade v18 -> v19 creates mcp_server_apps (idempotent)', () async {
@@ -122,6 +122,29 @@ void main() {
     await service.runUpgradeForTest(db, 18, 19);
     expect(await _tables(db), contains('mcp_server_apps'));
     expect(await _columns(db, 'mcp_server_apps'), {'server_id', 'tool', 'created_at'});
+    await db.close();
+  });
+
+  test('upgrade v19 -> v20 adds skills source/hash columns and keeps rows', () async {
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, 15);
+    for (final c in ['source_repo', 'source_ref', 'source_subdir', 'content_hash']) {
+      await db.execute('ALTER TABLE skills DROP COLUMN $c');
+    }
+    await db.insert('skills', {
+      'skill_id': 'pdf',
+      'relative_path': 'pdf',
+      'name': 'pdf',
+      'created_at': '2026-01-01T00:00:00.000',
+      'updated_at': '2026-01-01T00:00:00.000',
+    });
+    await service.runUpgradeForTest(db, 19, 20);
+    await service.runUpgradeForTest(db, 19, 20);
+    expect(await _columns(db, 'skills'),
+        containsAll(['source_repo', 'source_ref', 'source_subdir', 'content_hash']));
+    final row = (await db.query('skills')).single;
+    expect(row['skill_id'], 'pdf');
+    expect(row['content_hash'], isNull);
     await db.close();
   });
 
@@ -282,6 +305,9 @@ void main() {
       ]),
     );
     expect(await _tables(db), isNot(contains('providers')));
+    // 该分支的 v14 没有 skills 表，v20 迁移会补建
+    expect(await _tables(db), contains('skills'));
+    expect(await _columns(db, 'skills'), contains('content_hash'));
     final rows = await db.query('ai_keys');
     expect(rows.single['key_value'], 'sk-early');
     await db.close();

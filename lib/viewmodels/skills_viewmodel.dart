@@ -5,6 +5,9 @@ import '../services/skills_database_service.dart';
 import '../services/skills_path_service.dart';
 import '../services/skills_store_service.dart';
 import '../services/skills_sync_service.dart';
+import '../services/skills/skills_backup_service.dart';
+import '../services/skills/skills_fs.dart';
+import '../services/skills/skills_market_service.dart';
 import 'base_viewmodel.dart';
 
 /// Skills 同步状态汇总
@@ -39,6 +42,8 @@ class SkillsViewModel extends BaseViewModel {
   final SkillsStoreService _storeService = SkillsStoreService();
   final SkillsSyncService _syncService = SkillsSyncService();
   final SkillsPathService _pathService = SkillsPathService();
+  final SkillsMarketService _marketService = SkillsMarketService();
+  final SkillsBackupService _backupService = SkillsBackupService();
 
   List<Skill> _allSkills = [];
   List<Skill> _filteredSkills = [];
@@ -252,22 +257,14 @@ class SkillsViewModel extends BaseViewModel {
     }) ?? false;
   }
 
+  /// 删除（卸载）Skill：移除各工具中的受管链接/副本，源目录移入 skill-backups 以便恢复。
+  /// [removeSymlinks] 为 false 时保留工具目录中的条目（仅移除 Key Core 记录与源目录备份）。
   Future<bool> deleteSkill(Skill skill, {bool removeSymlinks = true}) async {
     return await executeAsync(() async {
       if (removeSymlinks) {
-        for (final tool in skill.enabledTools) {
-          final toolPath = await _pathService.getSkillToolPath(tool, skill.relativePath);
-          final entityType = await FileSystemEntity.type(toolPath);
-          if (entityType == FileSystemEntityType.link) {
-            await Link(toolPath).delete();
-          }
-        }
+        await _syncService.removeSkillFromTools(skill);
       }
-
-      await _storeService.deleteSkillDirectory(skill.relativePath);
-      if (skill.id != null) {
-        await _databaseService.deleteSkill(skill.id!);
-      }
+      await _backupService.uninstall(skill, syncService: _NoopRemoveSync());
       await loadSkills(showLoading: false);
       return true;
     }) ?? false;
@@ -453,6 +450,108 @@ class SkillsViewModel extends BaseViewModel {
     }, showLoading: false);
   }
 
+  // ========== CC Switch 对齐：仓库 / skills.sh / ZIP / 备份 / 更新 / 同步方式 ==========
+
+  Future<SkillSyncMethod> getSyncMethod() => SkillsSyncService.getSyncMethod();
+
+  Future<void> setSyncMethod(SkillSyncMethod method) async {
+    await SkillsSyncService.setSyncMethod(method);
+    notifyListeners();
+  }
+
+  Future<List<SkillRepo>> getRepos() => _marketService.getRepos();
+
+  Future<List<SkillRepo>> addRepo(String input) async {
+    final repo = SkillRepo.parse(input);
+    if (repo == null) throw FormatException('无法识别的仓库: $input');
+    return _marketService.addRepo(repo);
+  }
+
+  Future<List<SkillRepo>> removeRepo(SkillRepo repo) => _marketService.removeRepo(repo.owner, repo.name);
+
+  Future<({List<RemoteSkill> skills, Map<String, String> errors})?> discoverRepoSkills() {
+    return executeAsync(() => _marketService.discoverAll());
+  }
+
+  Future<Skill?> installRemote(RemoteSkill remote, {List<SkillTargetTool> enabledTools = const []}) {
+    return executeAsync(() async {
+      final skill = await _marketService.installRemote(remote, enabledTools: enabledTools);
+      await _syncEnabled(enabledTools);
+      await loadSkills(showLoading: false);
+      return skill;
+    });
+  }
+
+  Future<List<SkillsShResult>?> searchSkillsSh(String query) {
+    return executeAsync(() => _marketService.searchSkillsSh(query));
+  }
+
+  Future<Skill?> installFromSkillsSh(SkillsShResult result, {List<SkillTargetTool> enabledTools = const []}) {
+    return executeAsync(() async {
+      final skill = await _marketService.installFromSkillsSh(result, enabledTools: enabledTools);
+      await _syncEnabled(enabledTools);
+      await loadSkills(showLoading: false);
+      return skill;
+    });
+  }
+
+  Future<List<Skill>?> installFromZip(String zipPath, {List<SkillTargetTool> enabledTools = const []}) {
+    return executeAsync(() async {
+      final skills = await _marketService.installFromZip(zipPath, enabledTools: enabledTools);
+      await _syncEnabled(enabledTools);
+      await loadSkills(showLoading: false);
+      return skills;
+    });
+  }
+
+  Future<List<SkillUpdateInfo>?> checkUpdates() => executeAsync(() => _marketService.checkUpdates());
+
+  Future<Skill?> updateFromRemote(Skill skill) {
+    return executeAsync(() async {
+      final updated = await _marketService.updateSkill(skill);
+      await _syncEnabled(updated.enabledTools);
+      await loadSkills(showLoading: false);
+      return updated;
+    });
+  }
+
+  Future<List<SkillBackupEntry>> listBackups() => _backupService.listBackups();
+
+  Future<Skill?> restoreBackup(SkillBackupEntry entry) {
+    return executeAsync(() async {
+      final skill = await _backupService.restore(entry);
+      await _syncEnabled(skill.enabledTools);
+      await loadSkills(showLoading: false);
+      return skill;
+    });
+  }
+
+  Future<void> deleteBackup(SkillBackupEntry entry) => _backupService.deleteBackup(entry);
+
+  Future<Map<SkillTargetTool, SkillImportSummary>?> importFromAllTools() {
+    return executeAsync(() async {
+      final result = await _syncService.importFromAllTools();
+      await loadSkills(showLoading: false);
+      return result;
+    });
+  }
+
+  Future<String> getStorageLocation() => _pathService.getStorageLocation();
+
+  Future<({int moved, int skipped})?> migrateStorage(String location) {
+    return executeAsync(() async {
+      final result = await _syncService.migrateStorage(location);
+      await loadSkills(showLoading: false);
+      return result;
+    });
+  }
+
+  Future<void> _syncEnabled(Iterable<SkillTargetTool> tools) async {
+    for (final tool in tools.toSet()) {
+      await _syncService.syncToTool(tool);
+    }
+  }
+
   Future<void> _reconcileFilesystemWithDatabase() async {
     final scanned = await _storeService.scanSkills();
     final existing = await _databaseService.getAllSkills();
@@ -476,6 +575,12 @@ class SkillsViewModel extends BaseViewModel {
       );
     }
   }
+}
+
+/// deleteSkill 已自行决定是否移除工具条目，备份时不再重复处理
+class _NoopRemoveSync extends SkillsSyncService {
+  @override
+  Future<void> removeSkillFromTools(Skill skill) async {}
 }
 
 extension _FirstOrNull<T> on Iterable<T> {

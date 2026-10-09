@@ -4,6 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:reorderables/reorderables.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../models/skill.dart';
+import '../../services/skills/skills_backup_service.dart';
+import '../../services/skills/skills_fs.dart';
+import '../../services/skills/skills_market_service.dart';
+import '../../services/skills_path_service.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/skills_viewmodel.dart';
 import '../widgets/confirm_dialog.dart';
@@ -200,6 +204,22 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                       tooltip: localizations?.skillsImport ?? 'Import',
                       onPressed: () => _importFromFolder(context, viewModel),
                       shadTheme: shadTheme,
+                    ),
+                    _divider(shadTheme),
+                    PopupMenuButton<String>(
+                      tooltip: '更多 Skills 功能',
+                      icon: Icon(Icons.storefront_outlined, size: 18, color: shadTheme.colorScheme.primary),
+                      onSelected: (v) => _onMarketAction(context, viewModel, v),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'repos', child: Text('从仓库发现并安装')),
+                        PopupMenuItem(value: 'skillssh', child: Text('搜索 skills.sh')),
+                        PopupMenuItem(value: 'zip', child: Text('从 ZIP 安装')),
+                        PopupMenuItem(value: 'importAll', child: Text('从所有工具导入未管理的 Skill')),
+                        PopupMenuItem(value: 'updates', child: Text('检查更新')),
+                        PopupMenuItem(value: 'backups', child: Text('卸载备份与恢复')),
+                        PopupMenuItem(value: 'method', child: Text('同步方式')),
+                        PopupMenuItem(value: 'storage', child: Text('存储位置')),
+                      ],
                     ),
                     _divider(shadTheme),
                     _toolbarButton(
@@ -751,5 +771,367 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
         ),
       ),
     );
+  }
+
+  // ========== CC Switch 对齐的 Skills 功能（最小 UI 入口） ==========
+
+  void _toast(BuildContext context, String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _toastResult(BuildContext context, SkillsViewModel vm, String success, Object? result) {
+    _toast(context, result == null ? '失败：${vm.errorMessage ?? '未知错误'}' : success);
+  }
+
+  Future<List<SkillTargetTool>> _installTargets() => SkillsPathService().detectInstalledTools();
+
+  Future<void> _onMarketAction(BuildContext context, SkillsViewModel vm, String action) async {
+    switch (action) {
+      case 'repos':
+        await _showRepoDialog(context, vm);
+      case 'skillssh':
+        await _showSkillsShDialog(context, vm);
+      case 'zip':
+        final picked = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: const ['zip', 'skill'],
+        );
+        final file = picked?.files.single.path;
+        if (file == null || !context.mounted) return;
+        final result = await vm.installFromZip(file, enabledTools: await _installTargets());
+        if (!context.mounted) return;
+        _toastResult(context, vm, '已安装 ${result?.length ?? 0} 个 Skill', result);
+      case 'importAll':
+        final result = await vm.importFromAllTools();
+        if (!context.mounted) return;
+        final imported = result?.values.fold<int>(0, (a, b) => a + b.imported) ?? 0;
+        final skipped = result?.values.fold<int>(0, (a, b) => a + b.skipped) ?? 0;
+        _toastResult(context, vm, '已导入 $imported 个，跳过 $skipped 个', result);
+      case 'updates':
+        await _showUpdatesDialog(context, vm);
+      case 'backups':
+        await _showBackupsDialog(context, vm);
+      case 'method':
+        await _showSyncMethodDialog(context, vm);
+      case 'storage':
+        await _showStorageDialog(context, vm);
+    }
+  }
+
+  Future<void> _showRepoDialog(BuildContext context, SkillsViewModel vm) async {
+    final repoController = TextEditingController();
+    var repos = await vm.getRepos();
+    List<RemoteSkill>? remote;
+    Map<String, String> errors = const {};
+    var loading = false;
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Skills 仓库'),
+          content: SizedBox(
+            width: 560,
+            height: 480,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: repoController,
+                      decoration: const InputDecoration(hintText: 'owner/name 或 GitHub 地址（可加 @分支）'),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      try {
+                        repos = await vm.addRepo(repoController.text);
+                        repoController.clear();
+                        setDialogState(() {});
+                      } catch (e) {
+                        if (ctx.mounted) _toast(ctx, '$e');
+                      }
+                    },
+                    child: const Text('添加'),
+                  ),
+                ]),
+                Wrap(
+                  spacing: 6,
+                  children: repos
+                      .map((r) => InputChip(
+                            label: Text(r.branch == null ? r.fullName : '${r.fullName}@${r.branch}'),
+                            onDeleted: () async {
+                              repos = await vm.removeRepo(r);
+                              setDialogState(() {});
+                            },
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 8),
+                if (loading) const LinearProgressIndicator(),
+                if (errors.isNotEmpty)
+                  Text(errors.entries.map((e) => '${e.key}: ${e.value}').join('\n'),
+                      style: const TextStyle(color: Colors.red, fontSize: 12)),
+                Expanded(
+                  child: remote == null
+                      ? const Center(child: Text('点击“发现”从启用的仓库下载并列出 Skill'))
+                      : ListView(
+                          children: remote!
+                              .map((r) => ListTile(
+                                    dense: true,
+                                    title: Text(r.name),
+                                    subtitle: Text(
+                                      '${r.repo.fullName}/${r.subdir}\n${r.description ?? ''}',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: r.installed
+                                        ? const Text('已安装')
+                                        : TextButton(
+                                            onPressed: () async {
+                                              final s = await vm.installRemote(r,
+                                                  enabledTools: await _installTargets());
+                                              if (!ctx.mounted) return;
+                                              _toastResult(ctx, vm, '已安装 ${r.name}', s);
+                                            },
+                                            child: const Text('安装'),
+                                          ),
+                                  ))
+                              .toList(),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: loading
+                  ? null
+                  : () async {
+                      setDialogState(() => loading = true);
+                      final result = await vm.discoverRepoSkills();
+                      setDialogState(() {
+                        loading = false;
+                        remote = result?.skills ?? const [];
+                        errors = result?.errors ?? {'': vm.errorMessage ?? ''};
+                      });
+                    },
+              child: const Text('发现'),
+            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
+          ],
+        ),
+      ),
+    );
+    repoController.dispose();
+  }
+
+  Future<void> _showSkillsShDialog(BuildContext context, SkillsViewModel vm) async {
+    final queryController = TextEditingController();
+    List<SkillsShResult> results = const [];
+    var loading = false;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> search() async {
+            if (queryController.text.trim().isEmpty) return;
+            setDialogState(() => loading = true);
+            final r = await vm.searchSkillsSh(queryController.text.trim());
+            setDialogState(() {
+              loading = false;
+              results = r ?? const [];
+            });
+            if (r == null && ctx.mounted) _toast(ctx, '搜索失败：${vm.errorMessage}');
+          }
+
+          return AlertDialog(
+            title: const Text('搜索 skills.sh'),
+            content: SizedBox(
+              width: 520,
+              height: 420,
+              child: Column(children: [
+                TextField(
+                  controller: queryController,
+                  decoration: const InputDecoration(hintText: '关键词，回车搜索'),
+                  onSubmitted: (_) => search(),
+                ),
+                if (loading) const LinearProgressIndicator(),
+                Expanded(
+                  child: ListView(
+                    children: results
+                        .map((r) => ListTile(
+                              dense: true,
+                              title: Text(r.name),
+                              subtitle: Text('${r.source} · ${r.installs} 次安装'),
+                              trailing: TextButton(
+                                onPressed: () async {
+                                  final s = await vm.installFromSkillsSh(r,
+                                      enabledTools: await _installTargets());
+                                  if (!ctx.mounted) return;
+                                  _toastResult(ctx, vm, '已安装 ${r.name}', s);
+                                },
+                                child: const Text('安装'),
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ]),
+            ),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))],
+          );
+        },
+      ),
+    );
+    queryController.dispose();
+  }
+
+  Future<void> _showUpdatesDialog(BuildContext context, SkillsViewModel vm) async {
+    final infos = await vm.checkUpdates();
+    if (!context.mounted) return;
+    if (infos == null) {
+      _toast(context, '检查更新失败：${vm.errorMessage}');
+      return;
+    }
+    if (infos.isEmpty) {
+      _toast(context, '没有从仓库安装的 Skill');
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Skill 更新'),
+        content: SizedBox(
+          width: 480,
+          child: ListView(
+            shrinkWrap: true,
+            children: infos
+                .map((i) => ListTile(
+                      dense: true,
+                      title: Text(i.skill.name),
+                      subtitle: Text(i.error ??
+                          (i.hasUpdate
+                              ? (i.locallyModified ? '有更新（本地已修改，更新前会自动备份）' : '有更新')
+                              : '已是最新')),
+                      trailing: i.hasUpdate
+                          ? TextButton(
+                              onPressed: () async {
+                                final s = await vm.updateFromRemote(i.skill);
+                                if (!ctx.mounted) return;
+                                _toastResult(ctx, vm, '已更新 ${i.skill.name}', s);
+                              },
+                              child: const Text('更新'),
+                            )
+                          : null,
+                    ))
+                .toList(),
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))],
+      ),
+    );
+  }
+
+  Future<void> _showBackupsDialog(BuildContext context, SkillsViewModel vm) async {
+    var backups = await vm.listBackups();
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('卸载备份'),
+          content: SizedBox(
+            width: 480,
+            child: backups.isEmpty
+                ? const Text('暂无备份')
+                : ListView(
+                    shrinkWrap: true,
+                    children: backups
+                        .map((SkillBackupEntry b) => ListTile(
+                              dense: true,
+                              title: Text(b.skillName),
+                              subtitle: Text('${b.reason == 'update' ? '更新前' : '卸载'} · ${b.createdAt.toLocal()}'),
+                              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                                TextButton(
+                                  onPressed: () async {
+                                    final s = await vm.restoreBackup(b);
+                                    backups = await vm.listBackups();
+                                    setDialogState(() {});
+                                    if (!ctx.mounted) return;
+                                    _toastResult(ctx, vm, '已恢复 ${b.skillName}', s);
+                                  },
+                                  child: const Text('恢复'),
+                                ),
+                                TextButton(
+                                  onPressed: () async {
+                                    await vm.deleteBackup(b);
+                                    backups = await vm.listBackups();
+                                    setDialogState(() {});
+                                  },
+                                  child: const Text('删除'),
+                                ),
+                              ]),
+                            ))
+                        .toList(),
+                  ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showSyncMethodDialog(BuildContext context, SkillsViewModel vm) async {
+    final current = await vm.getSyncMethod();
+    if (!context.mounted) return;
+    const labels = {
+      SkillSyncMethod.auto: '自动（优先符号链接，失败时复制）',
+      SkillSyncMethod.symlink: '仅符号链接',
+      SkillSyncMethod.copy: '复制',
+    };
+    final picked = await showDialog<SkillSyncMethod>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Skills 同步方式'),
+        children: SkillSyncMethod.values
+            .map((m) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, m),
+                  child: Text('${m == current ? '● ' : '○ '}${labels[m]}'),
+                ))
+            .toList(),
+      ),
+    );
+    if (picked == null || picked == current) return;
+    await vm.setSyncMethod(picked);
+    if (!context.mounted) return;
+    await _syncAllSkills(context, vm);
+  }
+
+  Future<void> _showStorageDialog(BuildContext context, SkillsViewModel vm) async {
+    final current = await vm.getStorageLocation();
+    if (!context.mounted) return;
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Skills 存储位置'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'keycore'),
+            child: Text('${current == 'keycore' ? '● ' : '○ '}~/.keycore/skills（默认）'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'agents'),
+            child: Text('${current == 'agents' ? '● ' : '○ '}~/.agents/skills（与 CC Switch 共用）'),
+          ),
+        ],
+      ),
+    );
+    if (picked == null || picked == current) return;
+    final result = await vm.migrateStorage(picked);
+    if (!context.mounted) return;
+    _toastResult(context, vm, '已迁移 ${result?.moved ?? 0} 个 Skill', result);
   }
 }

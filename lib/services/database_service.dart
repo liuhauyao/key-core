@@ -39,7 +39,8 @@ class DatabaseService {
   ///   回到以密钥为唯一实体的设计。版本号只增不减，避免 v16 的数据库被静默降级。
   /// - v18：`ai_keys.claude_code_config`（Claude Code 的密钥字段名与供应商专属 env）。
   /// - v19：`mcp_server_apps`（MCP 服务按工具启用的关系表）。
-  static const int schemaVersion = 19;
+  /// - v20：`skills` 增加来源仓库与内容哈希（source_repo/source_ref/source_subdir/content_hash）。
+  static const int schemaVersion = 20;
 
   /// MCP 服务 × 工具 启用关系（主键 server_id + tool；删除服务时一并删除）
   static const String mcpServerAppsDdl = '''
@@ -275,6 +276,10 @@ class DatabaseService {
         sort_order INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1,
         source_tool TEXT,
+        source_repo TEXT,
+        source_ref TEXT,
+        source_subdir TEXT,
+        content_hash TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -514,6 +519,18 @@ class DatabaseService {
     }
     if (oldVersion < 19) {
       await db.execute(mcpServerAppsDdl);
+    }
+    if (oldVersion < 20) {
+      // 早期 PR #5 分支的 v14 数据库没有 skills 表（main 在 v13 才创建），这里补建
+      final hasSkills = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='skills'",
+      );
+      if (hasSkills.isEmpty) {
+        await _createSkillsTable(db);
+      }
+      for (final col in ['source_repo', 'source_ref', 'source_subdir', 'content_hash']) {
+        await _addColumnIfNotExists(db, 'skills', col, 'TEXT');
+      }
     }
   }
 
