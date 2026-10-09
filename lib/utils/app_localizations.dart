@@ -19,6 +19,66 @@ class AppLocalizations {
 
   static final Map<String, Map<String, String>> _localizedValues = {
     'zh': {
+      // ===== CC Switch 风格：供应商 / 工具切换 / 配置备份 =====
+      'nav_providers': '供应商',
+      'providers_tab_list': '供应商列表',
+      'providers_tab_tools': '工具切换',
+      'providers_tab_backups': '配置备份',
+      'providers_search': '搜索供应商...',
+      'providers_add': '添加供应商',
+      'providers_edit': '编辑供应商',
+      'providers_empty': '还没有供应商',
+      'providers_empty_hint': '从预设快速创建，或添加自定义供应商',
+      'providers_preset': '预设供应商',
+      'providers_custom': '自定义',
+      'providers_name': '名称',
+      'providers_endpoint': 'API 地址',
+      'providers_api_key': 'API Key',
+      'providers_api_key_keep': '留空则保持原有 API Key',
+      'providers_get_api_key': '获取 API Key',
+      'providers_default_model': '默认模型',
+      'providers_supported_tools': '适用工具',
+      'providers_website': '官网',
+      'providers_description': '描述',
+      'providers_name_required': '请输入供应商名称',
+      'providers_api_key_required': '请输入 API Key',
+      'providers_tools_required': '请至少选择一个工具',
+      'providers_saved': '供应商已保存',
+      'providers_save_failed': '保存失败：{error}',
+      'providers_deleted': '供应商已删除',
+      'providers_delete_confirm': '确定删除供应商"{name}"吗？已写入工具的配置不会被修改。',
+      'providers_key_set': 'API Key 已设置',
+      'providers_key_missing': '未设置 API Key',
+      'providers_encrypted_notice': 'API Key 使用主密码加密存储',
+      'providers_plain_notice': '未设置主密码，API Key 将以明文存储。建议在设置中设置主密码。',
+      'providers_type_official': '官方',
+      'providers_type_relay': '中转',
+      'providers_type_custom': '自定义',
+      'providers_enable': '启用',
+      'providers_disable': '停用',
+      'providers_disabled': '已停用',
+      'providers_in_use_by': '使用中：{tools}',
+      'providers_refresh': '刷新',
+      'providers_models_count': '{count} 个模型',
+      'tools_current_provider': '当前供应商',
+      'tools_not_set': '未通过 Key Core 设置',
+      'tools_config_file': '配置文件',
+      'tools_live_model': '当前模型',
+      'tools_live_endpoint': '当前地址',
+      'tools_config_missing': '配置文件尚不存在，切换时会自动创建',
+      'tools_no_providers': '没有适用于该工具的已启用供应商',
+      'tools_switch': '启用',
+      'tools_in_use': '使用中',
+      'tools_switch_success': '已将 {tool} 切换到 {provider}，重启 {tool} 后生效',
+      'tools_switch_failed': '切换失败：{error}',
+      'tools_hint': '一键把供应商写入工具的配置文件；写入前会自动备份，只修改与供应商相关的字段。',
+      'backups_desc': '每次切换前都会自动备份工具的配置文件（每个文件保留最近 10 份）。恢复前也会先备份当前配置。',
+      'backups_empty': '暂无备份',
+      'backups_restore': '恢复',
+      'backups_restore_title': '恢复配置',
+      'backups_restore_confirm': '确定将 {tool} 的配置恢复到 {time} 的备份吗？当前配置会先自动备份。',
+      'backups_restored': '配置已恢复',
+      'backups_restore_failed': '恢复失败：{error}',
       'app_name': '密枢',
       'settings': '设置',
       'master_password': '主密码',
@@ -484,6 +544,66 @@ class AppLocalizations {
       'mcp_status_only_tool': '仅工具',
     },
     'en': {
+      // ===== CC Switch style: providers / tool switch / backups =====
+      'nav_providers': 'Providers',
+      'providers_tab_list': 'Providers',
+      'providers_tab_tools': 'Tool Switch',
+      'providers_tab_backups': 'Backups',
+      'providers_search': 'Search providers...',
+      'providers_add': 'Add Provider',
+      'providers_edit': 'Edit Provider',
+      'providers_empty': 'No providers yet',
+      'providers_empty_hint': 'Create one from a preset or add a custom provider',
+      'providers_preset': 'Presets',
+      'providers_custom': 'Custom',
+      'providers_name': 'Name',
+      'providers_endpoint': 'API Endpoint',
+      'providers_api_key': 'API Key',
+      'providers_api_key_keep': 'Leave blank to keep the current key',
+      'providers_get_api_key': 'Get API Key',
+      'providers_default_model': 'Default Model',
+      'providers_supported_tools': 'Supported Tools',
+      'providers_website': 'Website',
+      'providers_description': 'Description',
+      'providers_name_required': 'Please enter a provider name',
+      'providers_api_key_required': 'Please enter an API key',
+      'providers_tools_required': 'Select at least one tool',
+      'providers_saved': 'Provider saved',
+      'providers_save_failed': 'Save failed: {error}',
+      'providers_deleted': 'Provider deleted',
+      'providers_delete_confirm': 'Delete provider "{name}"? Configs already written to tools are not changed.',
+      'providers_key_set': 'API key set',
+      'providers_key_missing': 'No API key',
+      'providers_encrypted_notice': 'API keys are encrypted with your master password',
+      'providers_plain_notice': 'No master password set: API keys are stored in plain text. Set one in Settings.',
+      'providers_type_official': 'Official',
+      'providers_type_relay': 'Relay',
+      'providers_type_custom': 'Custom',
+      'providers_enable': 'Enable',
+      'providers_disable': 'Disable',
+      'providers_disabled': 'Disabled',
+      'providers_in_use_by': 'In use: {tools}',
+      'providers_refresh': 'Refresh',
+      'providers_models_count': '{count} models',
+      'tools_current_provider': 'Current provider',
+      'tools_not_set': 'Not set via Key Core',
+      'tools_config_file': 'Config file',
+      'tools_live_model': 'Current model',
+      'tools_live_endpoint': 'Current endpoint',
+      'tools_config_missing': 'Config file not found; it will be created on switch',
+      'tools_no_providers': 'No enabled provider supports this tool',
+      'tools_switch': 'Use',
+      'tools_in_use': 'In use',
+      'tools_switch_success': 'Switched {tool} to {provider}. Restart {tool} to apply.',
+      'tools_switch_failed': 'Switch failed: {error}',
+      'tools_hint': 'Write a provider into a tool config in one click. A backup is made first and only provider fields are changed.',
+      'backups_desc': 'A backup is created automatically before each switch (latest 10 kept per file). Restoring also backs up the current config first.',
+      'backups_empty': 'No backups yet',
+      'backups_restore': 'Restore',
+      'backups_restore_title': 'Restore Config',
+      'backups_restore_confirm': 'Restore {tool} config from the backup made at {time}? The current config is backed up first.',
+      'backups_restored': 'Config restored',
+      'backups_restore_failed': 'Restore failed: {error}',
       'app_name': 'Key Core',
       'settings': 'Settings',
       'master_password': 'Master Password',
@@ -926,9 +1046,72 @@ class AppLocalizations {
     if (_jsonTranslations != null && _jsonTranslations!.containsKey(key)) {
       return _jsonTranslations![key]!;
     }
-    // 回退到硬编码的翻译
-    return _localizedValues[locale.languageCode]?[key] ?? key;
+    // 回退到硬编码的翻译；当前语言缺失时回退到英文，避免界面直接显示 key
+    return _localizedValues[locale.languageCode]?[key] ??
+        _localizedValues['en']?[key] ??
+        key;
   }
+
+  // ===== 供应商 / 工具切换 / 配置备份 =====
+  String get navProviders => translate('nav_providers');
+  String get providersTabList => translate('providers_tab_list');
+  String get providersTabTools => translate('providers_tab_tools');
+  String get providersTabBackups => translate('providers_tab_backups');
+  String get providersSearch => translate('providers_search');
+  String get providersAdd => translate('providers_add');
+  String get providersEdit => translate('providers_edit');
+  String get providersEmpty => translate('providers_empty');
+  String get providersEmptyHint => translate('providers_empty_hint');
+  String get providersPreset => translate('providers_preset');
+  String get providersCustom => translate('providers_custom');
+  String get providersName => translate('providers_name');
+  String get providersEndpoint => translate('providers_endpoint');
+  String get providersApiKey => translate('providers_api_key');
+  String get providersApiKeyKeep => translate('providers_api_key_keep');
+  String get providersGetApiKey => translate('providers_get_api_key');
+  String get providersDefaultModel => translate('providers_default_model');
+  String get providersSupportedTools => translate('providers_supported_tools');
+  String get providersWebsite => translate('providers_website');
+  String get providersDescription => translate('providers_description');
+  String get providersNameRequired => translate('providers_name_required');
+  String get providersApiKeyRequired => translate('providers_api_key_required');
+  String get providersToolsRequired => translate('providers_tools_required');
+  String get providersSaved => translate('providers_saved');
+  String providersSaveFailed(String error) => translate('providers_save_failed').replaceAll('{error}', error);
+  String get providersDeleted => translate('providers_deleted');
+  String providersDeleteConfirm(String name) => translate('providers_delete_confirm').replaceAll('{name}', name);
+  String get providersKeySet => translate('providers_key_set');
+  String get providersKeyMissing => translate('providers_key_missing');
+  String get providersEncryptedNotice => translate('providers_encrypted_notice');
+  String get providersPlainNotice => translate('providers_plain_notice');
+  String get providersTypeOfficial => translate('providers_type_official');
+  String get providersTypeRelay => translate('providers_type_relay');
+  String get providersTypeCustom => translate('providers_type_custom');
+  String get providersEnable => translate('providers_enable');
+  String get providersDisable => translate('providers_disable');
+  String get providersDisabled => translate('providers_disabled');
+  String providersInUseBy(String tools) => translate('providers_in_use_by').replaceAll('{tools}', tools);
+  String get providersRefresh => translate('providers_refresh');
+  String providersModelsCount(String count) => translate('providers_models_count').replaceAll('{count}', count);
+  String get toolsCurrentProvider => translate('tools_current_provider');
+  String get toolsNotSet => translate('tools_not_set');
+  String get toolsConfigFile => translate('tools_config_file');
+  String get toolsLiveModel => translate('tools_live_model');
+  String get toolsLiveEndpoint => translate('tools_live_endpoint');
+  String get toolsConfigMissing => translate('tools_config_missing');
+  String get toolsNoProviders => translate('tools_no_providers');
+  String get toolsSwitch => translate('tools_switch');
+  String get toolsInUse => translate('tools_in_use');
+  String toolsSwitchSuccess(String tool, String provider) => translate('tools_switch_success').replaceAll('{tool}', tool).replaceAll('{provider}', provider);
+  String toolsSwitchFailed(String error) => translate('tools_switch_failed').replaceAll('{error}', error);
+  String get toolsHint => translate('tools_hint');
+  String get backupsDesc => translate('backups_desc');
+  String get backupsEmpty => translate('backups_empty');
+  String get backupsRestore => translate('backups_restore');
+  String get backupsRestoreTitle => translate('backups_restore_title');
+  String backupsRestoreConfirm(String tool, String time) => translate('backups_restore_confirm').replaceAll('{tool}', tool).replaceAll('{time}', time);
+  String get backupsRestored => translate('backups_restored');
+  String backupsRestoreFailed(String error) => translate('backups_restore_failed').replaceAll('{error}', error);
 
   String get appName => translate('app_name');
   String get settings => translate('settings');
@@ -1558,7 +1741,7 @@ class AppLocalizations {
   /// 清除所有已加载的语言包缓存（用于配置更新后重新加载）
   static void clearLoadedPacksCache() {
     _AppLocalizationsDelegate._loadedPacks.clear();
-    print('AppLocalizations: 已清除所有语言包缓存');
+    debugPrint('AppLocalizations: 已清除所有语言包缓存');
   }
 }
 
@@ -1614,7 +1797,7 @@ class _AppLocalizationsDelegate
     
     // 只在加载失败时打印错误日志
     if (jsonTranslations == null) {
-      print('AppLocalizations.load: ❌ 加载语言包失败: $fullLocaleCode');
+      debugPrint('AppLocalizations.load: ❌ 加载语言包失败: $fullLocaleCode');
     }
     
     // 创建 AppLocalizations 实例，传入 JSON 翻译

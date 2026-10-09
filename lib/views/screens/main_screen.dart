@@ -15,6 +15,7 @@ import 'openclaw_config_screen.dart';
 import 'mcp_config_screen.dart';
 import 'skills_config_screen.dart';
 import 'settings_screen.dart';
+import 'providers_screen.dart';
 import '../widgets/first_launch_dialog.dart';
 import '../../models/ai_key.dart';
 import '../../models/platform_type.dart';
@@ -391,6 +392,8 @@ class _MainScreenState extends State<MainScreen> {
                           switch (app) {
                             case AppType.keyManager:
                               return _buildKeyManagerPage(context, viewModel);
+                            case AppType.providers:
+                              return const ProvidersScreen();
                             case AppType.claudeCode:
                               return ClaudeConfigScreen(key: _claudeConfigScreenKey);
                             case AppType.codex:

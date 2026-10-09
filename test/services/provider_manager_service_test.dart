@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:key_core/services/provider_manager_service.dart';
-import 'package:key_core/models/provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
