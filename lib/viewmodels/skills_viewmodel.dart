@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
@@ -44,6 +45,15 @@ class SkillsViewModel extends BaseViewModel {
   final SkillsSyncService _syncService = SkillsSyncService();
   final SkillsPathService _pathService = SkillsPathService();
   final SkillsMarketService _marketService = SkillsMarketService();
+
+  /// 释放仓库下载的临时解压目录
+  Future<void> clearMarketDownloadCache() => _marketService.clearDownloadCache();
+
+  @override
+  void dispose() {
+    unawaited(_marketService.clearDownloadCache());
+    super.dispose();
+  }
   final SkillsBackupService _backupService = SkillsBackupService();
 
   List<Skill> _allSkills = [];
