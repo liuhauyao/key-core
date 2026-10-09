@@ -69,7 +69,7 @@ class _McpImportDialogState extends State<McpImportDialog> {
     });
 
     try {
-      final servers = await _syncService.readMcpServersFromTool(_selectedTool!);
+      final servers = (await _syncService.readMcpServersFromTool(_selectedTool!)).servers;
       
       setState(() {
         _toolServers = servers;
