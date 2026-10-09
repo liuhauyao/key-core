@@ -37,7 +37,7 @@ flutter pub get > /dev/null 2>&1
 
 # 构建 Release 版本
 echo "构建 Windows Release 版本..."
-flutter build windows --release
+flutter build windows --release --dart-define=KC_EDITION=oss
 
 # 检查构建产物
 EXE_PATH="build/windows/runner/Release/key_core.exe"

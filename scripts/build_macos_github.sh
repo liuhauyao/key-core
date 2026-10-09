@@ -41,7 +41,8 @@ BUILD_SUCCESS=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$BUILD_SUCCESS" = false ]; do
     echo "    尝试 $((RETRY_COUNT + 1))/$MAX_RETRIES..."
-    if flutter build macos --release > /tmp/flutter_build.log 2>&1; then
+    # 开源版：KC_EDITION=oss（GitHub Releases 应用内更新，lib/config/edition.dart）
+    if flutter build macos --release --dart-define=KC_EDITION=oss > /tmp/flutter_build.log 2>&1; then
         BUILD_SUCCESS=true
     else
         RETRY_COUNT=$((RETRY_COUNT + 1))

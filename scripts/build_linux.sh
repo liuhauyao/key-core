@@ -37,7 +37,7 @@ flutter pub get > /dev/null 2>&1
 
 # 构建 Release 版本
 echo "构建 Linux Release 版本..."
-flutter build linux --release
+flutter build linux --release --dart-define=KC_EDITION=oss
 
 # 检查构建产物
 BUNDLE_DIR="build/linux/x64/release/bundle"
