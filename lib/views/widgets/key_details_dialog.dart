@@ -10,6 +10,8 @@ import '../../utils/app_localizations.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../../models/model_info.dart';
 import 'kc_logo.dart';
+import 'kc_toast.dart';
+import '../../services/tool_providers/tool_provider_service.dart';
 import 'kc_segmented.dart';
 import 'model_card.dart';
 import 'key_card.dart' show enabledToolsOf, toolConfigPathHint, toolModelOf;
@@ -554,6 +556,10 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
             ],
           ]),
         ),
+        if (_key.id != null) ...[
+          const SizedBox(height: KcSpace.x6),
+          NewToolsSection(key: ValueKey('newTools.${_key.id}'), aiKey: _key, viewModel: widget.viewModel),
+        ],
         if (_key.notes != null && _key.notes!.trim().isNotEmpty) ...[
           const SizedBox(height: KcSpace.x6),
           Text(l?.notes ?? '备注', style: KcType.section.copyWith(color: cs.foreground)),
@@ -677,5 +683,159 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
         ],
       ),
     );
+  }
+}
+
+
+/// 「更多工具」：OpenCode / Grok Build / Hermes / Pi / MiniMax Code（数据层见 ToolProviderService，PR #27）。
+/// 开关 = 按密钥启用（setKeyToolConfig）；「写入」= applyKeyToTool；「移除」= removeKeyFromTool；
+/// Grok Build 是切换型工具，额外提供「切回官方」。
+class NewToolsSection extends StatefulWidget {
+  const NewToolsSection({super.key, required this.aiKey, required this.viewModel});
+  final AIKey aiKey;
+  final KeyManagerViewModel viewModel;
+
+  @override
+  State<NewToolsSection> createState() => _NewToolsSectionState();
+}
+
+class _NewToolsSectionState extends State<NewToolsSection> {
+  final Map<AiToolType, bool> _applied = {};
+  final Map<AiToolType, bool> _isDefault = {};
+  final Set<AiToolType> _busy = {};
+  late Map<String, Map<String, dynamic>> _configs = widget.aiKey.toolConfigs;
+
+  int get _id => widget.aiKey.id!;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    for (final t in ToolProviderService.tools) {
+      try {
+        final ids = await widget.viewModel.getToolAppliedKeyIds(t);
+        final def = await widget.viewModel.getToolDefaultKeyId(t);
+        if (!mounted) return;
+        setState(() {
+          _applied[t] = ids.contains(_id);
+          _isDefault[t] = def == _id;
+        });
+      } catch (_) {
+        // 工具未安装 / 配置不可读：保持未写入状态
+      }
+    }
+  }
+
+  Future<void> _run(AiToolType t, Future<bool> Function() op) async {
+    setState(() => _busy.add(t));
+    final ok = await op();
+    if (!mounted) return;
+    setState(() => _busy.remove(t));
+    if (!ok) {
+      final l = AppLocalizations.of(context);
+      showKcToast(context, widget.viewModel.lastToolProviderError ?? (l?.tr('write_failed', '写入失败') ?? '写入失败'),
+          kind: KcToastKind.error);
+    }
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final l = AppLocalizations.of(context);
+    String t(String k, String f) => l?.tr(k, f) ?? f;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(t('more_tools', '更多工具'), style: KcType.section.copyWith(color: cs.foreground)),
+      const SizedBox(height: KcSpace.x1),
+      Text(t('more_tools_hint', '开关 = 为该工具启用这把密钥；「写入」把它加入工具配置（Grok Build 为切换型，写入即设为当前）'),
+          style: KcType.caption.copyWith(color: cs.mutedForeground)),
+      const SizedBox(height: KcSpace.x2),
+      Container(
+        key: const ValueKey('newTools.table'),
+        decoration: BoxDecoration(border: Border.all(color: cs.border), borderRadius: BorderRadius.circular(KcRadius.panel)),
+        child: Column(children: [
+          for (final (i, tool) in ToolProviderService.tools.indexed) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: cs.border),
+            Builder(builder: (context) {
+              final enabled = _configs[tool.value]?['enabled'] == true;
+              final applied = _applied[tool] ?? false;
+              final isDef = _isDefault[tool] ?? false;
+              final busy = _busy.contains(tool);
+              final status = isDef
+                  ? (t('status_active', '生效中'), kc.okText, kc.okSoft)
+                  : applied
+                      ? (t('status_written', '已写入'), kc.actionText, kc.actionSoft)
+                      : null;
+              return SizedBox(
+                key: ValueKey('newTools.row.${tool.value}'),
+                height: 48,
+                child: Row(children: [
+                  const SizedBox(width: KcSpace.x3),
+                  KcToolLogo(tool: tool, size: 22),
+                  const SizedBox(width: 10),
+                  Text(kcToolName(tool), style: KcType.strong.copyWith(color: cs.foreground)),
+                  if (status != null) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      height: 20,
+                      padding: const EdgeInsets.symmetric(horizontal: 7),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(color: status.$3, borderRadius: BorderRadius.circular(999)),
+                      child: Text(status.$1, style: KcType.badge.copyWith(color: status.$2)),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (busy)
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  else ...[
+                    if (tool == AiToolType.grokBuild && isDef)
+                      ShadButton.ghost(
+                        key: const ValueKey('newTools.grokOfficial'),
+                        height: 28,
+                        onPressed: () => _run(tool, widget.viewModel.switchGrokBuildToOfficial),
+                        child: Text(t('switch_to_official', '切回官方')),
+                      )
+                    else if (applied)
+                      ShadButton.ghost(
+                        key: ValueKey('newTools.remove.${tool.value}'),
+                        height: 28,
+                        onPressed: () => _run(tool, () => widget.viewModel.removeKeyFromTool(tool, _id)),
+                        child: Text(t('remove_from_tool', '移除')),
+                      )
+                    else
+                      ShadButton.outline(
+                        key: ValueKey('newTools.apply.${tool.value}'),
+                        height: 28,
+                        onPressed: enabled ? () => _run(tool, () => widget.viewModel.applyKeyToTool(tool, _id)) : null,
+                        child: Text(t('apply_to_tool', '写入')),
+                      ),
+                    const SizedBox(width: 6),
+                    Switch.adaptive(
+                      key: ValueKey('newTools.enable.${tool.value}'),
+                      value: enabled,
+                      onChanged: (v) => _run(tool, () async {
+                        final ok = await widget.viewModel.setKeyToolConfig(_id, tool, enabled: v);
+                        if (ok) {
+                          setState(() => _configs = {
+                                ..._configs,
+                                tool.value: {...?_configs[tool.value], 'enabled': v},
+                              });
+                        }
+                        return ok;
+                      }),
+                    ),
+                  ],
+                  const SizedBox(width: KcSpace.x2),
+                ]),
+              );
+            }),
+          ],
+        ]),
+      ),
+    ]);
   }
 }
