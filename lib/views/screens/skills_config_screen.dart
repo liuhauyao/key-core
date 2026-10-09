@@ -735,12 +735,12 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
   void _toast(BuildContext context, String message, {bool error = false}) {
     if (!mounted) return;
     // 「…失败：…」类消息按错误样式显示
-    final isError = error || message.contains('失败');
+    final isError = error;
     showKcToast(context, message, kind: isError ? KcToastKind.error : KcToastKind.success);
   }
 
   void _toastResult(BuildContext context, SkillsViewModel vm, String success, Object? result) {
-    _toast(context, result == null ? '失败：${vm.errorMessage ?? '未知错误'}' : success, error: result == null);
+    _toast(context, result == null ? '${_l(context, 'op_failed', '失败')}：${vm.errorMessage ?? _l(context, 'unknown_error', '未知错误')}' : success, error: result == null);
   }
 
   Future<List<SkillTargetTool>> _installTargets() => SkillsPathService().detectInstalledTools();
@@ -789,13 +789,13 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
         if (file == null || !context.mounted) return;
         final result = await vm.installFromZip(file, enabledTools: await _installTargets());
         if (!context.mounted) return;
-        _toastResult(context, vm, '已安装 ${result?.length ?? 0} 个 Skill', result);
+        _toastResult(context, vm, _l(context, 'skills_installed_n', '已安装 {n} 个 Skill').replaceAll('{n}', '${result?.length ?? 0}'), result);
       case 'importAll':
         final result = await vm.importFromAllTools();
         if (!context.mounted) return;
         final imported = result?.values.fold<int>(0, (a, b) => a + b.imported) ?? 0;
         final skipped = result?.values.fold<int>(0, (a, b) => a + b.skipped) ?? 0;
-        _toastResult(context, vm, '已导入 $imported 个，跳过 $skipped 个', result);
+        _toastResult(context, vm, _l(context, 'skills_imported_n', '已导入 {a} 个，跳过 {b} 个').replaceAll('{a}', '${imported}').replaceAll('{b}', '${skipped}'), result);
       case 'updates':
         await _showUpdatesDialog(context, vm);
       case 'backups':
@@ -818,7 +818,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Skills 仓库'),
+          title: Text(_l(context, 'skills_repos', 'Skills 仓库')),
           content: SizedBox(
             width: 560,
             height: 480,
@@ -829,7 +829,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                   Expanded(
                     child: TextField(
                       controller: repoController,
-                      decoration: const InputDecoration(hintText: 'owner/name 或 GitHub 地址（可加 @分支）'),
+                      decoration: InputDecoration(hintText: _l(context, 'skills_repo_hint', 'owner/name 或 GitHub 地址（可加 @分支）')),
                     ),
                   ),
                   TextButton(
@@ -842,7 +842,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                         if (ctx.mounted) _toast(ctx, '$e', error: true);
                       }
                     },
-                    child: const Text('添加'),
+                    child: Text(_l(context, 'add', '添加')),
                   ),
                 ]),
                 Wrap(
@@ -864,7 +864,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                       style: const TextStyle(color: Colors.red, fontSize: 12)),
                 Expanded(
                   child: remote == null
-                      ? const Center(child: Text('点击“发现”从启用的仓库下载并列出 Skill'))
+                      ? Center(child: Text(_l(context, 'skills_discover_hint', '点击“发现”从启用的仓库下载并列出 Skill')))
                       : ListView(
                           children: remote!
                               .map((r) => ListTile(
@@ -876,15 +876,15 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     trailing: r.installed
-                                        ? const Text('已安装')
+                                        ? Text(_l(context, 'installed', '已安装'))
                                         : TextButton(
                                             onPressed: () async {
                                               final s = await vm.installRemote(r,
                                                   enabledTools: await _installTargets());
                                               if (!ctx.mounted) return;
-                                              _toastResult(ctx, vm, '已安装 ${r.name}', s);
+                                              _toastResult(ctx, vm, _l(context, 'installed_x', '已安装 {x}').replaceAll('{x}', '${r.name}'), s);
                                             },
-                                            child: const Text('安装'),
+                                            child: Text(_l(context, 'install', '安装')),
                                           ),
                                   ))
                               .toList(),
@@ -906,9 +906,9 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                         errors = result?.errors ?? {'': vm.errorMessage ?? ''};
                       });
                     },
-              child: const Text('发现'),
+              child: Text(_l(context, 'discover', '发现')),
             ),
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_l(context, 'close_btn', '关闭'))),
           ],
         ),
       ),
@@ -932,18 +932,18 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
               loading = false;
               results = r ?? const [];
             });
-            if (r == null && ctx.mounted) _toast(ctx, '搜索失败：${vm.errorMessage}');
+            if (r == null && ctx.mounted) _toast(ctx, '${_l(context, 'search_failed', '搜索失败')}：${vm.errorMessage}');
           }
 
           return AlertDialog(
-            title: const Text('搜索 skills.sh'),
+            title: Text(_l(context, 'skills_menu_skillssh', '搜索 skills.sh')),
             content: SizedBox(
               width: 520,
               height: 420,
               child: Column(children: [
                 TextField(
                   controller: queryController,
-                  decoration: const InputDecoration(hintText: '关键词，回车搜索'),
+                  decoration: InputDecoration(hintText: _l(context, 'keyword_enter_search', '关键词，回车搜索')),
                   onSubmitted: (_) => search(),
                 ),
                 if (loading) const LinearProgressIndicator(),
@@ -953,15 +953,15 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                         .map((r) => ListTile(
                               dense: true,
                               title: Text(r.name),
-                              subtitle: Text('${r.source} · ${r.installs} 次安装'),
+                              subtitle: Text('${r.source} · ${_l(context, 'n_installs', '{n} 次安装').replaceAll('{n}', '${r.installs}')}'),
                               trailing: TextButton(
                                 onPressed: () async {
                                   final s = await vm.installFromSkillsSh(r,
                                       enabledTools: await _installTargets());
                                   if (!ctx.mounted) return;
-                                  _toastResult(ctx, vm, '已安装 ${r.name}', s);
+                                  _toastResult(ctx, vm, _l(context, 'installed_x', '已安装 {x}').replaceAll('{x}', '${r.name}'), s);
                                 },
-                                child: const Text('安装'),
+                                child: Text(_l(context, 'install', '安装')),
                               ),
                             ))
                         .toList(),
@@ -969,7 +969,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                 ),
               ]),
             ),
-            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))],
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_l(context, 'close_btn', '关闭')))],
           );
         },
       ),
@@ -981,17 +981,17 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     final infos = await vm.checkUpdates();
     if (!context.mounted) return;
     if (infos == null) {
-      _toast(context, '检查更新失败：${vm.errorMessage}');
+      _toast(context, '${_l(context, 'update_failed_check', '检查更新失败')}：${vm.errorMessage}');
       return;
     }
     if (infos.isEmpty) {
-      _toast(context, '没有从仓库安装的 Skill');
+      _toast(context, _l(context, 'skills_none_from_repo', '没有从仓库安装的 Skill'));
       return;
     }
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Skill 更新'),
+        title: Text(_l(context, 'skills_updates_title', 'Skill 更新')),
         content: SizedBox(
           width: 480,
           child: ListView(
@@ -1002,23 +1002,23 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                       title: Text(i.skill.name),
                       subtitle: Text(i.error ??
                           (i.hasUpdate
-                              ? (i.locallyModified ? '有更新（本地已修改，更新前会自动备份）' : '有更新')
-                              : '已是最新')),
+                              ? (i.locallyModified ? _l(context, 'skills_update_modified', '有更新（本地已修改，更新前会自动备份）') : _l(context, 'update_available_short', '有更新'))
+                              : _l(context, 'up_to_date', '已是最新'))),
                       trailing: i.hasUpdate
                           ? TextButton(
                               onPressed: () async {
                                 final s = await vm.updateFromRemote(i.skill);
                                 if (!ctx.mounted) return;
-                                _toastResult(ctx, vm, '已更新 ${i.skill.name}', s);
+                                _toastResult(ctx, vm, _l(context, 'updated_x', '已更新 {x}').replaceAll('{x}', '${i.skill.name}'), s);
                               },
-                              child: const Text('更新'),
+                              child: Text(_l(context, 'update_btn', '更新')),
                             )
                           : null,
                     ))
                 .toList(),
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_l(context, 'close_btn', '关闭')))],
       ),
     );
   }
@@ -1030,18 +1030,18 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('卸载备份'),
+          title: Text(_l(context, 'skills_backups_title', '卸载备份')),
           content: SizedBox(
             width: 480,
             child: backups.isEmpty
-                ? const Text('暂无备份')
+                ? Text(_l(context, 'no_backups', '暂无备份'))
                 : ListView(
                     shrinkWrap: true,
                     children: backups
                         .map((SkillBackupEntry b) => ListTile(
                               dense: true,
                               title: Text(b.skillName),
-                              subtitle: Text('${b.reason == 'update' ? '更新前' : '卸载'} · ${b.createdAt.toLocal()}'),
+                              subtitle: Text('${b.reason == 'update' ? _l(context, 'backup_before_update', '更新前') : _l(context, 'backup_uninstall', '卸载')} · ${b.createdAt.toLocal()}'),
                               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                                 TextButton(
                                   onPressed: () async {
@@ -1049,9 +1049,9 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                                     backups = await vm.listBackups();
                                     setDialogState(() {});
                                     if (!ctx.mounted) return;
-                                    _toastResult(ctx, vm, '已恢复 ${b.skillName}', s);
+                                    _toastResult(ctx, vm, _l(context, 'restored_x', '已恢复 {x}').replaceAll('{x}', '${b.skillName}'), s);
                                   },
-                                  child: const Text('恢复'),
+                                  child: Text(_l(context, 'restore', '恢复')),
                                 ),
                                 TextButton(
                                   onPressed: () async {
@@ -1059,14 +1059,14 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                                     backups = await vm.listBackups();
                                     setDialogState(() {});
                                   },
-                                  child: const Text('删除'),
+                                  child: Text(_l(context, 'delete_btn', '删除')),
                                 ),
                               ]),
                             ))
                         .toList(),
                   ),
           ),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))],
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_l(context, 'close_btn', '关闭')))],
         ),
       ),
     );
@@ -1075,15 +1075,15 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
   Future<void> _showSyncMethodDialog(BuildContext context, SkillsViewModel vm) async {
     final current = await vm.getSyncMethod();
     if (!context.mounted) return;
-    const labels = {
-      SkillSyncMethod.auto: '自动（优先符号链接，失败时复制）',
-      SkillSyncMethod.symlink: '仅符号链接',
-      SkillSyncMethod.copy: '复制',
+    final labels = {
+      SkillSyncMethod.auto: _l(context, 'sync_method_auto', '自动（优先符号链接，失败时复制）'),
+      SkillSyncMethod.symlink: _l(context, 'sync_method_symlink', '仅符号链接'),
+      SkillSyncMethod.copy: _l(context, 'sync_method_copy', '复制'),
     };
     final picked = await showDialog<SkillSyncMethod>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Skills 同步方式'),
+        title: Text(_l(context, 'skills_sync_method_title', 'Skills 同步方式')),
         children: SkillSyncMethod.values
             .map((m) => SimpleDialogOption(
                   onPressed: () => Navigator.pop(ctx, m),
@@ -1104,15 +1104,15 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     final picked = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Skills 存储位置'),
+        title: Text(_l(context, 'skills_storage_title', 'Skills 存储位置')),
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 'keycore'),
-            child: Text('${current == 'keycore' ? '● ' : '○ '}~/.keycore/skills（默认）'),
+            child: Text('${current == 'keycore' ? '● ' : '○ '}~/.keycore/skills（${_l(context, 'default_label', '默认')}）'),
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 'agents'),
-            child: Text('${current == 'agents' ? '● ' : '○ '}~/.agents/skills（与 CC Switch 共用）'),
+            child: Text('${current == 'agents' ? '● ' : '○ '}~/.agents/skills（${_l(context, 'shared_with_ccswitch', '与 CC Switch 共用')}）'),
           ),
         ],
       ),
@@ -1120,6 +1120,8 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     if (picked == null || picked == current) return;
     final result = await vm.migrateStorage(picked);
     if (!context.mounted) return;
-    _toastResult(context, vm, '已迁移 ${result?.moved ?? 0} 个 Skill', result);
+    _toastResult(context, vm, _l(context, 'skills_migrated_n', '已迁移 {n} 个 Skill').replaceAll('{n}', '${result?.moved ?? 0}'), result);
   }
 }
+
+String _l(BuildContext c, String k, String zh) => AppLocalizations.of(c)?.tr(k, zh) ?? zh;

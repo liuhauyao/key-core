@@ -26,7 +26,7 @@ class _PromptsView extends StatelessWidget {
   const _PromptsView();
 
   void _toast(BuildContext context, PromptsViewModel vm, bool ok, String success) {
-    showKcToast(context, ok ? success : '失败：${vm.errorMessage ?? '未知错误'}', kind: ok ? KcToastKind.success : KcToastKind.error);
+    showKcToast(context, ok ? success : '${_l(context, 'op_failed', '失败')}：${vm.errorMessage ?? _l(context, 'unknown_error', '未知错误')}', kind: ok ? KcToastKind.success : KcToastKind.error);
   }
 
   Future<void> _edit(BuildContext context, PromptsViewModel vm, [Prompt? prompt]) async {
@@ -35,29 +35,29 @@ class _PromptsView extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(prompt == null ? '新建提示词' : '编辑提示词'),
+        title: Text(prompt == null ? _l(context, 'prompt_new', '新建提示词') : _l(context, 'prompt_edit', '编辑提示词')),
         content: SizedBox(
           width: 640,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: name, decoration: const InputDecoration(labelText: '名称')),
+            TextField(controller: name, decoration: InputDecoration(labelText: _l(context, 'name_label', '名称'))),
             const SizedBox(height: 12),
             TextField(
               controller: content,
               minLines: 12,
               maxLines: 20,
-              decoration: const InputDecoration(labelText: '内容（Markdown）', alignLabelWithHint: true),
+              decoration: InputDecoration(labelText: _l(context, 'content_md', '内容（Markdown）'), alignLabelWithHint: true),
             ),
           ]),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('保存')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_l(context, 'cancel_btn', '取消'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(_l(context, 'save_btn', '保存'))),
         ],
       ),
     );
     if (ok == true && name.text.trim().isNotEmpty && context.mounted) {
       final saved = await vm.save(id: prompt?.id, name: name.text.trim(), content: content.text);
-      if (context.mounted) _toast(context, vm, saved, '已保存');
+      if (context.mounted) _toast(context, vm, saved, _l(context, 'saved', '已保存'));
     }
     name.dispose();
     content.dispose();
@@ -71,16 +71,16 @@ class _PromptsView extends StatelessWidget {
         title: AppLocalizations.of(context)?.tr('prompts_title', '系统提示词') ?? '系统提示词',
         actions: [
           IconButton(
-            tooltip: '从当前文件导入',
+            tooltip: _l(context, 'prompt_import_current', '从当前文件导入'),
             icon: const Icon(Icons.file_download_outlined),
             onPressed: vm.liveFileExists
                 ? () async {
                     final ok = await vm.importFromFile();
-                    if (context.mounted) _toast(context, vm, ok, '已导入');
+                    if (context.mounted) _toast(context, vm, ok, _l(context, 'imported', '已导入'));
                   }
                 : null,
           ),
-          IconButton(tooltip: '新建', icon: const Icon(Icons.add), onPressed: () => _edit(context, vm)),
+          IconButton(tooltip: _l(context, 'new_btn', '新建'), icon: const Icon(Icons.add), onPressed: () => _edit(context, vm)),
         ],
         onClose: () => Navigator.of(context).pop(),
       ),
@@ -106,7 +106,7 @@ class _PromptsView extends StatelessWidget {
           if (vm.isLoading) const LinearProgressIndicator(),
           Expanded(
             child: vm.prompts.isEmpty
-                ? const Center(child: Text('暂无提示词。启用某条提示词后，它会写入上面的文件。'))
+                ? Center(child: Text(_l(context, 'prompts_empty', '暂无提示词。启用某条提示词后，它会写入上面的文件。')))
                 : ListView(
                     children: vm.prompts
                         .map((p) => ListTile(
@@ -120,23 +120,23 @@ class _PromptsView extends StatelessWidget {
                                 value: p.enabled,
                                 onChanged: (v) async {
                                   final ok = await vm.setEnabled(p, v);
-                                  if (context.mounted) _toast(context, vm, ok, v ? '已启用并写入文件' : '已停用');
+                                  if (context.mounted) _toast(context, vm, ok, v ? _l(context, 'prompt_enabled_written', '已启用并写入文件') : _l(context, 'disabled', '已停用'));
                                 },
                               ),
                               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                                 IconButton(
-                                  tooltip: '编辑',
+                                  tooltip: _l(context, 'edit_btn', '编辑'),
                                   icon: const Icon(Icons.edit_outlined),
                                   onPressed: () => _edit(context, vm, p),
                                 ),
                                 IconButton(
-                                  tooltip: p.enabled ? '启用中的提示词不能删除' : '删除',
+                                  tooltip: p.enabled ? _l(context, 'prompt_cant_delete_enabled', '启用中的提示词不能删除') : _l(context, 'delete_btn', '删除'),
                                   icon: const Icon(Icons.delete_outline),
                                   onPressed: p.enabled
                                       ? null
                                       : () async {
                                           final ok = await vm.delete(p);
-                                          if (context.mounted) _toast(context, vm, ok, '已删除');
+                                          if (context.mounted) _toast(context, vm, ok, _l(context, 'deleted', '已删除'));
                                         },
                                 ),
                               ]),
@@ -149,3 +149,5 @@ class _PromptsView extends StatelessWidget {
     );
   }
 }
+
+String _l(BuildContext c, String k, String zh) => AppLocalizations.of(c)?.tr(k, zh) ?? zh;
