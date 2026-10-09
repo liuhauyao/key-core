@@ -1538,7 +1538,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                 showKcToast(context, localizations.minimizeToTrayEnabled, kind: KcToastKind.success);
               }
             },
-            activeColor: shadTheme.colorScheme.primary,
+            activeTrackColor: shadTheme.colorScheme.primary,
           ),
         ),
         isLast: true,
@@ -1923,7 +1923,7 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
                   }
                 }
               },
-                activeColor: shadTheme.colorScheme.primary,
+                activeTrackColor: shadTheme.colorScheme.primary,
               ),
             ),
           ],

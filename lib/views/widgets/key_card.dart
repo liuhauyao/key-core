@@ -1047,7 +1047,7 @@ class _KeyCardState extends State<KeyCard> {
     if (widget.onToggle != null) {
       return Transform.scale(
         scale: 0.75,
-        child: Switch(value: widget.isCurrent, onChanged: widget.onToggle, activeColor: cs.primary),
+        child: Switch(value: widget.isCurrent, onChanged: widget.onToggle, activeTrackColor: cs.primary),
       );
     }
     final showActions = _isHovering || _menuOpen;

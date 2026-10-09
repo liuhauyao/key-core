@@ -71,6 +71,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mcpCard.toggle')));
     await tester.pump();
     expect(toggled, isFalse);
+    // 开启态：只给轨道上主色，滑块保持默认白色（之前 activeColor=主色 → 滑块与轨道同色，看起来没有滑块）
+    final sw = tester.widget<Switch>(find.byKey(const ValueKey('mcpCard.toggle')));
+    expect(sw.activeTrackColor, isNotNull);
+    expect(sw.activeThumbColor, isNull);
 
     await _pump(tester, _grid([McpCard(server: _mcp('github', 'GitHub'), isEditMode: true)], 140));
     expect(find.byKey(const ValueKey('mcpCard.dragHandle')), findsOneWidget);

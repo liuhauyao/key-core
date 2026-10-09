@@ -141,7 +141,7 @@ class _McpCardState extends State<McpCard> {
                       key: const ValueKey('mcpCard.toggle'),
                       value: widget.server.isActive,
                       onChanged: (value) => widget.onToggleActive?.call(value),
-                      activeColor: cs.primary,
+                      activeTrackColor: cs.primary,
                       inactiveThumbColor: Colors.white,
                       inactiveTrackColor: cs.border,
                       trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),

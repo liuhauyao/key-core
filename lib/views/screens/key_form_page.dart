@@ -1952,7 +1952,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                       }
                     });
                   },
-                  activeColor: shadTheme.colorScheme.primary,
+                  activeTrackColor: shadTheme.colorScheme.primary,
                 ),
               ),
             ],
@@ -2088,7 +2088,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                       }
                     });
                   },
-                  activeColor: shadTheme.colorScheme.primary,
+                  activeTrackColor: shadTheme.colorScheme.primary,
                 ),
               ),
             ],
@@ -2184,7 +2184,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                       _enableGemini = value;
                     });
                   },
-                  activeColor: shadTheme.colorScheme.primary,
+                  activeTrackColor: shadTheme.colorScheme.primary,
                 ),
               ),
             ],
@@ -2257,7 +2257,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                     }
                   });
                 },
-                activeColor: shadTheme.colorScheme.primary,
+                activeTrackColor: shadTheme.colorScheme.primary,
               ),
             ),
           ],
@@ -2349,7 +2349,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                     }
                   });
                 },
-                activeColor: shadTheme.colorScheme.primary,
+                activeTrackColor: shadTheme.colorScheme.primary,
               ),
             ),
           ],

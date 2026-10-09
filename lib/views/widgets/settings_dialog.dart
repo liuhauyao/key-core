@@ -532,7 +532,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 showKcToast(context, localizations.minimizeToTrayEnabled, kind: KcToastKind.success);
               }
             },
-            activeThumbColor: shadTheme.colorScheme.primary,
+            activeTrackColor: shadTheme.colorScheme.primary,
           ),
         ),
         isLast: true,

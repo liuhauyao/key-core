@@ -117,7 +117,7 @@ class _SkillCardState extends State<SkillCard> {
                           child: Switch(
                             value: isActive,
                             onChanged: widget.onToggleActive,
-                            activeColor: shadTheme.colorScheme.primary,
+                            activeTrackColor: shadTheme.colorScheme.primary,
                             inactiveThumbColor: Colors.white,
                             inactiveTrackColor: shadTheme.colorScheme.border,
                             trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),

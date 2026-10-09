@@ -242,7 +242,7 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
                         child: Switch(
                           value: isEnabled,
                           onChanged: isValid || !isEnabled ? _handleToggle : null,
-                          activeColor: shadTheme.colorScheme.primary,
+                          activeTrackColor: shadTheme.colorScheme.primary,
                         ),
                       ),
                   ],
