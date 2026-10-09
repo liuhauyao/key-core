@@ -7,6 +7,7 @@ import '../../viewmodels/settings_viewmodel.dart';
 import '../../services/auth_service.dart';
 import '../../services/region_filter_service.dart';
 import '../../utils/app_localizations.dart';
+import 'kc_toast.dart';
 import 'master_password_dialog.dart';
 
 /// 设置对话框 - 简洁方格设计
@@ -371,12 +372,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             isZh,
             () {
               settingsViewModel.setLanguage('zh');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(localizations.languageChangedSuccess),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              showKcToast(context, localizations.languageChangedSuccess, kind: KcToastKind.success);
             },
           ),
           _buildSegmentedItem(
@@ -385,12 +381,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             !isZh,
             () {
               settingsViewModel.setLanguage('en');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(localizations.languageChangedSuccess),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              showKcToast(context, localizations.languageChangedSuccess, kind: KcToastKind.success);
             },
           ),
         ],
@@ -538,15 +529,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
             onChanged: (value) async {
               await settingsViewModel.setMinimizeToTray(value);
               if (value && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(localizations.minimizeToTrayEnabled),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
+                showKcToast(context, localizations.minimizeToTrayEnabled, kind: KcToastKind.success);
               }
             },
-            activeThumbColor: shadTheme.colorScheme.primary,
+            activeTrackColor: shadTheme.colorScheme.primary,
           ),
         ),
         isLast: true,
@@ -848,13 +834,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
         if (context.mounted) {
           final localizations = AppLocalizations.of(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(localizations?.configDirSet(selectedDirectory) ??
-                  '已设置配置目录: $selectedDirectory'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          showKcToast(context, localizations?.configDirSet(selectedDirectory) ??
+                  '已设置配置目录: $selectedDirectory', kind: KcToastKind.success);
         }
       } else {
         print('SettingsDialog: file_picker 返回 null（用户可能取消了选择或对话框未显示）');
@@ -866,14 +847,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
       if (context.mounted) {
         final localizations = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.browseDirectoryFailed(e.toString()) ??
-                '选择目录失败: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showKcToast(context, localizations?.browseDirectoryFailed(e.toString()) ??
+                '选择目录失败: $e', kind: KcToastKind.error);
       }
     }
   }
@@ -981,12 +956,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   });
 
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(value ? '已启用中国大陆地区过滤' : '已禁用中国大陆地区过滤'),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+                    showKcToast(context, value ? '已启用中国大陆地区过滤' : '已禁用中国大陆地区过滤', kind: KcToastKind.success);
 
                     // 如果启用了过滤，刷新应用状态
                     if (value && widget.onRefresh != null) {
@@ -995,12 +965,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   }
                 } catch (e) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('设置地区过滤失败'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
+                    showKcToast(context, '设置地区过滤失败', kind: KcToastKind.success);
                   }
                 }
               },

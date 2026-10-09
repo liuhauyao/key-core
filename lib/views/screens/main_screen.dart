@@ -60,7 +60,6 @@ class _MainScreenState extends State<MainScreen> {
   AppType _activeApp = AppType.keyManager;
   SettingsCategory _settingsCategory = SettingsCategory.general;
   _KeySegment _segment = _KeySegment.all;
-  bool _previousLoadingState = false;
   int? _lastRefreshedPageIndex; // 记录上次刷新的页面索引，避免重复刷新
   int? _targetPageIndex; // 记录目标页面索引，用于区分中间页面和目标页面
   final ScrollController _keyListScrollController = ScrollController();
@@ -182,6 +181,10 @@ class _MainScreenState extends State<MainScreen> {
         final currentPage = _pageController.page?.round();
         if (currentPage == pageIndex) {
           _lastRefreshedPageIndex = pageIndex;
+          // 动画结束再兜底触发一次首次加载：PageView 不保活，页面滑出后 State 会被重建，
+          // 只靠 onPageChanged 时可能拿到旧的 / 尚未挂载的 State，导致工具页显示「暂无密钥」直到手动刷新。
+          // refresh() 在已加载过时是空操作，不会重复读取。
+          _triggerPageLoad(pageIndex);
         }
       }
       // 只有当这是最新的目标页面时才清除标记
@@ -301,39 +304,6 @@ class _MainScreenState extends State<MainScreen> {
         builder: (context, viewModel, child) {
           final localizations = AppLocalizations.of(context);
           
-          // 只在状态从 false 变为 true 时显示一次通知
-          if (viewModel.isLoading && !_previousLoadingState) {
-            _previousLoadingState = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(localizations?.loading ?? '加载中...'),
-                      ],
-                    ),
-                    duration: const Duration(seconds: 1),
-                    backgroundColor: Colors.black87,
-                  ),
-                );
-              }
-            });
-          } else if (!viewModel.isLoading) {
-            _previousLoadingState = false;
-          }
           
           return SafeArea(
             top: false, // macOS 沉浸式标题栏：不预留顶部安全区域
@@ -521,7 +491,6 @@ class _MainScreenState extends State<MainScreen> {
           ),
           const SizedBox(width: KcSpace.x3),
           Expanded(
-            flex: 2,
             child: Text(
               localizations?.keyGridSubtitle(all.length, inUse) ?? '${all.length} 个密钥 · $inUse 个正被工具使用',
               maxLines: 1,
@@ -530,11 +499,10 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           const SizedBox(width: KcSpace.x2),
-          Flexible(
-            flex: 3,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 240),
-              child: ShadInput(
+          // 搜索框固定 240 宽、靠右；之前 Flexible 的剩余空间不会被重分配，导致右侧空出一大块
+          SizedBox(
+            width: 240,
+            child: ShadInput(
               key: const ValueKey('keyGrid.search'),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               style: KcType.body,
@@ -551,7 +519,6 @@ class _MainScreenState extends State<MainScreen> {
                       child: Icon(Icons.close, size: 14, color: cs.mutedForeground),
                     )
                   : null,
-              ),
             ),
           ),
           const SizedBox(width: KcSpace.x2),
@@ -1039,29 +1006,16 @@ class _MainScreenState extends State<MainScreen> {
     );
 
     if (result != null) {
-      // 保存 ScaffoldMessenger 引用，避免异步操作后 context 失效
-      final scaffoldMessenger = ScaffoldMessenger.of(context);
       final success = await viewModel.updateKey(result);
       if (!mounted) return; // 检查 widget 是否仍然挂载
       if (success) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(localizations?.keyUpdatedSuccess ?? '密钥更新成功'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showKcToast(this.context, localizations?.keyUpdatedSuccess ?? '密钥更新成功', kind: KcToastKind.success);
         // 强制刷新 ClaudeCode、Codex 和 Gemini 页面（因为更新了密钥）
         _claudeConfigScreenKey.currentState?.refresh(force: true);
         _codexConfigScreenKey.currentState?.refresh(force: true);
         _geminiConfigScreenKey.currentState?.refresh(force: true);
       } else {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(viewModel.errorMessage ?? (localizations?.updateFailed ?? '更新失败')),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showKcToast(this.context, viewModel.errorMessage ?? (localizations?.updateFailed ?? '更新失败'), kind: KcToastKind.error);
       }
     }
   }

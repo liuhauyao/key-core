@@ -11,6 +11,7 @@ import '../../utils/mcp_comparison.dart';
 import '../../services/clipboard_service.dart';
 import '../../services/url_launcher_service.dart';
 import '../../views/widgets/confirm_dialog.dart';
+import '../widgets/kc_toast.dart';
 import 'dart:convert';
 
 /// MCP 同步页面
@@ -314,16 +315,8 @@ class _McpSyncPageState extends State<McpSyncPage> {
         });
         
         // 显示成功通知
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              localizations?.mcpSyncComplete(exportCount, importCount, deleteCount, failedCount) ??
-                  '同步完成：导出 $exportCount 个，导入 $importCount 个，删除 $deleteCount 个${failedCount > 0 ? '，失败 $failedCount 个' : ''}',
-            ),
-            duration: const Duration(seconds: 3),
-            backgroundColor: failedCount > 0 ? Colors.orange : Colors.green,
-          ),
-        );
+        showKcToast(context, localizations?.mcpSyncComplete(exportCount, importCount, deleteCount, failedCount) ??
+                  '同步完成：导出 $exportCount 个，导入 $importCount 个，删除 $deleteCount 个${failedCount > 0 ? '，失败 $failedCount 个' : ''}', kind: failedCount > 0 ? KcToastKind.warning : KcToastKind.success);
         
         // 如果需要关闭窗口
         if (closeAfterSave) {
@@ -343,15 +336,7 @@ class _McpSyncPageState extends State<McpSyncPage> {
           _isLoading = false;
         });
         // 显示失败通知
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              localizations?.mcpSyncFailed(e.toString()) ?? '同步失败: $e',
-            ),
-            duration: const Duration(seconds: 3),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showKcToast(context, localizations?.mcpSyncFailed(e.toString()) ?? '同步失败: $e', kind: KcToastKind.error);
       }
       return false;
     }
@@ -1385,11 +1370,7 @@ class _McpSyncPageState extends State<McpSyncPage> {
                 onPressed: () {
                   ClipboardService().copyToClipboard(jsonConfig);
                   final loc = AppLocalizations.of(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(loc?.mcpJsonCopied ?? 'JSON配置已复制'),
-                    ),
-                  );
+                  showKcToast(context, loc?.mcpJsonCopied ?? 'JSON配置已复制', kind: KcToastKind.success);
                 },
                 child: Icon(
                   Icons.copy_outlined,

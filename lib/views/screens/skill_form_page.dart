@@ -5,6 +5,7 @@ import '../../models/skill.dart';
 import '../../services/skill_parser_service.dart';
 import '../../services/skills_path_service.dart';
 import '../../utils/app_localizations.dart';
+import '../widgets/kc_toast.dart';
 import '../../viewmodels/skills_viewmodel.dart';
 
 /// 技能模板
@@ -455,9 +456,7 @@ class _SkillFormPageState extends State<SkillFormPage> {
     final description = _descriptionController.text.trim();
 
     if (skillId.isEmpty || name.isEmpty || description.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations?.skillsValidationRequired ?? 'Please fill required fields')),
-      );
+      showKcToast(context, localizations?.skillsValidationRequired ?? 'Please fill required fields', kind: KcToastKind.success);
       return;
     }
 
@@ -500,9 +499,7 @@ class _SkillFormPageState extends State<SkillFormPage> {
     if (success) {
       Navigator.of(context).pop(true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(viewModel.errorMessage ?? localizations?.skillsSaveFailed ?? 'Save failed')),
-      );
+      showKcToast(context, viewModel.errorMessage ?? localizations?.skillsSaveFailed ?? 'Save failed', kind: KcToastKind.success);
     }
   }
 }

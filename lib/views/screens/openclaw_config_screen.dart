@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -41,6 +42,18 @@ class OpenClawConfigScreen extends StatefulWidget {
 }
 
 class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
+  Timer? _selfLoadTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // PageView 不保活：页面滑出后 State 会被重建，而外部 refresh() 只在翻页回调里触发，
+    // 重建后的 State 可能等不到首次加载（表现为「暂无密钥」直到手动点刷新）。
+    // 停留超过一次翻页动画（300ms）仍挂载 → 视为真正可见，自行触发首次加载；路过的页面已销毁，不会加载。
+    _selfLoadTimer = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) refresh();
+    });
+  }
   final OpenClawConfigService _service = OpenClawConfigService();
 
   bool _isLoading = false;
@@ -64,6 +77,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
 
   @override
   void dispose() {
+    _selfLoadTimer?.cancel();
     _viewModel?.removeListener(_onViewModelChanged);
     _viewModel = null;
     super.dispose();

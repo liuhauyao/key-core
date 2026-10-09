@@ -8,6 +8,7 @@ import '../../services/first_launch_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/macos_bookmark_service.dart';
 import '../../utils/app_localizations.dart';
+import 'kc_toast.dart';
 import '../../models/mcp_server.dart';
 
 /// 首次启动配置目录选择对话框
@@ -91,13 +92,7 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('开启工具失败: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showKcToast(context, '开启工具失败: $e', kind: KcToastKind.error);
       }
     } finally {
       if (mounted) {
@@ -173,13 +168,7 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
               if (!saved) {
                 print('FirstLaunchDialog: 保存 Security-Scoped Bookmark 失败，可能需要重新授权');
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('保存权限失败，请重试'),
-                      backgroundColor: Colors.orange,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
+                  showKcToast(context, '保存权限失败，请重试', kind: KcToastKind.warning);
                 }
               } else {
                 print('FirstLaunchDialog: Security-Scoped Bookmark 已保存: $selectedHomeDir');
@@ -216,16 +205,8 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
     } catch (e) {
       if (mounted) {
         final localizations = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              localizations?.browseDirectoryFailed(e.toString()) ?? 
-                  '访问目录失败: $e',
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showKcToast(context, localizations?.browseDirectoryFailed(e.toString()) ?? 
+                  '访问目录失败: $e', kind: KcToastKind.error);
       }
     } finally {
       if (mounted) {

@@ -4,6 +4,7 @@ import '../../services/auth_service.dart';
 import '../../services/crypt_service.dart';
 import '../../utils/password_generator.dart';
 import '../../utils/app_localizations.dart';
+import 'kc_toast.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 
 /// 主密码设置对话框
@@ -97,9 +98,7 @@ class _MasterPasswordDialogState extends State<MasterPasswordDialog> {
         if (mounted) {
           Navigator.pop(context, true);
           final localizations = AppLocalizations.of(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(localizations?.masterPasswordCleared ?? '已清除主密码，密钥将以明文存储')),
-          );
+          showKcToast(context, localizations?.masterPasswordCleared ?? '已清除主密码，密钥将以明文存储', kind: KcToastKind.success);
         }
         return;
       }
@@ -130,12 +129,7 @@ class _MasterPasswordDialogState extends State<MasterPasswordDialog> {
         final message = !hadPasswordBefore
             ? (localizations?.masterPasswordSetSuccess ?? '主密码设置成功，已加密所有密钥')
             : (localizations?.masterPasswordSetSuccess ?? '主密码设置成功');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.green,
-          ),
-        );
+        showKcToast(context, message, kind: KcToastKind.success);
       }
     } catch (e) {
       setState(() {

@@ -3,6 +3,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../models/model_info.dart';
 import '../../services/clipboard_service.dart';
 import '../../utils/app_localizations.dart';
+import 'kc_toast.dart';
 import 'model_card.dart';
 
 /// 模型列表对话框
@@ -60,9 +61,7 @@ class _ModelListDialogState extends State<ModelListDialog> {
     final localizations = AppLocalizations.of(context);
     await _clipboardService.copyToClipboard(modelId);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations?.modelIdCopied ?? '模型 ID 已复制：$modelId')),
-      );
+      showKcToast(context, localizations?.modelIdCopied ?? '模型 ID 已复制：$modelId', kind: KcToastKind.success);
     }
   }
 

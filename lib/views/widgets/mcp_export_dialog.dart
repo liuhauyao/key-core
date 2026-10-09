@@ -5,6 +5,7 @@ import '../../models/mcp_server.dart';
 import '../../viewmodels/mcp_viewmodel.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../services/mcp_sync_service.dart';
+import 'kc_toast.dart';
 import '../../utils/app_localizations.dart';
 
 /// MCP 下发对话框
@@ -118,17 +119,9 @@ class _McpExportDialogState extends State<McpExportDialog> {
       
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              success
+        showKcToast(context, success
                   ? (localizations?.mcpExportSuccess(_selectedServerIds.length, _selectedTool!.displayName) ?? '已成功下发 ${_selectedServerIds.length} 个 MCP 服务到 ${_selectedTool!.displayName}')
-                  : (localizations?.mcpExportFailedShort ?? '下发失败'),
-            ),
-            backgroundColor: success ? null : Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+                  : (localizations?.mcpExportFailedShort ?? '下发失败'), kind: success ? KcToastKind.success : KcToastKind.error);
       }
     } catch (e) {
       setState(() {

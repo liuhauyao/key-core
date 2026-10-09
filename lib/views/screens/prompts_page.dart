@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/mcp_server.dart';
 import '../../models/prompt.dart';
+import '../widgets/kc_toast.dart';
 import '../../viewmodels/prompts_viewmodel.dart';
 
 /// 系统提示词管理（CLAUDE.md / AGENTS.md / GEMINI.md / SOUL.md）。
@@ -23,9 +24,7 @@ class _PromptsView extends StatelessWidget {
   const _PromptsView();
 
   void _toast(BuildContext context, PromptsViewModel vm, bool ok, String success) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(ok ? success : '失败：${vm.errorMessage ?? '未知错误'}')),
-    );
+    showKcToast(context, ok ? success : '失败：${vm.errorMessage ?? '未知错误'}', kind: ok ? KcToastKind.success : KcToastKind.error);
   }
 
   Future<void> _edit(BuildContext context, PromptsViewModel vm, [Prompt? prompt]) async {

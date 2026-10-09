@@ -442,7 +442,7 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
               child: Switch(
                 key: ValueKey('keyDetails.toggle.${t.value}'),
                 value: on,
-                activeColor: cs.primary,
+                activeTrackColor: cs.primary,
                 inactiveThumbColor: Colors.white,
                 inactiveTrackColor: cs.border,
                 trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'dart:math' as math;
-import 'dart:ui' as ui;
 import '../../models/mcp_server.dart';
 import '../../utils/app_localizations.dart';
-import '../../utils/mcp_server_presets.dart';
-import 'mcp_tool_list_dialog.dart';
+import '../../theme/kc_tokens.dart';
+import 'kc_logo.dart';
 
 /// MCP 服务器卡片组件
 class McpCard extends StatefulWidget {
@@ -47,140 +45,45 @@ class _McpCardState extends State<McpCard> {
   @override
   Widget build(BuildContext context) {
     final shadTheme = ShadTheme.of(context);
+    final cs = shadTheme.colorScheme;
+    final kc = context.kc;
     final localizations = AppLocalizations.of(context);
-    final isActive = widget.server.isActive;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovering = true),
-      onExit: (_) => setState(() => _isHovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          // 基础背景色
-          color: isActive
-              ? Color.alphaBlend(
-                  shadTheme.colorScheme.primary.withOpacity(0.04),
-                  shadTheme.colorScheme.card,
-                )
-              : shadTheme.colorScheme.card,
-          border: Border.all(
-            color: isActive
-                ? shadTheme.colorScheme.primary
-                : shadTheme.colorScheme.border.withOpacity(0.8),
-            width: isActive ? 2 : 1.5,
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(KcSpace.x3, KcSpace.x2 + 2, KcSpace.x3, 0),
+      child: _buildCardContent(context, shadTheme, localizations),
+    );
+
+    return Semantics(
+      container: true,
+      label: widget.server.name,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovering = true),
+        onExit: (_) => setState(() => _isHovering = false),
+        child: AnimatedContainer(
+          duration: KcMotion.of(context),
+          curve: KcMotion.curve,
+          decoration: BoxDecoration(
+            color: widget.server.isActive ? cs.card : Color.alphaBlend(kc.subtle.withValues(alpha: 0.5), cs.card),
+            borderRadius: BorderRadius.circular(KcRadius.panel),
+            border: Border.all(color: _isHovering && !widget.isEditMode ? cs.input : cs.border),
+            boxShadow: _isHovering && !widget.isEditMode ? kc.shadowMd : kc.shadowSm,
           ),
-          boxShadow: [
-            if (_isHovering)
-              BoxShadow(
-                color: Colors.black.withOpacity(0.25),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-                spreadRadius: 0,
-              )
-            else
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-                spreadRadius: 0,
-              ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Stack(
-            children: [
-              // 1. 柔和的流光渐变（模拟环境光）
-              // 左上角的高光
-              Positioned(
-                top: -100,
-                left: -100,
-                child: Container(
-                  width: 300,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        isActive 
-                            ? shadTheme.colorScheme.primary.withOpacity(0.1)
-                            : shadTheme.colorScheme.primary.withOpacity(0.05),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-              // 右下角的反光
-              Positioned(
-                bottom: -100,
-                right: -100,
-                child: Container(
-                  width: 300,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        isActive
-                            ? shadTheme.colorScheme.secondary.withOpacity(0.1)
-                            : shadTheme.colorScheme.secondary.withOpacity(0.05),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-
-              // 2. 噪点纹理
-              Positioned.fill(
-                child: Opacity(
-                  opacity: 0.04,
-                  child: CustomPaint(
-                    painter: _McpNoisePainter(
-                      color: shadTheme.colorScheme.foreground,
-                    ),
-                  ),
-                ),
-              ),
-
-              // 3. 内容层
-              widget.isEditMode
-                  ? Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: _buildCardContent(context, shadTheme, localizations),
-                    )
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(KcRadius.panel),
+            child: Material(
+              type: MaterialType.transparency,
+              // 编辑（排序）模式不包 InkWell，避免抢走拖动手势
+              child: widget.isEditMode
+                  ? SizedBox.expand(child: content)
                   : InkWell(
                       onTap: widget.onTap,
-                      borderRadius: BorderRadius.circular(12),
                       hoverColor: Colors.transparent,
                       splashColor: Colors.transparent,
                       highlightColor: Colors.transparent,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: _buildCardContent(context, shadTheme, localizations),
-                      ),
+                      child: SizedBox.expand(child: content),
                     ),
-              
-              // 4. 右上角激活开关（仅在非编辑模式显示）
-              if (!widget.isEditMode)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Transform.scale(
-                    scale: 0.75,
-                    child: Switch(
-                      value: widget.server.isActive,
-                      onChanged: (value) => widget.onToggleActive?.call(value),
-                      activeColor: shadTheme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
       ),
@@ -192,247 +95,154 @@ class _McpCardState extends State<McpCard> {
     ShadThemeData shadTheme,
     AppLocalizations? localizations,
   ) {
+    final cs = shadTheme.colorScheme;
+    final kc = context.kc;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 顶部：图标 + 标题区域
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 图标
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: shadTheme.colorScheme.muted,
-              ),
-              child: Center(
-                child: widget.server.icon != null
-                    ? SvgPicture.asset(
-                        'assets/icons/platforms/${widget.server.icon}',
-                        width: 28,
-                        height: 28,
-                      )
-                    : SvgPicture.asset(
-                        'assets/icons/platforms/mcp.svg',
-                        width: 28,
-                        height: 28,
-                      ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            // 标题和描述
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.server.name,
-                    style: shadTheme.textTheme.p.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: shadTheme.colorScheme.foreground,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    widget.server.serverId,
-                    style: shadTheme.textTheme.small.copyWith(
-                      fontSize: 11,
-                      color: shadTheme.colorScheme.mutedForeground,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            // 拖动手柄（仅在编辑模式显示，作为视觉提示）
-            if (widget.isEditMode)
-              Container(
-                margin: const EdgeInsets.only(left: 8),
-                child: Icon(
-                  Icons.drag_handle,
-                  size: 20,
-                  color: shadTheme.colorScheme.mutedForeground,
+        // 顶部 36：logo + 名称 / serverId + 右上角（开关或拖拽手柄）
+        SizedBox(
+          height: 36,
+          child: Row(
+            children: [
+              KcLogoBox(
+                child: SvgPicture.asset(
+                  'assets/icons/platforms/${widget.server.icon ?? 'mcp.svg'}',
+                  width: 22,
+                  height: 22,
+                  allowDrawingOutsideViewBox: true,
                 ),
               ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(widget.server.name,
+                        maxLines: 1, overflow: TextOverflow.ellipsis, style: KcType.strong.copyWith(color: cs.foreground)),
+                    Text(widget.server.serverId,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KcType.mono.copyWith(fontSize: 11, color: cs.mutedForeground, height: 1.25)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: KcSpace.x1_5),
+              if (widget.isEditMode)
+                Container(
+                  key: const ValueKey('mcpCard.dragHandle'),
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(KcRadius.control)),
+                  child: Icon(Icons.drag_indicator, size: 16, color: kc.text2),
+                )
+              else
+                SizedBox(
+                  height: 24,
+                  child: FittedBox(
+                    child: Switch(
+                      key: const ValueKey('mcpCard.toggle'),
+                      value: widget.server.isActive,
+                      onChanged: (value) => widget.onToggleActive?.call(value),
+                      activeTrackColor: cs.primary,
+                      inactiveThumbColor: Colors.white,
+                      inactiveTrackColor: cs.border,
+                      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
-        // 中间：服务器类型和标签（单行显示，超出部分隐藏）
+        const SizedBox(height: KcSpace.x2),
+        // 标签行 20：服务器类型 + 用户标签（单行裁切）
         SizedBox(
-          height: 24, // 固定高度
+          height: 20,
           width: double.infinity,
           child: ClipRect(
-            clipBehavior: Clip.hardEdge,
-            child: Row(
-              children: [
-                // 服务器类型标签
-                _buildTag(
-                  context,
-                  widget.server.serverType.value.toUpperCase(),
-                  color: shadTheme.colorScheme.primary,
-                ),
-                const SizedBox(width: 6),
-
-                // 用户自定义标签（显示为紫色）
-                if (widget.server.tags != null && widget.server.tags!.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  ...widget.server.tags!.map((tag) => Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: _buildTag(context, tag, isUserTag: true),
-                  )),
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              maxWidth: double.infinity,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildTag(context, widget.server.serverType.value.toUpperCase(), fg: kc.actionText, bg: kc.actionSoft),
+                  for (final tag in widget.server.tags ?? const <String>[])
+                    Padding(
+                      padding: const EdgeInsets.only(left: KcSpace.x1_5),
+                      child: _buildTag(context, tag, fg: kc.text2, bg: kc.subtle),
+                    ),
                 ],
-              ],
+              ),
             ),
           ),
         ),
         const Spacer(),
-        // 底部：操作按钮组
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // 左侧：查看详情、管理地址和文档地址按钮
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+        // 底栏 34：查看 / 主页 / 文档 … 编辑（排序模式下加删除）
+        Container(
+          height: 34,
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: cs.border))),
+          child: Row(
+            children: [
+              _buildActionButton(
+                context,
+                icon: Icons.visibility_outlined,
+                tooltip: localizations?.mcpViewDetails ?? '查看详情',
+                onPressed: widget.onViewDetails,
+              ),
+              if (widget.server.homepage != null && widget.server.homepage!.isNotEmpty)
                 _buildActionButton(
                   context,
-                  icon: Icons.visibility_outlined,
-                  tooltip: localizations?.mcpViewDetails ?? '查看详情',
-                  onPressed: widget.onViewDetails,
+                  icon: Icons.language,
+                  tooltip: localizations?.openManagementUrl ?? '管理地址',
+                  onPressed: widget.onOpenHomepage,
                 ),
-                const SizedBox(width: 8),
-                if (widget.onManageApps != null) ...[
-                  _buildActionButton(
-                    context,
-                    icon: Icons.apps_outlined,
-                    tooltip: '按工具启用',
-                    onPressed: widget.onManageApps,
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                if (widget.server.homepage != null && widget.server.homepage!.isNotEmpty)
-                  _buildActionButton(
-                    context,
-                    icon: Icons.language,
-                    tooltip: localizations?.openManagementUrl ?? '管理地址',
-                    onPressed: widget.onOpenHomepage,
-                  ),
-                if (widget.server.homepage != null && widget.server.homepage!.isNotEmpty)
-                  const SizedBox(width: 8),
-                if (widget.server.docs != null && widget.server.docs!.isNotEmpty)
-                  _buildActionButton(
-                    context,
-                    icon: Icons.description_outlined,
-                    tooltip: localizations?.mcpOpenDocs ?? '文档地址',
-                    onPressed: widget.onOpenDocs,
-                  ),
-              ],
-            ),
-            // 右侧：编辑和删除按钮
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+              // 数据栈新增：按工具启用（移入新版底栏）
+              if (widget.onManageApps != null)
                 _buildActionButton(
                   context,
-                  icon: Icons.edit_outlined,
-                  tooltip: localizations?.edit ?? '编辑',
-                  onPressed: widget.onEdit,
+                  icon: Icons.apps_outlined,
+                  tooltip: '按工具启用',
+                  onPressed: widget.onManageApps,
                 ),
-                if (widget.isEditMode) ...[
-                  const SizedBox(width: 8),
-                  _buildActionButton(
-                    context,
-                    icon: Icons.delete_outline,
-                    tooltip: localizations?.deleteTooltip ?? '删除',
-                    onPressed: widget.onDelete,
-                    color: Colors.red,
-                  ),
-                ],
-              ],
-            ),
-          ],
+              if (widget.server.docs != null && widget.server.docs!.isNotEmpty)
+                _buildActionButton(
+                  context,
+                  icon: Icons.description_outlined,
+                  tooltip: localizations?.mcpOpenDocs ?? '文档地址',
+                  onPressed: widget.onOpenDocs,
+                ),
+              const Spacer(),
+              _buildActionButton(
+                context,
+                icon: Icons.edit_outlined,
+                tooltip: localizations?.edit ?? '编辑',
+                onPressed: widget.onEdit,
+              ),
+              if (widget.isEditMode)
+                _buildActionButton(
+                  context,
+                  icon: Icons.delete_outline,
+                  tooltip: localizations?.deleteTooltip ?? '删除',
+                  onPressed: widget.onDelete,
+                  color: kc.dangerText,
+                ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildTag(BuildContext context, String text, {Color? color, bool isUserTag = false, bool isToolTag = false}) {
-    final shadTheme = ShadTheme.of(context);
-    final isCategory = color != null;
-    // 用户标签使用紫色，工具标签使用橙色
-    final isPurple = isUserTag;
-    final isOrange = isToolTag;
+  Widget _buildTag(BuildContext context, String text, {required Color fg, required Color bg}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isCategory
-            ? shadTheme.colorScheme.primary.withOpacity(0.1)
-            : isPurple
-                ? Colors.purple.withOpacity(0.1)
-                : isOrange
-                    ? Colors.orange.withOpacity(0.1)
-                    : shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        style: shadTheme.textTheme.small.copyWith(
-          fontSize: 11,
-          color: isCategory
-              ? shadTheme.colorScheme.primary
-              : isPurple
-                  ? Colors.purple
-                  : isOrange
-                      ? Colors.orange
-                      : shadTheme.colorScheme.mutedForeground,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
+      height: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(KcRadius.control)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [Text(text, style: KcType.badge.copyWith(color: fg))]),
     );
   }
-
-  Widget _buildStatusTag(BuildContext context, String text, Color color, {VoidCallback? onTap}) {
-    final shadTheme = ShadTheme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              text,
-              style: shadTheme.textTheme.small.copyWith(
-                fontSize: 11,
-                color: color,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
 
   Widget _buildActionButton(
     BuildContext context, {
@@ -441,63 +251,22 @@ class _McpCardState extends State<McpCard> {
     required VoidCallback? onPressed,
     Color? color,
   }) {
-    final shadTheme = ShadTheme.of(context);
     return Tooltip(
       message: tooltip,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(KcRadius.control),
           // 阻止事件冒泡，避免触发拖动
           onTapDown: (_) {},
-          child: Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: shadTheme.colorScheme.muted,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              icon,
-              size: 15,
-              color: color ?? shadTheme.colorScheme.mutedForeground,
-            ),
+          child: SizedBox(
+            width: 26,
+            height: 26,
+            child: Icon(icon, size: 15, color: color ?? context.kc.text2),
           ),
         ),
       ),
     );
-  }
-}
-
-class _McpNoisePainter extends CustomPainter {
-  final Color color;
-  final double density;
-
-  _McpNoisePainter({
-    required this.color,
-    this.density = 0.8,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.0;
-
-    final random = math.Random(42);
-
-    for (int i = 0; i < size.width * size.height * 0.05 * density; i++) {
-      final x = random.nextDouble() * size.width;
-      final y = random.nextDouble() * size.height;
-
-      paint.color = color.withOpacity(random.nextDouble() * 0.5);
-      canvas.drawPoints(ui.PointMode.points, [Offset(x, y)], paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _McpNoisePainter oldDelegate) {
-    return false;
   }
 }

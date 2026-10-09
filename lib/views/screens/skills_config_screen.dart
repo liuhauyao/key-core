@@ -14,6 +14,7 @@ import '../widgets/confirm_dialog.dart';
 import '../widgets/skill_card.dart';
 import '../widgets/skill_details_dialog.dart';
 import 'skill_form_page.dart';
+import '../widgets/kc_toast.dart';
 import 'prompts_page.dart';
 import 'skills_sync_page.dart';
 
@@ -669,15 +670,9 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     final success = await viewModel.importFromFolder(selectedDir);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
+    showKcToast(context, success
               ? (localizations?.skillsImportSuccess ?? 'Skill imported')
-              : (viewModel.errorMessage ?? localizations?.skillsImportFailed ?? 'Import failed'),
-        ),
-      ),
-    );
+              : (viewModel.errorMessage ?? localizations?.skillsImportFailed ?? 'Import failed'), kind: KcToastKind.success);
   }
 
   Future<void> _deleteSkill(BuildContext context, Skill skill, SkillsViewModel viewModel) async {
@@ -694,15 +689,9 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     final success = await viewModel.deleteSkill(skill);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
+    showKcToast(context, success
               ? (localizations?.skillsDeleteSuccess ?? 'Skill deleted')
-              : (viewModel.errorMessage ?? localizations?.skillsDeleteFailed ?? 'Delete failed'),
-        ),
-      ),
-    );
+              : (viewModel.errorMessage ?? localizations?.skillsDeleteFailed ?? 'Delete failed'), kind: KcToastKind.success);
   }
 
   // ── Batch operations ──
@@ -717,11 +706,9 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     _clearSelection();
     if (!mounted) return;
     final loc = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(active
+    showKcToast(context, active
           ? '${loc?.skillsActive ?? 'Active'}: $count'
-          : '${loc?.skillsInactive ?? 'Inactive'}: $count')),
-    );
+          : '${loc?.skillsInactive ?? 'Inactive'}: $count', kind: KcToastKind.success);
   }
 
   Future<void> _batchDelete(
@@ -741,9 +728,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     final count = await viewModel.batchDelete(selected);
     _clearSelection();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$count ${(loc?.delete ?? 'deleted').toLowerCase()}')),
-    );
+    showKcToast(context, '$count ${(loc?.delete ?? 'deleted').toLowerCase()}', kind: KcToastKind.success);
   }
 
   Future<void> _batchSyncToTool(
@@ -755,9 +740,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     _clearSelection();
     if (!mounted) return;
     final loc = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$count ${(loc?.skillsSync ?? 'synced').toLowerCase()}')),
-    );
+    showKcToast(context, '$count ${(loc?.skillsSync ?? 'synced').toLowerCase()}', kind: KcToastKind.success);
   }
 
   Future<void> _syncAllSkills(BuildContext context, SkillsViewModel viewModel) async {
@@ -773,25 +756,21 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     }
 
     final loc = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          loc?.skillsFullSyncComplete(totalSynced, totalConflicts) ??
-              'Full sync completed: $totalSynced synced, $totalConflicts conflicts',
-        ),
-      ),
-    );
+    showKcToast(context, loc?.skillsFullSyncComplete(totalSynced, totalConflicts) ??
+              'Full sync completed: $totalSynced synced, $totalConflicts conflicts', kind: KcToastKind.success);
   }
 
   // ========== CC Switch 对齐的 Skills 功能（最小 UI 入口） ==========
 
-  void _toast(BuildContext context, String message) {
+  void _toast(BuildContext context, String message, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    // 「…失败：…」类消息按错误样式显示
+    final isError = error || message.contains('失败');
+    showKcToast(context, message, kind: isError ? KcToastKind.error : KcToastKind.success);
   }
 
   void _toastResult(BuildContext context, SkillsViewModel vm, String success, Object? result) {
-    _toast(context, result == null ? '失败：${vm.errorMessage ?? '未知错误'}' : success);
+    _toast(context, result == null ? '失败：${vm.errorMessage ?? '未知错误'}' : success, error: result == null);
   }
 
   Future<List<SkillTargetTool>> _installTargets() => SkillsPathService().detectInstalledTools();
@@ -861,7 +840,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                         repoController.clear();
                         setDialogState(() {});
                       } catch (e) {
-                        if (ctx.mounted) _toast(ctx, '$e');
+                        if (ctx.mounted) _toast(ctx, '$e', error: true);
                       }
                     },
                     child: const Text('添加'),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../models/model_info.dart';
 import '../../services/clipboard_service.dart';
+import 'kc_toast.dart';
 import '../../utils/app_localizations.dart';
 
 /// 模型卡片组件
@@ -41,12 +42,7 @@ class ModelCard extends StatelessWidget {
           // 否则使用默认的复制行为（查看模式）
           await clipboardService.copyToClipboard(model.id);
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(localizations?.modelIdCopiedWithId(model.id) ?? '模型 ID 已复制：${model.id}'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            showKcToast(context, localizations?.modelIdCopiedWithId(model.id) ?? '模型 ID 已复制：${model.id}', kind: KcToastKind.success);
           }
         },
         borderRadius: BorderRadius.circular(8),

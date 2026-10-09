@@ -105,4 +105,16 @@ void main() {
     await tester.scrollUntilVisible(cardFor(7), -200, scrollable: scrollable);
     expect(cardFor(7), findsOneWidget);
   });
+
+  testWidgets('工具页 State 被重建后无需外部 refresh 也会自行首次加载（不再一直显示「暂无密钥」）', (tester) async {
+    await setSurface(tester, const Size(1280, 820));
+    final vm = FakeKeyManagerViewModel(buildFakeKeys());
+    vm.current[AiToolType.codex] = 1;
+    await tester.pumpWidget(buildTestApp(viewModel: vm, home: const CodexConfigScreen()));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(cardFor(1), findsNothing); // 翻页动画期间（路过）不加载
+    await tester.pump(const Duration(milliseconds: 200));
+    await settle(tester, rounds: 6);
+    expect(cardFor(1), findsOneWidget);
+  });
 }

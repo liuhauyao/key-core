@@ -5,6 +5,7 @@ import '../../models/mcp_server.dart';
 import '../../viewmodels/mcp_viewmodel.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../services/mcp_sync_service.dart';
+import 'kc_toast.dart';
 import '../../utils/app_localizations.dart';
 
 /// MCP 导入对话框
@@ -149,14 +150,7 @@ class _McpImportDialogState extends State<McpImportDialog> {
       
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              localizations?.mcpImportComplete(result.addedCount, result.overriddenCount, result.failedCount) ?? '导入完成：新增 ${result.addedCount} 个，覆盖 ${result.overriddenCount} 个${result.failedCount > 0 ? '，失败 ${result.failedCount} 个' : ''}',
-            ),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        showKcToast(context, localizations?.mcpImportComplete(result.addedCount, result.overriddenCount, result.failedCount) ?? '导入完成：新增 ${result.addedCount} 个，覆盖 ${result.overriddenCount} 个${result.failedCount > 0 ? '，失败 ${result.failedCount} 个' : ''}', kind: KcToastKind.success);
       }
     } catch (e) {
       setState(() {
