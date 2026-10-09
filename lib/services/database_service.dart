@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -29,6 +31,31 @@ class DatabaseService {
     return _database!;
   }
 
+  /// 当前数据库结构版本。
+  ///
+  /// - v15：PR #5 之前的 main。
+  /// - v16：PR #5「供应商中心」新增 `providers` 表（已回退）。
+  /// - v17：把 `providers` 表中保存过的 API Key 导入 `ai_keys` 后删除该表，
+  ///   回到以密钥为唯一实体的设计。版本号只增不减，避免 v16 的数据库被静默降级。
+  static const int schemaVersion = 17;
+
+  /// 迁移前备份最多保留的份数
+  static const int maxMigrationBackups = 5;
+
+  /// 仅供测试：在给定数据库上执行建表逻辑
+  @visibleForTesting
+  Future<void> runCreateForTest(Database db, int version) => _onCreate(db, version);
+
+  /// 仅供测试：在给定数据库上执行升级迁移
+  @visibleForTesting
+  Future<void> runUpgradeForTest(Database db, int oldVersion, int newVersion) =>
+      _onUpgrade(db, oldVersion, newVersion);
+
+  /// 仅供测试：执行降级保护逻辑
+  @visibleForTesting
+  Future<void> runDowngradeForTest(Database db, int oldVersion, int newVersion) =>
+      _onDowngrade(db, oldVersion, newVersion);
+
   /// 初始化数据库
   Future<Database> _initDatabase() async {
     // 初始化FFI加载器（仅在macOS/Windows/Linux上需要）
@@ -43,12 +70,71 @@ class DatabaseService {
     final directory = await getApplicationDocumentsDirectory();
     final path = join(directory.path, AppConstants.databaseName);
 
+    // 升级前先备份数据库文件，迁移出错时可手动恢复
+    await backupBeforeMigrationIfNeeded(path, schemaVersion);
+
     return await openDatabase(
       path,
-      version: 15,
+      version: schemaVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      onDowngrade: _onDowngrade,
     );
+  }
+
+  /// 数据库来自更新版本的应用时拒绝打开，避免 sqflite 静默把 user_version 改小
+  /// （之后再升级时会重复执行已执行过的迁移）。
+  Future<void> _onDowngrade(Database db, int oldVersion, int newVersion) async {
+    throw DatabaseVersionTooNewException(oldVersion, newVersion);
+  }
+
+  /// 若数据库文件存在且版本低于 [targetVersion]，在迁移前复制一份备份。
+  ///
+  /// 备份位于数据库同目录的 `backups/` 下：
+  /// `key_core.db.pre-v<target>.<时间戳>`，最多保留 [maxMigrationBackups] 份。
+  /// 返回备份文件路径（未备份时返回 null）。备份失败不阻断启动。
+  @visibleForTesting
+  static Future<String?> backupBeforeMigrationIfNeeded(String dbPath, int targetVersion) async {
+    try {
+      final file = File(dbPath);
+      if (!file.existsSync()) return null;
+
+      final probe = await databaseFactory.openDatabase(
+        dbPath,
+        options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+      );
+      int currentVersion;
+      try {
+        currentVersion = await probe.getVersion();
+      } finally {
+        await probe.close();
+      }
+      if (currentVersion <= 0 || currentVersion >= targetVersion) return null;
+
+      final backupDir = Directory(join(dirname(dbPath), 'backups'));
+      await backupDir.create(recursive: true);
+      final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final prefix = '${basename(dbPath)}.pre-v$targetVersion.';
+      final backupPath = join(backupDir.path, '$prefix$stamp');
+      await file.copy(backupPath);
+
+      // 只保留最近的若干份（文件名带时间戳，可按名称排序）
+      final backups = backupDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => basename(f.path).startsWith('${basename(dbPath)}.pre-v'))
+          .toList()
+        ..sort((a, b) => basename(b.path).compareTo(basename(a.path)));
+      for (final old in backups.skip(maxMigrationBackups)) {
+        try {
+          await old.delete();
+        } catch (_) {}
+      }
+      return backupPath;
+    } catch (e) {
+      debugPrint('数据库迁移前备份失败（不影响启动）: $e');
+      return null;
+    }
   }
 
   /// 创建数据库表
@@ -380,6 +466,126 @@ class DatabaseService {
     await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_sonnet_model', 'TEXT');
     await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_haiku_model', 'TEXT');
     await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_opus_model', 'TEXT');
+
+    if (oldVersion < 17) {
+      // 曾运行过 PR #5 早期分支构建的数据库（当时在 v14 建 providers 表、
+      // 未执行 main 的 v14 迁移），幂等补齐 Claude Desktop 列。
+      await _addColumnIfNotExists(db, 'ai_keys', 'enable_claude_desktop', 'INTEGER DEFAULT 0');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_base_url', 'TEXT');
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_model', 'TEXT');
+
+      // 回退 PR #5 的「供应商中心」：保存过 API Key 的供应商导入为密钥，然后删除 providers 表。
+      await _migrateProviderCenterToAiKeys(db);
+    }
+  }
+
+  /// v17：把 PR #5 `providers` 表中保存过 API Key 的行导入 `ai_keys`，然后删除该表。
+  ///
+  /// - `api_key_encrypted` 与 `ai_keys.key_value` 使用同一 CryptService、同一加密密钥、
+  ///   同一 `{"data","iv"}` 格式，原样复制即可；未设置主密码时两边都是明文，
+  ///   之后设置主密码时由 `reEncryptAllPlaintextKeys` 统一加密。
+  /// - 没有 API Key 的行（PR #5 启动时自动播种的预设）直接丢弃。
+  /// - 不打开任何工具开关：`supported_tools` 是预设声明的“能力”而非用户的启用状态，
+  ///   原样映射会把密钥放进不匹配的工具列表；原信息写入备注，由用户在表单中按需启用。
+  /// - 以 (name, api_endpoint) 或相同 key_value 去重，重复执行安全。
+  Future<int> _migrateProviderCenterToAiKeys(Database db) async {
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='providers'",
+    );
+    if (tables.isEmpty) return 0;
+
+    var imported = 0;
+    final rows = await db.query('providers');
+    for (final row in rows) {
+      final keyValue = (row['api_key_encrypted'] as String?)?.trim();
+      if (keyValue == null || keyValue.isEmpty) continue;
+
+      final name = ((row['name_zh'] as String?)?.trim().isNotEmpty ?? false)
+          ? (row['name_zh'] as String).trim()
+          : ((row['name'] as String?)?.trim().isNotEmpty ?? false)
+              ? (row['name'] as String).trim()
+              : (row['id']?.toString() ?? 'Provider');
+      final endpoint = (row['api_endpoint'] as String?)?.trim();
+
+      final duplicates = await db.query(
+        'ai_keys',
+        columns: ['id'],
+        where: endpoint == null || endpoint.isEmpty
+            ? 'key_value = ? OR (name = ? AND (api_endpoint IS NULL OR api_endpoint = \'\'))'
+            : 'key_value = ? OR (name = ? AND api_endpoint = ?)',
+        whereArgs: endpoint == null || endpoint.isEmpty
+            ? [keyValue, name]
+            : [keyValue, name, endpoint],
+        limit: 1,
+      );
+      if (duplicates.isNotEmpty) continue;
+
+      final createdAt = _millisToIso(row['created_at']);
+      final updatedAt = _millisToIso(row['updated_at']) ?? createdAt;
+      final now = DateTime.now().toIso8601String();
+
+      await db.insert('ai_keys', {
+        'name': name,
+        'platform': PlatformType.custom.value,
+        'platform_type': PlatformType.custom.index,
+        'platform_type_id': PlatformType.custom.id,
+        'management_url': _firstNonEmpty([row['api_key_url'], row['website_url']]),
+        'api_endpoint': endpoint == null || endpoint.isEmpty ? null : endpoint,
+        'key_value': keyValue,
+        'notes': _describeLegacyProvider(row),
+        'is_active': (row['is_active'] as int? ?? 1) == 1 ? 1 : 0,
+        'created_at': createdAt ?? now,
+        'updated_at': updatedAt ?? now,
+      });
+      imported++;
+    }
+
+    await db.execute('DROP INDEX IF EXISTS idx_providers_type');
+    await db.execute('DROP INDEX IF EXISTS idx_providers_active');
+    await db.execute('DROP INDEX IF EXISTS idx_providers_region');
+    await db.execute('DROP TABLE IF EXISTS providers');
+    debugPrint('v17 迁移：从供应商中心导入 $imported 个密钥，已删除 providers 表');
+    return imported;
+  }
+
+  static String? _millisToIso(Object? value) {
+    final ms = value is int ? value : int.tryParse(value?.toString() ?? '');
+    if (ms == null || ms <= 0) return null;
+    return DateTime.fromMillisecondsSinceEpoch(ms).toIso8601String();
+  }
+
+  static String? _firstNonEmpty(List<Object?> values) {
+    for (final v in values) {
+      final s = v?.toString().trim();
+      if (s != null && s.isNotEmpty) return s;
+    }
+    return null;
+  }
+
+  static List<String> _decodeStringList(Object? raw, {String? field}) {
+    if (raw == null) return const [];
+    try {
+      final decoded = jsonDecode(raw.toString());
+      if (decoded is! List) return const [];
+      return decoded
+          .map((e) => field != null && e is Map ? e[field]?.toString() : e?.toString())
+          .whereType<String>()
+          .where((e) => e.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static String _describeLegacyProvider(Map<String, Object?> row) {
+    final lines = <String>['从「供应商中心」(PR #5) 迁移'];
+    final tools = _decodeStringList(row['supported_tools']);
+    if (tools.isNotEmpty) lines.add('原支持工具：${tools.join(', ')}');
+    final models = _decodeStringList(row['models'], field: 'id');
+    if (models.isNotEmpty) lines.add('原模型：${models.join(', ')}');
+    final description = (row['description'] as String?)?.trim();
+    if (description != null && description.isNotEmpty) lines.add(description);
+    return lines.join('\n');
   }
 
   /// 插入密钥
@@ -740,4 +946,16 @@ class KeyStatistics {
   String toString() {
     return 'KeyStatistics(total: $total, active: $active, inactive: $inactive, expiringSoon: $expiringSoon, expired: $expired, favorites: $favorites)';
   }
+}
+
+/// 数据库由更新版本的应用创建，当前版本无法安全打开
+class DatabaseVersionTooNewException implements Exception {
+  final int databaseVersion;
+  final int supportedVersion;
+
+  DatabaseVersionTooNewException(this.databaseVersion, this.supportedVersion);
+
+  @override
+  String toString() =>
+      '数据库版本 v$databaseVersion 高于当前应用支持的 v$supportedVersion，请升级 Key Core 后再打开';
 }
