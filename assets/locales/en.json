@@ -721,5 +721,15 @@
   "openclaw_no_keys": "No keys enabled for OpenClaw yet",
   "openclaw_no_keys_hint": "Click \"Enable\" in the section below, or turn on OpenClaw when editing a key",
   "mcp_sync_title": "MCP Sync",
-  "prompts_title": "System prompts"
+  "prompts_title": "System prompts",
+  "n_selected": "{n} selected",
+  "manage_select_hint": "Select cards for batch actions",
+  "select_all": "Select all",
+  "deselect_all": "Deselect all",
+  "manage_subtitle_keys": "Manage mode · drag to reorder, select for batch actions",
+  "batch_delete_keys_confirm": "Delete the {n} selected keys? This cannot be undone.",
+  "enable": "Enable",
+  "disable": "Disable",
+  "batch_delete_mcp_confirm": "Delete the {n} selected MCP servers?",
+  "uninstall": "Uninstall"
 }

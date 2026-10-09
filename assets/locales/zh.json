@@ -721,5 +721,15 @@
   "openclaw_no_keys": "还没有启用到 OpenClaw 的密钥",
   "openclaw_no_keys_hint": "在下方「未启用到 OpenClaw 的密钥」里点「启用」，或在编辑密钥时打开 OpenClaw",
   "mcp_sync_title": "MCP 同步",
-  "prompts_title": "系统提示词"
+  "prompts_title": "系统提示词",
+  "n_selected": "{n} 个已选",
+  "manage_select_hint": "勾选卡片进行批量操作",
+  "select_all": "全选",
+  "deselect_all": "取消全选",
+  "manage_subtitle_keys": "管理模式 · 拖动排序，勾选后批量操作",
+  "batch_delete_keys_confirm": "确定要删除选中的 {n} 个密钥吗？此操作不可撤销。",
+  "enable": "启用",
+  "disable": "停用",
+  "batch_delete_mcp_confirm": "确定要删除选中的 {n} 个 MCP 服务器吗？",
+  "uninstall": "卸载"
 }

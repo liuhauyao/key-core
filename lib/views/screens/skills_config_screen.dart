@@ -10,6 +10,7 @@ import '../../services/skills/skills_market_service.dart';
 import '../../services/skills_path_service.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/skills_viewmodel.dart';
+import '../widgets/kc_manage_scaffold.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/skill_card.dart';
 import '../widgets/skill_details_dialog.dart';
@@ -77,14 +78,12 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
           // Sync status bar
           final syncSummary = viewModel.getSyncSummary();
 
-          return Column(
+          // 批量栏悬浮在底部（Stack 叠放），不插入到 Column 中 → 不推动内容（零位移，form_v3.md §13）
+          return Stack(children: [
+            Column(
             children: [
               // Toolbar
               _buildToolbar(context, viewModel, shadTheme, localizations, syncSummary),
-
-              // Selection mode bar
-              if (_isSelectMode)
-                _buildSelectionToolbar(context, viewModel, shadTheme, localizations),
 
               // Content area
               Expanded(
@@ -109,7 +108,15 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                 ),
               ),
             ],
-          );
+            ),
+            if (_isEditMode || _isSelectMode)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 16,
+                child: Center(child: _buildSelectionToolbar(context, viewModel, shadTheme, localizations)),
+              ),
+          ]);
         },
       ),
     );
@@ -299,77 +306,28 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
     AppLocalizations? localizations,
   ) {
     final selected = _getSelectedSkills(viewModel);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.primary.withOpacity(0.06),
-        border: Border(
-          bottom: BorderSide(color: shadTheme.colorScheme.primary.withOpacity(0.15)),
+    final visibleIds = viewModel.skills.map((s) => s.id).whereType<int>().toSet();
+    final allSelected = visibleIds.isNotEmpty && _selectedSkillIds.containsAll(visibleIds);
+    return KcFloatingSelectionBar(
+      selectedCount: selected.length,
+      allSelected: allSelected,
+      onSelectAll: () => setState(() => allSelected ? _selectedSkillIds.removeAll(visibleIds) : _selectedSkillIds.addAll(visibleIds)),
+      onDone: () => setState(() {
+        _isEditMode = false;
+        _selectedSkillIds.clear();
+      }),
+      actions: [
+        KcBatchAction(icon: Icons.sync, label: localizations?.skillsSync ?? '同步', onPressed: () => _batchSyncToTool(context, viewModel, selected)),
+        KcBatchAction(icon: Icons.toggle_on_outlined, label: localizations?.skillsActive ?? '启用', onPressed: () => _batchToggleActive(context, viewModel, selected, true)),
+        KcBatchAction(icon: Icons.toggle_off_outlined, label: localizations?.skillsInactive ?? '停用', onPressed: () => _batchToggleActive(context, viewModel, selected, false)),
+        KcBatchAction(
+          key: const ValueKey('skills.batch.delete'),
+          icon: Icons.delete_outline,
+          label: localizations?.tr('uninstall', '卸载') ?? '卸载',
+          danger: true,
+          onPressed: () => _batchDelete(context, viewModel, selected),
         ),
-      ),
-      child: Row(
-        children: [
-          Text(
-            localizations?.skillsSelectedCount(selected.length) ?? '${selected.length} selected',
-            style: shadTheme.textTheme.p.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(width: 16),
-          ShadButton.ghost(
-            onPressed: () => _batchToggleActive(context, viewModel, selected, true),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.toggle_on, size: 16),
-                const SizedBox(width: 4),
-                Text(localizations?.skillsActive ?? 'Enable'),
-              ],
-            ),
-          ),
-          const SizedBox(width: 4),
-          ShadButton.ghost(
-            onPressed: () => _batchToggleActive(context, viewModel, selected, false),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.toggle_off_outlined, size: 16),
-                const SizedBox(width: 4),
-                Text(localizations?.skillsInactive ?? 'Disable'),
-              ],
-            ),
-          ),
-          const Spacer(),
-          ShadButton.outline(
-            onPressed: () => _batchSyncToTool(context, viewModel, selected),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.sync, size: 16),
-                const SizedBox(width: 4),
-                Text(localizations?.skillsSync ?? 'Sync'),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          ShadButton(
-            backgroundColor: shadTheme.colorScheme.destructive,
-            foregroundColor: Colors.white,
-            onPressed: () => _batchDelete(context, viewModel, selected),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.delete_outline, size: 16),
-                const SizedBox(width: 4),
-                Text(localizations?.delete ?? 'Delete'),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          ShadButton.ghost(
-            onPressed: _clearSelection,
-            child: Text(localizations?.cancel ?? 'Cancel'),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -576,13 +534,18 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
         final skills = List<Skill>.from(viewModel.skills);
         final cards = skills.map((skill) {
           return SizedBox(
+            key: ValueKey('skillSlot-${skill.id}'),
             width: cardWidth,
             height: cardHeight,
-            child: SkillCard(
+            child: KcSelectableCard(
+              manage: _isEditMode,
+              selected: skill.id != null && _selectedSkillIds.contains(skill.id),
+              checkKey: ValueKey('skillCard.select.${skill.id}'),
+              onSelect: (_) => _toggleSelection(skill),
+              child: SkillCard(
               key: ValueKey(skill.id),
               skill: skill,
               isEditMode: _isEditMode,
-              isSelected: skill.id != null && _selectedSkillIds.contains(skill.id),
               onTap: () {
                 if (_isSelectMode) {
                   _toggleSelection(skill);
@@ -606,13 +569,14 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
               onEdit: () => _openEditPage(context, skill),
               onDelete: () => _deleteSkill(context, skill, viewModel),
               onToggleActive: (active) => viewModel.toggleActive(skill),
-            ),
+            )),
           );
         }).toList();
 
         if (_isEditMode) {
-          return Padding(
-            padding: const EdgeInsets.all(padding),
+          // 与普通模式同样的 padding；底部为悬浮批量栏预留
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(padding, padding, padding, padding + kcFloatingBarReserve),
             child: ReorderableWrap(
               spacing: cardSpacing,
               runSpacing: cardSpacing,
@@ -628,7 +592,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
         }
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(padding),
+          padding: EdgeInsets.fromLTRB(padding, padding, padding, padding + (_isSelectMode ? kcFloatingBarReserve : 0)),
           child: Wrap(
             spacing: cardSpacing,
             runSpacing: cardSpacing,

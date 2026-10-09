@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reorderables/reorderables.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/key_card.dart';
+import '../widgets/kc_manage_scaffold.dart';
 import '../widgets/key_details_dialog.dart';
 import '../widgets/app_switcher.dart';
 import '../widgets/confirm_dialog.dart';
@@ -57,6 +58,7 @@ class _MainScreenState extends State<MainScreen> {
   // 使用 ValueKey 来保持设置页面状态，避免 children 列表变化时重置
   static const _settingsScreenKey = ValueKey('settings_screen');
   bool _isEditMode = false;
+  final Set<int> _selectedKeyIds = <int>{};
   AppType _activeApp = AppType.keyManager;
   SettingsCategory _settingsCategory = SettingsCategory.general;
   _KeySegment _segment = _KeySegment.all;
@@ -414,7 +416,7 @@ class _MainScreenState extends State<MainScreen> {
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
-          if (_isEditMode) setState(() => _isEditMode = false);
+          if (_isEditMode) _exitManage();
         },
       },
       child: Focus(
@@ -423,10 +425,11 @@ class _MainScreenState extends State<MainScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildKeyPageHeader(context, viewModel),
-            if (_isEditMode) _buildManageNotice(context),
+            // 管理模式不再插入横幅（form_v3.md §13）：提示只在副标题、管理按钮 tooltip 与底部悬浮栏
             if (viewModel.allKeys.isNotEmpty) _buildFilterRow(context, viewModel, source, currentIds),
             Expanded(
-              child: viewModel.allKeys.isEmpty
+              child: Stack(children: [
+                Positioned.fill(child: viewModel.allKeys.isEmpty
                   ? _buildEmptyState(viewModel)
                   : filtered.isEmpty
                       ? Center(
@@ -435,7 +438,15 @@ class _MainScreenState extends State<MainScreen> {
                             style: KcType.body.copyWith(color: ShadTheme.of(context).colorScheme.mutedForeground),
                           ),
                         )
-                      : _buildKeyList(viewModel, _isEditMode, filtered),
+                      : _buildKeyList(viewModel, _isEditMode, filtered)),
+                if (_isEditMode)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 16,
+                    child: Center(child: _buildKeySelectionBar(context, viewModel, filtered)),
+                  ),
+              ]),
             ),
           ],
         ),
@@ -486,16 +497,16 @@ class _MainScreenState extends State<MainScreen> {
       child: Row(
         children: [
           Text(
-            _isEditMode ? (localizations?.manageKeysTitle ?? '管理密钥') : (localizations?.keys ?? '钥匙包'),
+            localizations?.keys ?? '钥匙包',
             style: KcType.page.copyWith(color: cs.foreground),
           ),
           const SizedBox(width: KcSpace.x3),
           Expanded(
-            child: Text(
-              localizations?.keyGridSubtitle(all.length, inUse) ?? '${all.length} 个密钥 · $inUse 个正被工具使用',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: KcType.caption.copyWith(color: cs.mutedForeground, fontFeatures: KcType.tabular),
+            child: KcManageSubtitle(
+              key: const ValueKey('keyGrid.subtitle'),
+              manage: _isEditMode,
+              normal: localizations?.keyGridSubtitle(all.length, inUse) ?? '${all.length} 个密钥 · $inUse 个正被工具使用',
+              manageText: localizations?.tr('manage_subtitle_keys', '管理模式 · 拖动排序，勾选后批量操作') ?? '管理模式 · 拖动排序，勾选后批量操作',
             ),
           ),
           const SizedBox(width: KcSpace.x2),
@@ -527,7 +538,7 @@ class _MainScreenState extends State<MainScreen> {
             icon: _isEditMode ? Icons.check : Icons.drag_indicator,
             tip: _isEditMode ? (localizations?.finishEdit ?? '完成编辑') : (localizations?.manageToggleTip ?? '管理：排序 / 置顶 / 删除'),
             active: _isEditMode,
-            onPressed: () => setState(() => _isEditMode = !_isEditMode),
+            onPressed: () => _isEditMode ? _exitManage() : setState(() => _isEditMode = true),
           ),
           const SizedBox(width: KcSpace.x2),
           iconButton(
@@ -540,53 +551,105 @@ class _MainScreenState extends State<MainScreen> {
             },
           ),
           const SizedBox(width: KcSpace.x2),
-          if (_isEditMode)
-            ShadButton(
-              key: const ValueKey('keyGrid.done'),
-              height: KcSize.control,
-              onPressed: () => setState(() => _isEditMode = false),
-              child: Text(localizations?.done ?? '完成'),
-            )
-          else
-            ShadButton(
-              key: const ValueKey('keyGrid.add'),
-              height: KcSize.control,
-              leading: const Icon(Icons.add, size: 16),
-              onPressed: () => _showAddKeyPage(context),
-              child: Text(localizations?.addKey ?? '添加密钥'),
-            ),
+          // 主按钮槽定宽 112：「+ 添加密钥」⇄「✓ 完成」，左侧控件不横移（form_v3.md §13.2）
+          KcPrimarySlot(
+            key: const ValueKey('keyGrid.primarySlot'),
+            width: 112,
+            child: _isEditMode
+                ? ShadButton(
+                    key: const ValueKey('keyGrid.done'),
+                    height: KcSize.control,
+                    width: 112,
+                    leading: const Icon(Icons.check, size: 16),
+                    onPressed: _exitManage,
+                    child: Text(localizations?.done ?? '完成'),
+                  )
+                : ShadButton(
+                    key: const ValueKey('keyGrid.add'),
+                    height: KcSize.control,
+                    width: 112,
+                    leading: const Icon(Icons.add, size: 16),
+                    onPressed: () => _showAddKeyPage(context),
+                    child: Text(localizations?.addKey ?? '添加密钥', maxLines: 1, overflow: TextOverflow.clip),
+                  ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildManageNotice(BuildContext context) {
-    final cs = ShadTheme.of(context).colorScheme;
-    final kc = context.kc;
-    final localizations = AppLocalizations.of(context);
-    return Container(
-      key: const ValueKey('keyGrid.manageNotice'),
-      margin: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, 0),
-      padding: const EdgeInsets.symmetric(horizontal: KcSpace.x3, vertical: KcSpace.x2),
-      decoration: BoxDecoration(
-        color: kc.actionSoft,
-        borderRadius: BorderRadius.circular(KcRadius.panel),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, size: 16, color: kc.actionText),
-          const SizedBox(width: KcSpace.x2),
-          Expanded(
-            child: Text(
-              localizations?.manageHint ?? '拖动卡片调整顺序；拖到窗口上下边缘会自动滚动。每张卡片底部可置顶 / 编辑 / 删除。',
-              style: KcType.caption.copyWith(color: cs.foreground),
-            ),
-          ),
-          const SizedBox(width: KcSpace.x2),
-          Text(localizations?.escToExit ?? 'Esc 退出', style: KcType.caption.copyWith(color: cs.mutedForeground)),
-        ],
-      ),
+  void _exitManage() => setState(() {
+        _isEditMode = false;
+        _selectedKeyIds.clear();
+      });
+
+  Widget _buildKeySelectionBar(BuildContext context, KeyManagerViewModel viewModel, List<AIKey> visible) {
+    final l10n = AppLocalizations.of(context);
+    final visibleIds = visible.map((k) => k.id).whereType<int>().toSet();
+    final selected = _selectedKeyIds.intersection(visibleIds);
+    final allSelected = visibleIds.isNotEmpty && selected.length == visibleIds.length;
+    return KcFloatingSelectionBar(
+      selectedCount: selected.length,
+      allSelected: allSelected,
+      onSelectAll: () => setState(() {
+        if (allSelected) {
+          _selectedKeyIds.removeAll(visibleIds);
+        } else {
+          _selectedKeyIds.addAll(visibleIds);
+        }
+      }),
+      onDone: _exitManage,
+      actions: [
+        KcBatchAction(
+          key: const ValueKey('keyGrid.batch.top'),
+          icon: Icons.vertical_align_top,
+          label: l10n?.moveToTop ?? '置顶',
+          onPressed: () async {
+            // 按当前显示顺序倒序置顶，保持被选密钥之间的相对顺序
+            final ordered = visible.where((k) => selected.contains(k.id)).toList().reversed;
+            for (final k in ordered) {
+              await viewModel.moveKeyToTop(k.id!);
+            }
+            if (context.mounted) _showSnackBar(context, l10n?.movedToTop ?? '已置顶');
+          },
+        ),
+        KcBatchAction(
+          key: const ValueKey('keyGrid.batch.delete'),
+          icon: Icons.delete_outline,
+          label: l10n?.delete ?? '删除',
+          danger: true,
+          onPressed: () => _deleteSelectedKeys(context, viewModel, visible.where((k) => selected.contains(k.id)).toList()),
+        ),
+      ],
     );
+  }
+
+  Future<void> _deleteSelectedKeys(BuildContext context, KeyManagerViewModel viewModel, List<AIKey> keys) async {
+    final l10n = AppLocalizations.of(context);
+    if (keys.isEmpty) return;
+    final confirmed = await ConfirmDialog.show(
+      context: context,
+      title: l10n?.confirmDelete ?? '确认删除',
+      message: (l10n?.tr('batch_delete_keys_confirm', '确定要删除选中的 {n} 个密钥吗？此操作不可撤销。') ?? '确定要删除选中的 {n} 个密钥吗？此操作不可撤销。')
+          .replaceAll('{n}', '${keys.length}'),
+      confirmText: l10n?.delete ?? '删除',
+      isDangerous: true,
+    );
+    if (confirmed != true) return;
+    var failed = 0;
+    for (final k in keys) {
+      if (!await viewModel.deleteKey(k.id!)) failed++;
+    }
+    setState(() => _selectedKeyIds.removeAll(keys.map((k) => k.id)));
+    _claudeConfigScreenKey.currentState?.refresh(force: true);
+    _codexConfigScreenKey.currentState?.refresh(force: true);
+    _geminiConfigScreenKey.currentState?.refresh(force: true);
+    if (!context.mounted) return;
+    if (failed == 0) {
+      _showSnackBar(context, l10n?.keyDeleted ?? '密钥已删除');
+    } else {
+      _showSnackBar(context, viewModel.errorMessage ?? (l10n?.deleteFailed ?? '删除失败'), isError: true);
+    }
   }
 
   Widget _buildFilterRow(BuildContext context, KeyManagerViewModel viewModel, List<AIKey> source, Map<AiToolType, int?> ids) {
@@ -757,7 +820,13 @@ class _MainScreenState extends State<MainScreen> {
         
         // 构建卡片列表
         final cardWidgets = keys.map((key) {
-          return KeyCard(
+          return KcSelectableCard(
+            key: ValueKey('sel-${key.id}'),
+            manage: isEditMode,
+            selected: _selectedKeyIds.contains(key.id),
+            checkKey: ValueKey('keyCard.select.${key.id}'),
+            onSelect: (v) => setState(() => v ? _selectedKeyIds.add(key.id!) : _selectedKeyIds.remove(key.id)),
+            child: KeyCard(
             key: ValueKey(key.id),
             aiKey: key,
             isEditMode: isEditMode,
@@ -791,7 +860,7 @@ class _MainScreenState extends State<MainScreen> {
                 _showSnackBar(context, loc?.movedToTop ?? '已置顶');
               }
             },
-          );
+          ));
         }).toList();
 
         // 编辑模式下使用 ReorderableWrap
@@ -813,7 +882,8 @@ class _MainScreenState extends State<MainScreen> {
               key: _keyListKey,
               controller: _keyListScrollController,
               child: Padding(
-                padding: const EdgeInsets.all(padding),
+                // 底部为悬浮批量栏预留空间（只影响滚动范围，不移动任何卡片）
+                padding: const EdgeInsets.fromLTRB(padding, padding, padding, padding + kcFloatingBarReserve),
                 child: ReorderableWrap(
                   spacing: cardSpacing,
                   runSpacing: cardSpacing,
