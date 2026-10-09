@@ -184,11 +184,8 @@ class _SkillFormPageState extends State<SkillFormPage> {
                     child: ImeSafeTextField(
                       controller: _bodyController,
                       maxLines: 16,
-                      style: shadTheme.textTheme.p,
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        hintText: localizations?.skillsContentHint ?? 'Skill instructions...',
-                      ),
+                      hintText: localizations?.skillsContentHint ?? 'Skill instructions...',
+                      isDark: Theme.of(context).brightness == Brightness.dark,
                     ),
                   ),
                 ],

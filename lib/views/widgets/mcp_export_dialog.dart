@@ -66,7 +66,7 @@ class _McpExportDialogState extends State<McpExportDialog> {
     }
 
     // 检查工具配置文件中是否有同名的 MCP 服务
-    final toolServers = await _syncService.getToolMcpServers(_selectedTool!);
+    final toolServers = (await _syncService.getToolMcpServers(_selectedTool!)).mcpServers;
     final existingServerIds = <String>[];
     
     if (toolServers != null) {
