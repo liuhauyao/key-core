@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import '../../theme/kc_tokens.dart';
 import '../widgets/kc_manage_scaffold.dart';
 import 'package:flutter/material.dart';
@@ -345,14 +346,7 @@ class _McpSyncPageState extends State<McpSyncPage> {
     }
   }
 
-  /// macOS 26 风格：沉浸式标题栏（与界面融为一体）
-  Widget _buildImmersiveTitleBar(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    // 统一顶栏（form_v3.md §10 / §12.2）：工具分段放在标题之后，不再压在红绿灯所在行
-    return KcWindowHeader(
-      title: localizations?.tr('mcp_sync_title', 'MCP 同步') ?? 'MCP 同步',
-      onClose: () async {
+  Future<void> _requestClose() async {
                   // 检查是否有未保存的变更
                   if (_hasUnsavedChanges()) {
                     final shouldClose = await _showUnsavedChangesDialog(isClosing: true);
@@ -364,7 +358,16 @@ class _McpSyncPageState extends State<McpSyncPage> {
                     }
                   }
                   Navigator.of(context).popUntil((route) => route.isFirst);
-                },
+  }
+
+  /// macOS 26 风格：沉浸式标题栏（与界面融为一体）
+  Widget _buildImmersiveTitleBar(BuildContext context) {
+    final shadTheme = ShadTheme.of(context);
+    final localizations = AppLocalizations.of(context);
+    // 统一顶栏（form_v3.md §10 / §12.2）：工具分段放在标题之后，不再压在红绿灯所在行
+    return KcWindowHeader(
+      title: localizations?.tr('mcp_sync_title', 'MCP 同步') ?? 'MCP 同步',
+      onClose: _requestClose,
     );
   }
 
@@ -1359,7 +1362,10 @@ class _McpSyncPageState extends State<McpSyncPage> {
     final shadTheme = ShadTheme.of(context);
     final localizations = AppLocalizations.of(context);
 
-    return Scaffold(
+    return CallbackShortcuts(
+      // Esc = 点右上角关闭（含未保存变更确认）
+      bindings: {const SingleActivator(LogicalKeyboardKey.escape): _requestClose},
+      child: Focus(autofocus: true, child: Scaffold(
       backgroundColor: shadTheme.colorScheme.background,
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -1817,6 +1823,7 @@ class _McpSyncPageState extends State<McpSyncPage> {
           ],
         ),
       ),
+    )),
     );
   }
 }
