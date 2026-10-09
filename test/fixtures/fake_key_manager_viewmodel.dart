@@ -138,6 +138,25 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
   Future<bool> switchClaudeDesktopProvider(int keyId) async =>
       _recordSwitch('claudeDesktop', keyId, AiToolType.claudeDesktop);
 
+  final List<String> officialCalls = [];
+
+  bool _official(String tool, AiToolType t) {
+    officialCalls.add(tool);
+    if (failSwitches) return false;
+    current[t] = null;
+    notifyListeners();
+    return true;
+  }
+
+  @override
+  Future<bool> switchToOfficialClaudeCode() async => _official('claudeCode', AiToolType.claudecode);
+  @override
+  Future<bool> switchToOfficialCodex() async => _official('codex', AiToolType.codex);
+  @override
+  Future<bool> switchToOfficialGemini() async => _official('gemini', AiToolType.gemini);
+  @override
+  Future<bool> switchToOfficialClaudeDesktop() async => _official('claudeDesktop', AiToolType.claudeDesktop);
+
   @override
   Future<AIKey?> getCurrentClaudeCodeKey() async => _byId(current[AiToolType.claudecode]);
   @override

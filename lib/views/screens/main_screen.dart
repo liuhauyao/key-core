@@ -30,9 +30,14 @@ import '../../services/model_list_service.dart';
 import '../widgets/model_list_dialog.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../utils/app_localizations.dart';
-import '../../utils/platform_icon_service.dart';
 import 'dart:io';
 import 'dart:async';
+import 'package:flutter/services.dart';
+import '../../models/mcp_server.dart' show AiToolType;
+import '../../services/codex_config_service.dart';
+import '../../theme/kc_tokens.dart';
+import '../widgets/kc_logo.dart';
+import '../widgets/kc_segmented.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -54,6 +59,7 @@ class _MainScreenState extends State<MainScreen> {
   bool _isEditMode = false;
   AppType _activeApp = AppType.keyManager;
   SettingsCategory _settingsCategory = SettingsCategory.general;
+  _KeySegment _segment = _KeySegment.all;
   bool _previousLoadingState = false;
   int? _lastRefreshedPageIndex; // 记录上次刷新的页面索引，避免重复刷新
   int? _targetPageIndex; // 记录目标页面索引，用于区分中间页面和目标页面
@@ -428,384 +434,274 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  /// 钥匙包页：页头（标题 + 副标题 + 搜索 + 管理 + 刷新 + 主按钮）/ 管理提示条 / 过滤分段 / 网格
   Widget _buildKeyManagerPage(BuildContext context, KeyManagerViewModel viewModel) {
-    final shadTheme = ShadTheme.of(context);
     final localizations = AppLocalizations.of(context);
-    return Column(
-      children: [
-                // 工具栏：搜索、筛选、设置（同一行）
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: shadTheme.colorScheme.background,
-                    border: Border(
-                      bottom: BorderSide(
-                        color: shadTheme.colorScheme.border,
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // 搜索栏（左侧）
-                      Expanded(
-                        flex: 1,
-                        child: Container(
-                          padding: const EdgeInsets.only(right: 12),
-                          height: 38, // 固定高度，避免输入时高度变化
-                          child: ClipRect(
-                            clipBehavior: Clip.hardEdge,
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Builder(
-                                builder: (context) {
-                                  final localizations = AppLocalizations.of(context);
-                                  final shadTheme = ShadTheme.of(context);
-                              return ShadInput(
-                                controller: _searchController,
-                                onChanged: (query) => viewModel.setSearchQuery(query),
-                                placeholder: Text(localizations?.search ?? '搜索密钥...'),
-                                leading: Icon(
-                                  Icons.search,
-                                  size: 18,
-                                  color: shadTheme.colorScheme.mutedForeground,
-                                ),
-                                trailing: _searchController.text.isNotEmpty
-                                    ? ShadButton(
-                                        width: 20,
-                                        height: 20,
-                                        padding: EdgeInsets.zero,
-                                        backgroundColor: Colors.transparent,
-                                        foregroundColor: shadTheme.colorScheme.mutedForeground,
-                                        hoverBackgroundColor: Colors.transparent,
-                                        onPressed: () {
-                                          _searchController.clear();
-                                          viewModel.setSearchQuery('');
-                                        },
-                                        child: const Icon(Icons.clear, size: 14),
-                                      )
-                                    : null,
-                              );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // 供应商分组过滤器
-                      Expanded(
-                        flex: 1,
-                        child: Container(
-                          padding: const EdgeInsets.only(left: 0, right: 12),
-                          child: Builder(
-                            builder: (context) {
-                              final localizations = AppLocalizations.of(context);
-                              // 只显示已添加的平台分组
-                              final addedCategories = viewModel.addedPlatformCategories;
-                              return ShadSelect<PlatformCategory?>(
-                                key: ValueKey('platform_category_filter_${viewModel.filterPlatformCategory}_${addedCategories.length}'),
-                                initialValue: viewModel.filterPlatformCategory,
-                                placeholder: Text(localizations?.allCategories ?? '全部分组'),
-                                options: [
-                                  ShadOption<PlatformCategory?>(
-                                    value: null,
-                                    child: Text(localizations?.allCategories ?? '全部分组'),
-                                  ),
-                                  ...addedCategories.map((category) {
-                                    return ShadOption<PlatformCategory?>(
-                                      value: category,
-                                      child: Text(_getPlatformCategoryDisplayName(category, context)),
-                                    );
-                                  }),
-                                ],
-                                selectedOptionBuilder: (selectContext, value) {
-                                  if (value == null) {
-                                    return Text(localizations?.allCategories ?? '全部分组');
-                                  }
-                                  return Text(_getPlatformCategoryDisplayName(value, selectContext));
-                                },
-                                onChanged: (value) => viewModel.setPlatformCategoryFilter(value),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      // 平台过滤器（右侧）
-                      Expanded(
-                        flex: 1,
-                        child: Container(
-                          padding: const EdgeInsets.only(left: 0, right: 12),
-                          child: Builder(
-                            builder: (context) {
-                              final localizations = AppLocalizations.of(context);
-                              // 根据当前分组筛选获取可用的平台
-                              final availablePlatforms = viewModel.getAvailablePlatformsForCurrentCategory();
-                              return ShadSelect<PlatformType?>(
-                                key: ValueKey('platform_filter_${viewModel.filterPlatform}_${viewModel.filterPlatformCategory}_${availablePlatforms.length}'),
-                                initialValue: viewModel.filterPlatform,
-                                placeholder: Text(localizations?.allPlatforms ?? '全部平台'),
-                                options: [
-                                  ShadOption<PlatformType?>(
-                                    value: null,
-                                    child: Text(localizations?.allPlatforms ?? '全部平台'),
-                                  ),
-                                  ...availablePlatforms.map((platform) {
-                                    return ShadOption<PlatformType?>(
-                                      value: platform,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          PlatformIconService.buildIcon(
-                                            platform: platform,
-                                            size: 18,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(platform.value),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                                ],
-                                selectedOptionBuilder: (context, value) {
-                                  if (value == null) {
-                                    return Text(localizations?.allPlatforms ?? '全部平台');
-                                  }
-                                  return Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      PlatformIconService.buildIcon(
-                                        platform: value,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(value.value),
-                                    ],
-                                  );
-                                },
-                                onChanged: (value) => viewModel.setPlatformFilter(value),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      // 按钮组：拖动模式、添加
-                      Padding(
-                        padding: const EdgeInsets.only(left: 0),
-                        child: Container(
-                          height: 38, // 与输入框高度一致
-                          decoration: BoxDecoration(
-                          border: Border.all(
-                            color: shadTheme.colorScheme.border,
-                            width: 1,
-                          ),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 拖动模式按钮
-                            Tooltip(
-                              key: const ValueKey('keyGrid.manageToggle'),
-                              message: _isEditMode 
-                                  ? (localizations?.finishEdit ?? '完成编辑')
-                                  : (localizations?.edit ?? '编辑'),
-                              child: _isEditMode
-                                  ? ShadButton.ghost(
-                                      width: 38,
-                                      height: 38,
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () {
-                                        setState(() {
-                                          _isEditMode = !_isEditMode;
-                                        });
-                                      },
-                                      child: Icon(
-                                        Icons.check,
-                                        size: 18,
-                                        color: shadTheme.colorScheme.primary,
-                                      ),
-                                    )
-                                  : ShadButton.ghost(
-                                      width: 38,
-                                      height: 38,
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () {
-                                        setState(() {
-                                          _isEditMode = !_isEditMode;
-                                        });
-                                      },
-                                      child: Icon(
-                                        Icons.drag_handle,
-                                        size: 18,
-                                        color: shadTheme.colorScheme.primary,
-                                      ),
-                                    ),
-                            ),
-                            // 分隔线
-                            Container(
-                              width: 1,
-                              height: 20,
-                              color: shadTheme.colorScheme.border,
-                            ),
-                            // 刷新按钮
-                            Tooltip(
-                              message: localizations?.refreshKeyList ?? '刷新列表',
-                              child: ShadButton.ghost(
-                                width: 38,
-                                height: 38,
-                                padding: EdgeInsets.zero,
-                                onPressed: () => viewModel.refresh(),
-                                child: Icon(
-                                  Icons.refresh,
-                                  size: 18,
-                                  color: shadTheme.colorScheme.primary,
-                                ),
-                              ),
-                            ),
-                            // 分隔线
-                            Container(
-                              width: 1,
-                              height: 20,
-                              color: shadTheme.colorScheme.border,
-                            ),
-                            // 添加按钮
-                            Tooltip(
-                              message: localizations?.addKeyTooltip ?? '添加密钥',
-                              child: ShadButton.ghost(
-                                width: 38,
-                                height: 38,
-                                padding: EdgeInsets.zero,
-                                onPressed: () => _showAddKeyPage(context),
-                                child: Icon(
-                                  Icons.add,
-                                  size: 18,
-                                  color: shadTheme.colorScheme.primary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    ],
-                  ),
-                ),
-                // 统计数据
-                if (viewModel.statistics != null)
-                  _buildStatisticsCard(viewModel.statistics!),
-                // 密钥列表
-                Expanded(
-                  child: viewModel.keys.isEmpty
-                      ? _buildEmptyState(viewModel)
-                      : _buildKeyList(viewModel, _isEditMode),
-                ),
-              ],
-            );
-  }
+    final currentIds = viewModel.currentKeyIds;
+    final source = List<AIKey>.from(viewModel.keys);
+    final filtered = source.where((k) => _matchesSegment(k, _segment, currentIds)).toList();
 
-  Widget _buildStatisticsCard(KeyStatistics stats) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    return Container(
-      margin: const EdgeInsets.all(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: shadTheme.colorScheme.muted,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: shadTheme.colorScheme.border,
-            width: 1,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Text(
-                localizations?.statistics ?? '统计信息',
-                style: shadTheme.textTheme.p.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: shadTheme.colorScheme.foreground,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatItem(localizations?.total ?? '总数', stats.total, Colors.blue, shadTheme),
-                  _buildStatItem(localizations?.active ?? '活跃', stats.active, Colors.green, shadTheme),
-                  _buildStatItem(localizations?.expiringSoon ?? '即将过期', stats.expiringSoon, Colors.orange, shadTheme),
-                  _buildStatItem(localizations?.expired ?? '已过期', stats.expired, Colors.red, shadTheme),
-                ],
-              ),
-            ],
-          ),
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (_isEditMode) setState(() => _isEditMode = false);
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildKeyPageHeader(context, viewModel),
+            if (_isEditMode) _buildManageNotice(context),
+            if (viewModel.allKeys.isNotEmpty) _buildFilterRow(context, viewModel, source, currentIds),
+            Expanded(
+              child: viewModel.allKeys.isEmpty
+                  ? _buildEmptyState(viewModel)
+                  : filtered.isEmpty
+                      ? Center(
+                          child: Text(
+                            localizations?.noKeysMatchFilter ?? '没有符合条件的密钥',
+                            style: KcType.body.copyWith(color: ShadTheme.of(context).colorScheme.mutedForeground),
+                          ),
+                        )
+                      : _buildKeyList(viewModel, _isEditMode, filtered),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildStatItem(String label, int value, Color color, ShadThemeData theme) {
-    return Column(
-      children: [
-        Text(
-          value.toString(),
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: theme.textTheme.small.copyWith(
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-      ],
-    );
+  static bool _matchesSegment(AIKey k, _KeySegment s, Map<AiToolType, int?> currentIds) {
+    switch (s) {
+      case _KeySegment.all:
+        return true;
+      case _KeySegment.inUse:
+        return k.id != null && currentIds.values.contains(k.id);
+      case _KeySegment.unused:
+        return enabledToolsOf(k).isEmpty;
+      case _KeySegment.attention:
+        return k.isExpired || k.isExpiringSoon;
+    }
   }
 
-  Widget _buildEmptyState(KeyManagerViewModel viewModel) {
-    final shadTheme = ShadTheme.of(context);
+  Widget _buildKeyPageHeader(BuildContext context, KeyManagerViewModel viewModel) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
     final localizations = AppLocalizations.of(context);
-    if (viewModel.isLoading) {
-      return Center(
-        child: CircularProgressIndicator(
-          color: shadTheme.colorScheme.primary,
+    final all = viewModel.allKeys;
+    final ids = viewModel.currentKeyIds.values.whereType<int>().toSet();
+    final inUse = all.where((k) => ids.contains(k.id)).length;
+
+    Widget iconButton({Key? key, required IconData icon, required String tip, required VoidCallback onPressed, bool active = false}) {
+      return Tooltip(
+        key: key,
+        message: tip,
+        child: ShadButton.outline(
+          width: KcSize.control,
+          height: KcSize.control,
+          padding: EdgeInsets.zero,
+          backgroundColor: active ? kc.actionSoft : null,
+          onPressed: onPressed,
+          child: Icon(icon, size: 16, color: active ? cs.primary : kc.text2),
         ),
       );
     }
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return Container(
+      height: KcSize.pageHeader,
+      padding: const EdgeInsets.symmetric(horizontal: KcSpace.page),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: cs.border))),
+      child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: shadTheme.colorScheme.muted,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.vpn_key_outlined,
-              size: 64,
-              color: shadTheme.colorScheme.mutedForeground,
+          Text(
+            _isEditMode ? (localizations?.manageKeysTitle ?? '管理密钥') : (localizations?.keys ?? '钥匙包'),
+            style: KcType.page.copyWith(color: cs.foreground),
+          ),
+          const SizedBox(width: KcSpace.x3),
+          Expanded(
+            flex: 2,
+            child: Text(
+              localizations?.keyGridSubtitle(all.length, inUse) ?? '${all.length} 个密钥 · $inUse 个正被工具使用',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: KcType.caption.copyWith(color: cs.mutedForeground, fontFeatures: KcType.tabular),
             ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            localizations?.noKeys ?? '暂无密钥',
-            style: shadTheme.textTheme.h4.copyWith(
-              color: shadTheme.colorScheme.foreground,
+          const SizedBox(width: KcSpace.x2),
+          Flexible(
+            flex: 3,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 240),
+              child: ShadInput(
+              key: const ValueKey('keyGrid.search'),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              style: KcType.body,
+              controller: _searchController,
+              onChanged: (query) => viewModel.setSearchQuery(query),
+              placeholder: Text(localizations?.search ?? '搜索密钥...'),
+              leading: Icon(Icons.search, size: 16, color: cs.mutedForeground),
+              trailing: _searchController.text.isNotEmpty
+                  ? GestureDetector(
+                      onTap: () {
+                        _searchController.clear();
+                        viewModel.setSearchQuery('');
+                      },
+                      child: Icon(Icons.close, size: 14, color: cs.mutedForeground),
+                    )
+                  : null,
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            localizations?.addFirstKey ?? '点击上方按钮添加您的第一个AI密钥',
-            style: shadTheme.textTheme.p.copyWith(
-              color: shadTheme.colorScheme.mutedForeground,
+          const SizedBox(width: KcSpace.x2),
+          iconButton(
+            key: const ValueKey('keyGrid.manageToggle'),
+            icon: _isEditMode ? Icons.check : Icons.drag_indicator,
+            tip: _isEditMode ? (localizations?.finishEdit ?? '完成编辑') : (localizations?.manageToggleTip ?? '管理：排序 / 置顶 / 删除'),
+            active: _isEditMode,
+            onPressed: () => setState(() => _isEditMode = !_isEditMode),
+          ),
+          const SizedBox(width: KcSpace.x2),
+          iconButton(
+            key: const ValueKey('keyGrid.refresh'),
+            icon: Icons.refresh,
+            tip: localizations?.refreshKeyList ?? '刷新列表',
+            onPressed: () {
+              viewModel.refresh();
+              viewModel.refreshCurrentToolKeys();
+            },
+          ),
+          const SizedBox(width: KcSpace.x2),
+          if (_isEditMode)
+            ShadButton(
+              key: const ValueKey('keyGrid.done'),
+              height: KcSize.control,
+              onPressed: () => setState(() => _isEditMode = false),
+              child: Text(localizations?.done ?? '完成'),
+            )
+          else
+            ShadButton(
+              key: const ValueKey('keyGrid.add'),
+              height: KcSize.control,
+              leading: const Icon(Icons.add, size: 16),
+              onPressed: () => _showAddKeyPage(context),
+              child: Text(localizations?.addKey ?? '添加密钥'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManageNotice(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final localizations = AppLocalizations.of(context);
+    return Container(
+      key: const ValueKey('keyGrid.manageNotice'),
+      margin: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, 0),
+      padding: const EdgeInsets.symmetric(horizontal: KcSpace.x3, vertical: KcSpace.x2),
+      decoration: BoxDecoration(
+        color: kc.actionSoft,
+        borderRadius: BorderRadius.circular(KcRadius.panel),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 16, color: kc.actionText),
+          const SizedBox(width: KcSpace.x2),
+          Expanded(
+            child: Text(
+              localizations?.manageHint ?? '拖动卡片调整顺序；拖到窗口上下边缘会自动滚动。每张卡片底部可置顶 / 编辑 / 删除。',
+              style: KcType.caption.copyWith(color: cs.foreground),
+            ),
+          ),
+          const SizedBox(width: KcSpace.x2),
+          Text(localizations?.escToExit ?? 'Esc 退出', style: KcType.caption.copyWith(color: cs.mutedForeground)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterRow(BuildContext context, KeyManagerViewModel viewModel, List<AIKey> source, Map<AiToolType, int?> ids) {
+    final localizations = AppLocalizations.of(context);
+    int count(_KeySegment s) => source.where((k) => _matchesSegment(k, s, ids)).length;
+    final segments = [
+      (_KeySegment.all, localizations?.segmentAll ?? '全部'),
+      (_KeySegment.inUse, localizations?.segmentInUse ?? '正在使用'),
+      (_KeySegment.unused, localizations?.segmentUnused ?? '未用到工具'),
+      (_KeySegment.attention, localizations?.segmentAttention ?? '需处理'),
+    ];
+    final addedCategories = viewModel.addedPlatformCategories;
+    final availablePlatforms = viewModel.getAvailablePlatformsForCurrentCategory();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, 0),
+      child: Row(
+        children: [
+          KcSegmented<_KeySegment>(
+            value: _segment,
+            items: [for (final (s, label) in segments) (s, label, count(s))],
+            onChanged: (s) => setState(() => _segment = s),
+          ),
+          const SizedBox(width: KcSpace.x3),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 150),
+                    child: ShadSelect<PlatformCategory?>(
+              key: ValueKey('platform_category_filter_${viewModel.filterPlatformCategory}_${addedCategories.length}'),
+              initialValue: viewModel.filterPlatformCategory,
+              placeholder: Text(localizations?.allCategories ?? '全部分组'),
+              options: [
+                ShadOption<PlatformCategory?>(value: null, child: Text(localizations?.allCategories ?? '全部分组')),
+                ...addedCategories.map((category) => ShadOption<PlatformCategory?>(
+                      value: category,
+                      child: Text(_getPlatformCategoryDisplayName(category, context)),
+                    )),
+              ],
+              selectedOptionBuilder: (selectContext, value) => Text(
+                value == null ? (localizations?.allCategories ?? '全部分组') : _getPlatformCategoryDisplayName(value, selectContext),
+                overflow: TextOverflow.ellipsis,
+              ),
+              onChanged: (value) => viewModel.setPlatformCategoryFilter(value),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: KcSpace.x2),
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 170),
+                    child: ShadSelect<PlatformType?>(
+              key: ValueKey('platform_filter_${viewModel.filterPlatform}_${viewModel.filterPlatformCategory}_${availablePlatforms.length}'),
+              initialValue: viewModel.filterPlatform,
+              placeholder: Text(localizations?.allPlatforms ?? '全部平台'),
+              options: [
+                ShadOption<PlatformType?>(value: null, child: Text(localizations?.allPlatforms ?? '全部平台')),
+                ...availablePlatforms.map((platform) => ShadOption<PlatformType?>(
+                      value: platform,
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        KcPlatformLogo(platform: platform, size: 18, logoSize: 13, radius: 4),
+                        const SizedBox(width: 8),
+                        Text(platform.value),
+                      ]),
+                    )),
+              ],
+              selectedOptionBuilder: (context, value) {
+                if (value == null) return Text(localizations?.allPlatforms ?? '全部平台');
+                return Row(mainAxisSize: MainAxisSize.min, children: [
+                  KcPlatformLogo(platform: value, size: 18, logoSize: 13, radius: 4),
+                  const SizedBox(width: 8),
+                  Flexible(child: Text(value.value, overflow: TextOverflow.ellipsis)),
+                ]);
+              },
+              onChanged: (value) => viewModel.setPlatformFilter(value),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -813,13 +709,68 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildKeyList(KeyManagerViewModel viewModel, bool isEditMode) {
+  Widget _buildEmptyState(KeyManagerViewModel viewModel) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final localizations = AppLocalizations.of(context);
+    if (viewModel.isLoading) {
+      return Center(child: CircularProgressIndicator(color: cs.primary));
+    }
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(14)),
+              child: Icon(Icons.vpn_key_outlined, size: 26, color: kc.text2),
+            ),
+            const SizedBox(height: KcSpace.x4),
+            Text(localizations?.emptyKeysTitle ?? '钥匙包还是空的', style: KcType.title.copyWith(color: cs.foreground)),
+            const SizedBox(height: KcSpace.x1_5),
+            Text(
+              localizations?.emptyKeysDesc ?? '添加第一把密钥后，就能一键切换到 Claude Code、Codex、Gemini 等工具。',
+              textAlign: TextAlign.center,
+              style: KcType.body.copyWith(color: cs.mutedForeground),
+            ),
+            const SizedBox(height: KcSpace.x5),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ShadButton(
+                  key: const ValueKey('keyGrid.emptyAdd'),
+                  leading: const Icon(Icons.add, size: 16),
+                  onPressed: () => _showAddKeyPage(context),
+                  child: Text(localizations?.addKey ?? '添加密钥'),
+                ),
+                const SizedBox(width: KcSpace.x2),
+                ShadButton.outline(
+                  key: const ValueKey('keyGrid.emptyImport'),
+                  leading: const Icon(Icons.file_open_outlined, size: 16),
+                  onPressed: () {
+                    setState(() => _settingsCategory = SettingsCategory.data);
+                    _onAppSwitched(AppType.settings);
+                  },
+                  child: Text(localizations?.importBackupFile ?? '导入备份文件'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKeyList(KeyManagerViewModel viewModel, bool isEditMode, List<AIKey> visibleKeys) {
     return LayoutBuilder(
       builder: (context, constraints) {
         // 计算每行卡片数量，卡片最小宽度为 240px
         const double minCardWidth = 240;
         const double cardSpacing = 10;
-        const double padding = 16;
+        const double padding = KcSpace.page; // 与页头左右 padding 对齐（原 16，列数算法不变）
         const double cardHeight = 140; // 固定卡片高度，减小高度以优化空间利用
         
         final availableWidth = constraints.maxWidth - padding * 2;
@@ -834,7 +785,8 @@ class _MainScreenState extends State<MainScreen> {
           crossAxisCount -= 1;
         }
         
-        final keys = List<AIKey>.from(viewModel.keys);
+        final keys = visibleKeys;
+        final currentIds = viewModel.currentKeyIds;
         
         // 构建卡片列表
         final cardWidgets = keys.map((key) {
@@ -862,6 +814,9 @@ class _MainScreenState extends State<MainScreen> {
               final loc = AppLocalizations.of(context);
               _showSnackBar(context, loc?.keyCopied ?? '密钥已复制');
             },
+            currentKeyIds: currentIds,
+            onSwitchTool: (tool) => _switchToolFromCard(key, tool),
+            onEnableTool: (tool) => _showEditKeyPage(context, key, viewModel),
             onMoveToTop: () async {
               final success = await viewModel.moveKeyToTop(key.id!);
               if (success) {
@@ -896,11 +851,15 @@ class _MainScreenState extends State<MainScreen> {
                   spacing: cardSpacing,
                   runSpacing: cardSpacing,
                   needsLongPressDraggable: false, // 禁用长按拖动，允许直接拖动
+                  buildDraggableFeedback: (context, constraints, child) =>
+                      KeyCardDragFeedback(constraints: constraints, child: child),
                   onReorder: (oldIndex, newIndex) {
                     // ReorderableWrap 的索引计算
                     // 根据官方示例，ReorderableWrap 的 newIndex 已经是正确的插入位置
                     // 不需要再调整
-                    final reorderedKeys = List<AIKey>.from(viewModel.keys);
+                    // 过滤（搜索 / 分段）只影响显示：传给 reorderKeys 的是可见子集，
+                    // 其余密钥由 reorderKeys 保持原序（与原实现的筛选合并逻辑一致）
+                    final reorderedKeys = List<AIKey>.from(keys);
                     
                     // 先移除拖动项
                     final draggedKey = reorderedKeys.removeAt(oldIndex);
@@ -1090,6 +1049,113 @@ class _MainScreenState extends State<MainScreen> {
   }
 
 
+  Future<bool> _switchTool(KeyManagerViewModel vm, AiToolType tool, int keyId) {
+    switch (tool) {
+      case AiToolType.claudecode:
+        return vm.switchClaudeCodeProvider(keyId);
+      case AiToolType.claudeDesktop:
+        return vm.switchClaudeDesktopProvider(keyId);
+      case AiToolType.codex:
+        return vm.switchCodexProvider(keyId);
+      case AiToolType.gemini:
+        return vm.switchGeminiProvider(keyId);
+      default:
+        return Future.value(false);
+    }
+  }
+
+  Future<bool> _switchToolToOfficial(KeyManagerViewModel vm, AiToolType tool) {
+    switch (tool) {
+      case AiToolType.claudecode:
+        return vm.switchToOfficialClaudeCode();
+      case AiToolType.claudeDesktop:
+        return vm.switchToOfficialClaudeDesktop();
+      case AiToolType.codex:
+        return vm.switchToOfficialCodex();
+      case AiToolType.gemini:
+        return vm.switchToOfficialGemini();
+      default:
+        return Future.value(false);
+    }
+  }
+
+  /// 卡片上点击「已启用」工具 chip：直接切换，toast 里带「撤销」（恢复到切换前的密钥或官方配置）
+  Future<void> _switchToolFromCard(AIKey key, AiToolType tool) async {
+    if (key.id == null) return;
+    final vm = context.read<KeyManagerViewModel>();
+    final previous = vm.currentKeyIds[tool];
+    bool ok;
+    Object? error;
+    try {
+      ok = await _switchTool(vm, tool, key.id!);
+    } catch (e) {
+      ok = false;
+      error = e;
+    }
+    if (!mounted) return;
+    error ??= ok ? null : vm.errorMessage;
+    showSwitchResult(
+      context,
+      success: ok,
+      targetName: key.name,
+      toolName: kcToolName(tool),
+      error: error,
+      onRetry: () => _switchToolFromCard(key, tool),
+      onUndo: ok && previous != key.id ? () => _undoToolSwitch(tool, previous) : null,
+    );
+    if (ok && tool == AiToolType.codex) {
+      await _maybeWarnCodexEnvVar(vm, key);
+    }
+  }
+
+  Future<void> _undoToolSwitch(AiToolType tool, int? previousKeyId) async {
+    final vm = context.read<KeyManagerViewModel>();
+    final localizations = AppLocalizations.of(context);
+    bool ok;
+    Object? error;
+    try {
+      ok = previousKeyId != null ? await _switchTool(vm, tool, previousKeyId) : await _switchToolToOfficial(vm, tool);
+    } catch (e) {
+      ok = false;
+      error = e;
+    }
+    if (!mounted) return;
+    String name = localizations?.officialShort ?? '官方';
+    if (previousKeyId != null) {
+      for (final k in vm.allKeys) {
+        if (k.id == previousKeyId) name = k.name;
+      }
+    }
+    if (ok) {
+      showKcToast(context, localizations?.undoSwitchRestored(kcToolName(tool), name) ?? '已恢复：${kcToolName(tool)} 使用 $name');
+    } else {
+      showSwitchResult(context, success: false, targetName: name, toolName: kcToolName(tool), error: error ?? vm.errorMessage);
+    }
+  }
+
+  /// 与 Codex 页一致：该供应商不支持 auth.json 时，提示需要设置环境变量
+  Future<void> _maybeWarnCodexEnvVar(KeyManagerViewModel vm, AIKey key) async {
+    try {
+      final decrypted = await vm.getDecryptedKey(key.id!);
+      if (decrypted == null) return;
+      final svc = CodexConfigService();
+      final pc = await svc.getProviderConfig(decrypted);
+      if (pc.supportsAuthJson || pc.envKeyName == null) return;
+      final cmd = await svc.generateEnvVarCommand(decrypted, permanent: true);
+      if (cmd == null || !mounted) return;
+      final l = AppLocalizations.of(context);
+      showKcToast(
+        context,
+        l?.codexEnvVarRequired ?? 'Codex 还需要设置环境变量才能使用这把密钥',
+        kind: KcToastKind.warning,
+        actionLabel: l?.copyCommand ?? '复制命令',
+        onAction: () => ClipboardService().copyToClipboard(cmd),
+      );
+    } catch (_) {
+      // 只是附加提示，失败不影响切换结果
+    }
+  }
+
   /// 获取平台分组的显示名称
   String _getPlatformCategoryDisplayName(PlatformCategory category, BuildContext context) {
     return category.getValue(context); // 使用 PlatformCategory 自带的本地化方法
@@ -1187,3 +1253,5 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
+/// 钥匙包过滤分段
+enum _KeySegment { all, inUse, unused, attention }

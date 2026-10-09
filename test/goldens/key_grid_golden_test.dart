@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:key_core/utils/platform_icon_service.dart';
 import 'package:key_core/views/screens/main_screen.dart';
 
 import '../fixtures/fake_key_manager_viewmodel.dart';
@@ -23,7 +24,10 @@ Future<void> pumpMain(WidgetTester tester, {Brightness brightness = Brightness.l
 }
 
 void main() {
-  setUpAll(installTestPlatformMocks);
+  setUpAll(() async {
+    installTestPlatformMocks();
+    await PlatformIconService.init();
+  });
   // golden 只在 Linux 上比对（字体栅格化在各平台不同）
   final skip = !Platform.isLinux;
 

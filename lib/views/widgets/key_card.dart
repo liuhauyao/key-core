@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -7,9 +6,7 @@ import 'dart:async';
 import '../../models/ai_key.dart';
 import '../../models/model_info.dart';
 import '../../models/platform_category.dart';
-import '../../models/platform_type.dart';
 import '../../utils/app_localizations.dart';
-import '../../utils/platform_icon_service.dart';
 import '../../services/key_validation_service.dart';
 import '../../services/model_list_service.dart';
 import '../../services/balance_query_service.dart';
@@ -18,6 +15,9 @@ import '../../services/key_cache_service.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
 import 'package:provider/provider.dart';
 import 'model_list_dialog.dart';
+import 'kc_logo.dart';
+import '../../models/mcp_server.dart' show AiToolType;
+import '../../theme/kc_tokens.dart';
 
 /// 卡片使用模式
 enum KeyCardMode {
@@ -44,6 +44,15 @@ class KeyCard extends StatefulWidget {
   final VoidCallback? onMoveToTop; // 置顶回调
   final ValueChanged<bool>? onToggle; // OpenClaw 等场景：右上角显示开关滑块
 
+  /// 点击「已启用」工具 chip：把该工具直接切到这把密钥（钥匙包视图）
+  final ValueChanged<AiToolType>? onSwitchTool;
+
+  /// 「＋」菜单选择某个未启用的工具
+  final ValueChanged<AiToolType>? onEnableTool;
+
+  /// 各工具当前生效的密钥 id；不传时从 KeyManagerViewModel 读取
+  final Map<AiToolType, int?>? currentKeyIds;
+
   const KeyCard({
     super.key,
     required this.aiKey,
@@ -60,6 +69,9 @@ class KeyCard extends StatefulWidget {
     this.onCopyEnvVarCommand,
     this.onMoveToTop,
     this.onToggle,
+    this.onSwitchTool,
+    this.onEnableTool,
+    this.currentKeyIds,
   });
 
   @override
@@ -81,6 +93,7 @@ class _KeyCardState extends State<KeyCard> {
   bool? _cachedValidationStatus; // 缓存的校验状态
   bool _isSyncing = false;
   bool _isHovering = false;
+  bool _menuOpen = false;
   String? _lastCheckedPlatformTypeId; // 记录上次检查的平台类型ID
 
   @override
@@ -299,7 +312,7 @@ class _KeyCardState extends State<KeyCard> {
         scaffoldMessenger.hideCurrentSnackBar();
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('同步失败，检查密钥或者网络'),
+            content: Text(localizations?.syncFailedCheckNetwork ?? '同步失败，请检查密钥或网络'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
           ),
@@ -319,7 +332,7 @@ class _KeyCardState extends State<KeyCard> {
           const Duration(seconds: 10),
           onTimeout: () {
             return SyncResult.failure(
-              error: '同步失败，检查密钥或者网络',
+              error: localizations?.syncFailedCheckNetwork ?? '同步失败，请检查密钥或网络',
               validationSuccess: false,
             );
           },
@@ -330,7 +343,7 @@ class _KeyCardState extends State<KeyCard> {
           scaffoldMessenger.hideCurrentSnackBar();
           scaffoldMessenger.showSnackBar(
             SnackBar(
-              content: Text('同步失败，检查密钥或者网络'),
+              content: Text(localizations?.syncFailedCheckNetwork ?? '同步失败，请检查密钥或网络'),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 3),
             ),
@@ -358,21 +371,21 @@ class _KeyCardState extends State<KeyCard> {
           // 成功时只显示：同步成功、加载模型x个、余额xx
           final messageParts = <String>[];
           if (result.modelCount != null) {
-            messageParts.add('加载模型 ${result.modelCount} 个');
+            messageParts.add(localizations?.syncLoadedModels(result.modelCount!) ?? '加载模型 ${result.modelCount} 个');
           }
           if (result.balanceData != null) {
             final balanceStr = _formatBalanceForDisplay(result.balanceData!);
             if (balanceStr != null) {
-              messageParts.add('余额：$balanceStr');
+              messageParts.add(localizations?.syncBalance(balanceStr) ?? '余额：$balanceStr');
             }
           }
           if (messageParts.isEmpty) {
-            messageParts.add('同步成功');
+            messageParts.add(localizations?.syncSuccess ?? '同步成功');
           }
-          message = messageParts.join('，');
+          message = messageParts.join(' · ');
         } else {
           // 失败时只显示简单消息
-          message = '同步失败，检查密钥或者网络';
+          message = localizations?.syncFailedCheckNetwork ?? '同步失败，请检查密钥或网络';
         }
         
         scaffoldMessenger.showSnackBar(
@@ -396,7 +409,7 @@ class _KeyCardState extends State<KeyCard> {
         scaffoldMessenger.hideCurrentSnackBar();
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('同步失败，检查密钥或者网络'),
+            content: Text(localizations?.syncFailedCheckNetwork ?? '同步失败，请检查密钥或网络'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
           ),
@@ -816,21 +829,20 @@ class _KeyCardState extends State<KeyCard> {
     }
 
     // 构建紧凑的余额标签，点击可查询最新余额
+    final kc = context.kc;
     final tag = GestureDetector(
       onTap: _supportsBalanceQuery == true ? _handleQueryBalance : null,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        height: 20,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 7),
         decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(6),
+          color: kc.okSoft,
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
           balanceText,
-          style: shadTheme.textTheme.small.copyWith(
-            fontSize: 11,
-            color: Colors.green.shade700,
-            fontWeight: FontWeight.w600,
-          ),
+          style: KcType.badge.copyWith(color: kc.okText, fontFeatures: KcType.tabular),
         ),
       ),
     );
@@ -839,11 +851,6 @@ class _KeyCardState extends State<KeyCard> {
       return Tooltip(message: tooltipText, child: tag);
     }
     return tag;
-  }
-
-  /// 构建校验通过标签（绿色呼吸圆点）
-  Widget _buildValidationSuccessLabel(BuildContext context, ShadThemeData shadTheme) {
-    return _ValidationIndicator();
   }
 
   Widget _buildBalanceRow(BuildContext context, String label, String value, Color color) {
@@ -873,208 +880,57 @@ class _KeyCardState extends State<KeyCard> {
     );
   }
 
+  // ───────────────────────────── 布局层（ui_redesign_plan §5.2）─────────────────────────────
+  // 140 高：顶部 36（logo + 名称 + 掩码密钥 + 右上角操作）/ 标签行 20 / 底部 34（工具状态 chip 或管理操作）。
+  // 回调签名与之前一致；管理模式不渲染可点 chip、不包 InkWell，避免抢 ReorderableWrap 的拖动手势。
+
   @override
   Widget build(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
     final localizations = AppLocalizations.of(context);
-    
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovering = true),
-      onExit: (_) => setState(() => _isHovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        // transform: Matrix4.identity()..translate(0.0, _isHovering ? -4.0 : 0.0, 0.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          // 基础背景色
-          color: widget.isCurrent
-              ? Color.alphaBlend(
-                  shadTheme.colorScheme.primary.withOpacity(0.04),
-                  shadTheme.colorScheme.card,
-                )
-              : shadTheme.colorScheme.card,
-          border: Border.all(
-            color: widget.isCurrent
-                ? shadTheme.colorScheme.primary
-                : shadTheme.colorScheme.border, // 完全不透明
-            width: widget.isCurrent ? 2 : 1.5, // 增加边框宽度
-          ),
-          boxShadow: [
-            if (_isHovering)
-              BoxShadow(
-                color: Colors.black.withOpacity(0.25), // 更深的阴影
-                blurRadius: 24, // 更大的模糊半径
-                offset: const Offset(0, 12), // 更大的偏移量，增加悬浮高度感
-                spreadRadius: 0,
-              )
-            else
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-                spreadRadius: 0,
-              ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Stack(
-            children: [
-              // 1. 柔和的流光渐变（模拟环境光）
-              // 左上角的高光
-              Positioned(
-                top: -100,
-                left: -100,
-                child: Container(
-                  width: 300,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        shadTheme.colorScheme.primary.withOpacity(0.05),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-              // 右下角的反光
-              Positioned(
-                bottom: -100,
-                right: -100,
-                child: Container(
-                  width: 300,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        shadTheme.colorScheme.secondary.withOpacity(0.05),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 1.0],
-                    ),
-                  ),
-                ),
-              ),
+    final isLensCurrent = widget.cardMode == KeyCardMode.switchKey && widget.isCurrent;
 
-              // 2. 噪点纹理（提供磨砂质感）
-              Positioned.fill(
-                child: Opacity(
-                  opacity: 0.04, // 极低的透明度，只保留微妙质感
-                  child: CustomPaint(
-                    painter: _NoisePainter(
-                      color: shadTheme.colorScheme.foreground,
-                    ),
-                  ),
-                ),
-              ),
-              
-              // 3. 内容层
+    final borderColor = isLensCurrent
+        ? kc.ok
+        : (_isHovering && !widget.isEditMode ? cs.input : cs.border);
+    final bg = isLensCurrent ? Color.alphaBlend(kc.okSoft, cs.card) : cs.card;
+
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(KcSpace.x3, KcSpace.x2 + 2, KcSpace.x3, 0),
+      child: _buildCardContent(context, ShadTheme.of(context), localizations),
+    );
+
+    return Semantics(
+      container: true,
+      label: widget.aiKey.name,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovering = true),
+        onExit: (_) => setState(() => _isHovering = false),
+        child: AnimatedContainer(
+          duration: KcMotion.of(context),
+          curve: KcMotion.curve,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(KcRadius.panel),
+            border: Border.all(color: borderColor, width: 1),
+            boxShadow: _isHovering && !widget.isEditMode ? kc.shadowMd : kc.shadowSm,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(KcRadius.panel),
+            child: Material(
+              type: MaterialType.transparency,
               // 编辑模式下不使用 InkWell，避免拦截拖动事件
-              widget.isEditMode
-                  ? SizedBox.expand(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: _buildCardContent(context, shadTheme, localizations),
-                      ),
-                    )
+              child: widget.isEditMode
+                  ? SizedBox.expand(child: content)
                   : InkWell(
                       onTap: _handleCardTap,
-                      borderRadius: BorderRadius.circular(12),
                       hoverColor: Colors.transparent,
                       splashColor: Colors.transparent,
                       highlightColor: Colors.transparent,
-                      child: SizedBox.expand(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: _buildCardContent(context, shadTheme, localizations),
-                        ),
-                      ),
+                      child: SizedBox.expand(child: content),
                     ),
-                    
-              // 4. 右上角状态指示（三种模式）
-              if (!widget.isEditMode)
-                Builder(
-                  builder: (context) {
-                    final isValidated = _cachedValidationStatus ?? widget.aiKey.isValidated;
-
-                    // 模式 A：onToggle 不为空 → 显示开关滑块（如 MCP 卡片）
-                    if (widget.onToggle != null) {
-                      return Positioned(
-                        top: 6,
-                        right: 4,
-                        child: Transform.scale(
-                          scale: 0.75,
-                          child: Switch(
-                            value: widget.isCurrent,
-                            onChanged: widget.onToggle,
-                            activeColor: shadTheme.colorScheme.primary,
-                          ),
-                        ),
-                      );
-                    }
-
-                    // 模式 B：switchKey 且已选中 → 圆点 + "激活" 融合标签
-                    if (widget.cardMode == KeyCardMode.switchKey && widget.isCurrent) {
-                      return Positioned(
-                        top: 10,
-                        right: 10,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade600,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                '激活',
-                                style: shadTheme.textTheme.small.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    // 模式 C：其余情况 → 已同步则显示绿色圆点，否则空白
-                    if (isValidated) {
-                      return Positioned(
-                        top: 12,
-                        right: 12,
-                        child: _buildValidationSuccessLabel(context, shadTheme),
-                      );
-                    }
-
-                    return const SizedBox.shrink();
-                  },
-                ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1086,302 +942,348 @@ class _KeyCardState extends State<KeyCard> {
     ShadThemeData shadTheme,
     AppLocalizations? localizations,
   ) {
+    final cs = shadTheme.colorScheme;
+    final kc = context.kc;
+    final key = widget.aiKey;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.max, // 允许 Column 填充可用空间
       children: [
-        // 顶部：Logo + 标题区域 + 拖动手柄
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Logo
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: shadTheme.colorScheme.muted,
-              ),
-              child: Center(
-                child: PlatformIconService.buildIcon(
-                  platform: widget.aiKey.platformType,
-                  customIconFileName: widget.aiKey.icon,
-                  size: 28,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            // 标题和副标题
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.aiKey.name,
-                    style: shadTheme.textTheme.p.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: shadTheme.colorScheme.foreground,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '${widget.aiKey.platform}',
-                    style: shadTheme.textTheme.small.copyWith(
-                      fontSize: 11,
-                      color: shadTheme.colorScheme.mutedForeground,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            
-              // 拖动手柄（仅在编辑模式显示，作为视觉提示）
-            if (widget.isEditMode)
-              Container(
-                key: const ValueKey('keyCard.dragHandle'),
-                margin: const EdgeInsets.only(left: 8),
-                child: Icon(
-                  Icons.drag_handle,
-                  size: 20,
-                  color: shadTheme.colorScheme.mutedForeground,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // 中间：标签区域（单行显示，超出部分隐藏）
+        // 1. 顶部：logo + 名称/★ + 平台 · 掩码密钥 + 右上角
         SizedBox(
-          height: 24, // 固定高度，避免换行
-          width: double.infinity, // 确保使用全部可用宽度
+          height: 36,
+          child: Row(
+            children: [
+              KcPlatformLogo(platform: key.platformType, customIconFileName: key.icon, name: key.name),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            key.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: KcType.strong.copyWith(color: cs.foreground),
+                          ),
+                        ),
+                        if (key.isFavorite) ...[
+                          const SizedBox(width: 4),
+                          Tooltip(
+                            message: localizations?.favoriteLabel ?? '收藏',
+                            child: Icon(Icons.star_rounded, key: const ValueKey('keyCard.favorite'), size: 14, color: kc.warn),
+                          ),
+                        ],
+                      ],
+                    ),
+                    Text.rich(
+                      TextSpan(children: [
+                        TextSpan(text: key.platform),
+                        const TextSpan(text: '  ·  '),
+                        TextSpan(text: maskKeyForCard(key), style: KcType.mono.copyWith(fontSize: 11.5)),
+                      ]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KcType.caption.copyWith(color: cs.mutedForeground, height: 1.25),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: KcSpace.x1_5),
+              _buildTopRight(context, localizations),
+            ],
+          ),
+        ),
+        const SizedBox(height: KcSpace.x2),
+        // 2. 标签行：状态 badge 优先，其后分类 / 模型数 / 余额 / 用户标签（单行裁切）
+        SizedBox(
+          height: 20,
+          width: double.infinity,
           child: ClipRect(
             clipBehavior: Clip.hardEdge,
-            child: Row(
-              children: [
-                // 平台分类标签
-                ...PlatformCategoryManager.getCategoriesForPlatform(widget.aiKey.platformType)
-                    .take(2)
-                    .map((category) => Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: _buildTag(
-                        context,
-                        category.getValue(context),
-                        isCategory: true,
-                      ),
-                    )),
-                // 模型数量标签（如果支持模型列表且有缓存）
-                if (_supportsModelList == true && _cachedModels != null && _cachedModels!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: GestureDetector(
-                      onTap: _handleViewModels,
-                      child: _buildTag(
-                        context,
-                        localizations?.modelsLabel(_cachedModels!.length) ?? '${_cachedModels!.length} 个模型',
-                        isCategory: false,
-                        isUserTag: false,
-                        isClickable: true,
-                        isModelTag: true,
-                      ),
-                    ),
-                  ),
-                // 余额标签（如果有余额数据）
-                if (!widget.isEditMode && _cachedBalance != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: _buildBalanceDisplay(context, shadTheme, localizations),
-                  ),
-                // 用户自定义标签（显示为紫色）
-                ...widget.aiKey.tags.map((tag) => Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: _buildTag(context, tag, isCategory: false, isUserTag: true),
-                )),
-              ],
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              maxWidth: double.infinity,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: _buildTagRow(context, shadTheme, localizations),
+              ),
             ),
           ),
         ),
-        // 底部：操作按钮组（带滑动动画）- 使用 Spacer 推到底部
         const Spacer(),
-        AnimatedSwitcher(
-            duration: const Duration(milliseconds: 400),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
-              return Stack(
-                alignment: Alignment.centerLeft,
-                children: <Widget>[
-                  ...previousChildren,
-                  if (currentChild != null) currentChild,
-                ],
-              );
-            },
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              // 获取子组件的 key，判断是编辑模式还是普通模式
-              final isEditMode = (child.key as ValueKey<String>).value == 'edit';
-              
-              // 根据模式设置不同的滑动方向
-              final offsetAnimation = Tween<Offset>(
-                begin: isEditMode 
-                    ? const Offset(1.0, 0.0)  // 编辑按钮从右侧滑入
-                    : const Offset(-1.0, 0.0), // 普通按钮从左侧滑入
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              ));
+        // 3. 底部：工具状态 chip（普通）或「n 个工具 + 置顶/编辑/删除」（管理）
+        Container(
+          height: 34,
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: cs.border))),
+          child: widget.isEditMode ? _buildManageBar(context, localizations) : _buildToolBar(context),
+        ),
+      ],
+    );
+  }
 
-              return ClipRect(
-                child: SlideTransition(
-                  position: offsetAnimation,
-                  child: FadeTransition(
-                    opacity: animation,
-                    child: child,
-                  ),
-                ),
-              );
-            },
-            child: widget.isEditMode
-                ? SizedBox(
-                    key: const ValueKey<String>('edit'),
-                    width: double.infinity,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        _buildActionButton(
-                          context,
-                          key: const ValueKey('keyCard.moveToTop'),
-                          icon: Icons.vertical_align_top,
-                          tooltip: localizations?.moveToTop ?? '置顶',
-                          onPressed: widget.onMoveToTop,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildActionButton(
-                          context,
-                          key: const ValueKey('keyCard.edit'),
-                          icon: Icons.edit_outlined,
-                          tooltip: localizations?.edit ?? '编辑',
-                          onPressed: widget.onEdit,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildActionButton(
-                          context,
-                          key: const ValueKey('keyCard.delete'),
-                          icon: Icons.delete_outline,
-                          tooltip: localizations?.deleteTooltip ?? '删除',
-                          onPressed: widget.onDelete,
-                          color: Colors.red,
-                        ),
-                      ],
-                    ),
-                  )
-                : SizedBox(
-                    key: const ValueKey<String>('normal'),
-                    width: double.infinity,
-                    child: Row(
-                      children: [
-                        _buildActionButton(
-                          context,
-                          icon: Icons.visibility_outlined,
-                          tooltip: localizations?.details ?? '查看',
-                          onPressed: widget.onView ?? widget.onTap,
-                        ),
-                        const SizedBox(width: 8),
-                        if (widget.aiKey.managementUrl != null) ...[
-                          _buildActionButton(
-                            context,
-                            icon: Icons.language,
-                            tooltip: localizations?.openManagementUrl ?? '管理地址',
-                            onPressed: widget.onOpenManagementUrl,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        if (widget.aiKey.apiEndpoint != null) ...[
-                          _buildActionButton(
-                            context,
-                            icon: Icons.code,
-                            tooltip: localizations?.copyApiEndpoint ?? 'API地址',
-                            onPressed: widget.onCopyApiEndpoint,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        _buildActionButton(
-                          context,
-                          icon: Icons.copy_outlined,
-                          tooltip: localizations?.copyKey ?? '复制',
-                          onPressed: widget.onCopyApiKey,
-                        ),
-                        // 如果启用 Codex 且提供了复制环境变量命令回调，显示按钮
-                        if (widget.aiKey.enableCodex && widget.onCopyEnvVarCommand != null) ...[
-                          const SizedBox(width: 8),
-                          _buildActionButton(
-                            context,
-                            icon: Icons.terminal_outlined,
-                            tooltip: localizations?.copyEnvVarCommand ?? '复制环境变量命令',
-                            onPressed: widget.onCopyEnvVarCommand,
-                          ),
-                        ],
-                        // 同步按钮和编辑按钮居右
-                        const Spacer(),
-                        if (_supportsSync == true) ...[
-                          _buildActionButton(
-                            context,
-                            icon: _isSyncing ? Icons.sync : Icons.sync_outlined,
-                            tooltip: localizations?.sync ?? '同步',
-                            onPressed: _isSyncing ? null : _handleSync,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        _buildActionButton(
-                          context,
-                          icon: Icons.edit_outlined,
-                          tooltip: localizations?.edit ?? '编辑',
-                          onPressed: widget.onEdit,
-                        ),
-                      ],
-                    ),
-                  ),
+  /// 右上角：管理模式 = 常显拖拽手柄；OpenClaw 开关；工具页生效 badge；普通 hover = 复制 / 编辑 / ⋯
+  Widget _buildTopRight(BuildContext context, AppLocalizations? localizations) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    if (widget.isEditMode) {
+      return Tooltip(
+        message: localizations?.manageToggleTip ?? '拖动排序',
+        child: Container(
+          key: const ValueKey('keyCard.dragHandle'),
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(KcRadius.control)),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.grab,
+            child: Icon(Icons.drag_indicator, size: 16, color: kc.text2),
+          ),
+        ),
+      );
+    }
+    if (widget.onToggle != null) {
+      return Transform.scale(
+        scale: 0.75,
+        child: Switch(value: widget.isCurrent, onChanged: widget.onToggle, activeColor: cs.primary),
+      );
+    }
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildActionButton(
+          context,
+          key: const ValueKey('keyCard.copy'),
+          icon: Icons.copy_outlined,
+          tooltip: localizations?.copyKey ?? '复制密钥',
+          onPressed: widget.onCopyApiKey,
+        ),
+        const SizedBox(width: 2),
+        _buildActionButton(
+          context,
+          key: const ValueKey('keyCard.hoverEdit'),
+          icon: Icons.edit_outlined,
+          tooltip: localizations?.edit ?? '编辑',
+          onPressed: widget.onEdit,
+        ),
+        const SizedBox(width: 2),
+        _buildMoreMenu(context, localizations),
+      ],
+    );
+    final showActions = _isHovering || _menuOpen;
+    final badge = (widget.cardMode == KeyCardMode.switchKey && widget.isCurrent)
+        ? _StatusBadge(text: localizations?.statusActive ?? '生效中', fg: kc.okText, bg: kc.okSoft, dot: kc.ok)
+        : null;
+    return Stack(
+      alignment: Alignment.centerRight,
+      children: [
+        if (badge != null) AnimatedOpacity(opacity: showActions ? 0 : 1, duration: KcMotion.of(context), child: badge),
+        AnimatedOpacity(
+          opacity: showActions ? 1 : 0,
+          duration: KcMotion.of(context),
+          child: IgnorePointer(ignoring: !showActions, child: actions),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMoreMenu(BuildContext context, AppLocalizations? localizations) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final key = widget.aiKey;
+    final items = <(String, IconData, String, VoidCallback?)>[
+      ('view', Icons.visibility_outlined, localizations?.details ?? '查看', widget.onView ?? widget.onTap),
+      if (key.managementUrl != null)
+        ('url', Icons.open_in_new, localizations?.openManagementUrl ?? '访问后台', widget.onOpenManagementUrl),
+      if (key.apiEndpoint != null)
+        ('endpoint', Icons.link, localizations?.copyApiEndpoint ?? '复制请求地址', widget.onCopyApiEndpoint),
+      if (key.enableCodex && widget.onCopyEnvVarCommand != null)
+        ('env', Icons.terminal_outlined, localizations?.copyEnvVarCommand ?? '复制环境变量命令', widget.onCopyEnvVarCommand),
+      if (_supportsSync == true)
+        ('sync', Icons.sync, localizations?.sync ?? '同步', _isSyncing ? null : _handleSync),
+      if (_supportsModelList == true && (_cachedModels?.isNotEmpty ?? false))
+        ('models', Icons.view_list_outlined, localizations?.viewModels ?? '查看模型', _handleViewModels),
+      if (widget.onMoveToTop != null)
+        ('top', Icons.vertical_align_top, localizations?.moveToTop ?? '置顶', widget.onMoveToTop),
+    ];
+    return Tooltip(
+      key: const ValueKey('keyCard.more'),
+      message: localizations?.moreActions ?? '更多',
+      child: PopupMenuButton<String>(
+        tooltip: '',
+        padding: EdgeInsets.zero,
+        position: PopupMenuPosition.under,
+        color: cs.popover,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KcRadius.panel),
+          side: BorderSide(color: cs.border),
+        ),
+        onOpened: () => setState(() => _menuOpen = true),
+        onCanceled: () => setState(() => _menuOpen = false),
+        onSelected: (id) {
+          setState(() => _menuOpen = false);
+          for (final it in items) {
+            if (it.$1 == id) it.$4?.call();
+          }
+        },
+        itemBuilder: (_) => [
+          for (final it in items)
+            PopupMenuItem<String>(
+              value: it.$1,
+              enabled: it.$4 != null,
+              height: 32,
+              child: Row(children: [
+                Icon(it.$2, size: 15, color: cs.mutedForeground),
+                const SizedBox(width: 10),
+                Text(it.$3, style: KcType.body.copyWith(color: cs.popoverForeground)),
+              ]),
+            ),
+        ],
+        child: _iconBox(context, Icons.more_horiz),
+      ),
+    );
+  }
+
+  List<Widget> _buildTagRow(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations) {
+    final kc = context.kc;
+    final key = widget.aiKey;
+    final out = <Widget>[];
+    void add(Widget w) => out.add(Padding(padding: const EdgeInsets.only(right: KcSpace.x1_5), child: w));
+
+    // 状态 badge 优先
+    if (key.isExpired) {
+      add(_StatusBadge(text: localizations?.expired ?? '已过期', fg: kc.dangerText, bg: kc.dangerSoft));
+    } else if (key.isExpiringSoon && key.expiryDate != null) {
+      final days = key.expiryDate!.difference(DateTime.now()).inDays.clamp(0, 999);
+      add(_StatusBadge(text: localizations?.expiresInDays(days) ?? '$days 天后过期', fg: kc.warnText, bg: kc.warnSoft));
+    }
+    if (_hasValidationConfig == true && _cachedValidationStatus == false) {
+      add(_StatusBadge(
+        key: const ValueKey('keyCard.validationFailed'),
+        text: localizations?.validationFailedBadge ?? '校验失败',
+        fg: kc.dangerText,
+        bg: kc.dangerSoft,
+      ));
+    }
+    // 用户标签
+    for (final tag in key.tags) {
+      add(_buildTag(context, tag, isCategory: false, isUserTag: true));
+    }
+    // 模型数（可点开模型列表）
+    if (_supportsModelList == true && _cachedModels != null && _cachedModels!.isNotEmpty) {
+      add(GestureDetector(
+        onTap: widget.isEditMode ? null : _handleViewModels,
+        child: _buildTag(
+          context,
+          localizations?.modelsLabel(_cachedModels!.length) ?? '${_cachedModels!.length} 个模型',
+          isCategory: false,
+          isClickable: true,
+          isModelTag: true,
+        ),
+      ));
+    }
+    // 余额（可点查询）
+    if (!widget.isEditMode && _cachedBalance != null) {
+      add(_buildBalanceDisplay(context, shadTheme, localizations));
+    }
+    // 平台分类（最后，信息量最低）
+    if (key.tags.isEmpty) {
+      final cats = PlatformCategoryManager.getCategoriesForPlatform(key.platformType)
+          .where((c) => c != PlatformCategory.custom)
+          .take(1);
+      for (final c in cats) {
+        add(_buildTag(context, c.getValue(context), isCategory: true));
+      }
+    }
+    return out;
+  }
+
+  /// 普通模式底部：工具状态 chip
+  Widget _buildToolBar(BuildContext context) {
+    final ids = widget.currentKeyIds ?? _maybeCurrentKeyIds(context);
+    return _ToolStatusChips(
+      aiKey: widget.aiKey,
+      currentKeyIds: ids,
+      cardHovered: _isHovering,
+      onSwitchTool: widget.cardMode == KeyCardMode.view ? widget.onSwitchTool : null,
+      onEnableTool: widget.cardMode == KeyCardMode.view ? widget.onEnableTool : null,
+    );
+  }
+
+  Map<AiToolType, int?> _maybeCurrentKeyIds(BuildContext context) {
+    try {
+      return Provider.of<KeyManagerViewModel>(context).currentKeyIds;
+    } on ProviderNotFoundException {
+      return const {};
+    }
+  }
+
+  /// 管理模式底部：「n 个工具」+ 置顶 / 编辑 / 删除（回调与顺序不变）
+  Widget _buildManageBar(BuildContext context, AppLocalizations? localizations) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final n = enabledToolsOf(widget.aiKey).length;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            n == 0 ? (localizations?.segmentUnused ?? '未用到工具') : (localizations?.nTools(n) ?? '$n 个工具'),
+            style: KcType.caption.copyWith(color: cs.mutedForeground),
+          ),
+        ),
+        _buildActionButton(
+          context,
+          key: const ValueKey('keyCard.moveToTop'),
+          icon: Icons.vertical_align_top,
+          tooltip: localizations?.moveToTop ?? '置顶',
+          onPressed: widget.onMoveToTop,
+        ),
+        const SizedBox(width: 4),
+        _buildActionButton(
+          context,
+          key: const ValueKey('keyCard.edit'),
+          icon: Icons.edit_outlined,
+          tooltip: localizations?.edit ?? '编辑',
+          onPressed: widget.onEdit,
+        ),
+        const SizedBox(width: 4),
+        _buildActionButton(
+          context,
+          key: const ValueKey('keyCard.delete'),
+          icon: Icons.delete_outline,
+          tooltip: localizations?.deleteTooltip ?? '删除',
+          onPressed: widget.onDelete,
+          color: kc.dangerText,
         ),
       ],
     );
   }
 
   Widget _buildTag(BuildContext context, String text, {required bool isCategory, bool isUserTag = false, bool isClickable = false, bool isModelTag = false}) {
-    final shadTheme = ShadTheme.of(context);
-    // 用户标签使用紫色，模型标签使用橙色
-    final isPurple = isUserTag && !isCategory;
-    final isOrange = isModelTag && !isCategory;
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final fg = isClickable ? kc.actionText : kc.text2;
+    final bg = isClickable ? kc.actionSoft : kc.subtle;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isCategory
-            ? shadTheme.colorScheme.primary.withOpacity(0.1)
-            : isPurple
-                ? Colors.purple.withOpacity(0.1)
-                : isOrange
-                    ? Colors.orange.withOpacity(0.1)
-                    : isClickable
-                        ? Colors.blue.withOpacity(0.1)
-                : shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(6),
-      ),
+      height: 20,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
       child: Text(
         text,
-        style: shadTheme.textTheme.small.copyWith(
-          fontSize: 11,
-          color: isCategory
-              ? shadTheme.colorScheme.primary
-              : isPurple
-                  ? Colors.purple
-                  : isOrange
-                      ? Colors.orange
-                  : shadTheme.colorScheme.mutedForeground,
-          fontWeight: FontWeight.w500,
-        ),
+        style: KcType.badge.copyWith(color: isCategory ? cs.mutedForeground : fg, fontFeatures: KcType.tabular),
       ),
+    );
+  }
+
+  Widget _iconBox(BuildContext context, IconData icon, {Color? color}) {
+    final kc = context.kc;
+    return SizedBox(
+      width: 26,
+      height: 26,
+      child: Icon(icon, size: 15, color: color ?? kc.text2),
     );
   }
 
@@ -1393,28 +1295,17 @@ class _KeyCardState extends State<KeyCard> {
     required VoidCallback? onPressed,
     Color? color,
   }) {
-    final shadTheme = ShadTheme.of(context);
+    final kc = context.kc;
     return Tooltip(
       key: key,
       message: tooltip,
       child: Material(
-        color: Colors.transparent,
+        type: MaterialType.transparency,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(6),
-          child: Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: shadTheme.colorScheme.muted,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              icon,
-              size: 15,
-              color: color ?? shadTheme.colorScheme.mutedForeground,
-            ),
-          ),
+          borderRadius: BorderRadius.circular(KcRadius.control),
+          hoverColor: kc.subtle,
+          child: _iconBox(context, icon, color: color),
         ),
       ),
     );
@@ -1438,91 +1329,325 @@ class _KeyCardState extends State<KeyCard> {
   }
 }
 
-/// 校验状态指示器（绿色呼吸小圆点）
-class _ValidationIndicator extends StatefulWidget {
-  @override
-  State<_ValidationIndicator> createState() => _ValidationIndicatorState();
+/// 卡片上显示的掩码密钥：只露前缀（如 `sk-`）和后 4 位；加密存储（有 nonce）时不解密，只显示圆点。
+String maskKeyForCard(AIKey key) {
+  const dots = '••••';
+  final v = key.keyValue.trim();
+  if (key.keyNonce != null || v.length < 8) return '$dots$dots';
+  final dash = v.indexOf('-');
+  final prefix = (dash > 0 && dash <= 6) ? v.substring(0, dash + 1) : '';
+  return '$prefix$dots${v.substring(v.length - 4)}';
 }
 
-class _ValidationIndicatorState extends State<_ValidationIndicator>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
+/// 这把密钥启用了哪些工具（按 Claude Code / Desktop / Codex / Gemini / OpenClaw 顺序）
+List<AiToolType> enabledToolsOf(AIKey k) => [
+      if (k.enableClaudeCode) AiToolType.claudecode,
+      if (k.enableClaudeDesktop) AiToolType.claudeDesktop,
+      if (k.enableCodex) AiToolType.codex,
+      if (k.enableGemini) AiToolType.gemini,
+      if (k.enableOpenclaw) AiToolType.openclaw,
+    ];
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+/// 切换某个工具时会写入的配置文件（HoverTip 用）
+String toolConfigPathHint(AiToolType tool) {
+  switch (tool) {
+    case AiToolType.claudecode:
+      return '~/.claude/settings.json';
+    case AiToolType.claudeDesktop:
+      return 'Claude Desktop config';
+    case AiToolType.codex:
+      return '~/.codex/auth.json';
+    case AiToolType.gemini:
+      return '~/.gemini/.env';
+    case AiToolType.openclaw:
+      return '~/.openclaw/openclaw.json';
+    default:
+      return '';
   }
+}
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({super.key, required this.text, required this.fg, required this.bg, this.dot});
+  final String text;
+  final Color fg;
+  final Color bg;
+  final Color? dot;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-        animation: _animation,
-        builder: (context, child) {
-          return Container(
-          width: 12, // 放大尺寸
-          height: 12, // 放大尺寸
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.green.withOpacity(_animation.value),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withOpacity(0.4),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-          );
-        },
+    return Container(
+      height: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot != null) ...[
+            Container(width: 6, height: 6, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+            const SizedBox(width: 4),
+          ],
+          Text(text, style: KcType.badge.copyWith(color: fg)),
+        ],
+      ),
     );
   }
 }
 
-/// 噪点纹理绘制器
-class _NoisePainter extends CustomPainter {
-  final Color color;
-  final double density; // 密度 0.0 - 1.0
-
-  _NoisePainter({
-    required this.color,
-    this.density = 0.8, // 较高的密度
+/// 工具状态 chip（§2.1 三态）：
+/// - 生效中：绿色 soft 胶囊（logo + 短名 + 绿点）
+/// - 已启用：只有 logo 的描边圆 chip，hover 变操作色描边；点击 = 直接切换（toast 里可撤销）
+/// - 未启用：不出现；卡片 hover 或一个工具都没有时显示「＋」，弹出可启用工具菜单
+class _ToolStatusChips extends StatelessWidget {
+  const _ToolStatusChips({
+    required this.aiKey,
+    required this.currentKeyIds,
+    required this.cardHovered,
+    this.onSwitchTool,
+    this.onEnableTool,
   });
+
+  final AIKey aiKey;
+  final Map<AiToolType, int?> currentKeyIds;
+  final bool cardHovered;
+  final ValueChanged<AiToolType>? onSwitchTool;
+  final ValueChanged<AiToolType>? onEnableTool;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final cs = ShadTheme.of(context).colorScheme;
+    final enabled = enabledToolsOf(aiKey);
+    final active = enabled.where((t) => aiKey.id != null && currentKeyIds[t] == aiKey.id).toList();
+    final rest = enabled.where((t) => !active.contains(t)).toList();
+    final notEnabled = kcKeyTools.where((t) => !enabled.contains(t)).toList();
+
+    final chips = <Widget>[
+      for (final t in active) _ActiveChip(tool: t),
+      for (final t in rest)
+        _EnabledChip(
+          tool: t,
+          onTap: (t == AiToolType.openclaw || onSwitchTool == null) ? null : () => onSwitchTool!(t),
+          tooltip: t == AiToolType.openclaw
+              ? (l?.openclawChipTip ?? '已启用到 OpenClaw')
+              : (l?.switchToToolTip(kcToolName(t), toolConfigPathHint(t)) ?? '切到 ${kcToolName(t)} · 写入 ${toolConfigPathHint(t)}'),
+        ),
+    ];
+
+    final showPlus = onEnableTool != null && notEnabled.isNotEmpty && (cardHovered || enabled.isEmpty);
+    return Row(
+      children: [
+        Expanded(
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              maxWidth: double.infinity,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final c in chips) Padding(padding: const EdgeInsets.only(right: 5), child: c),
+                  if (showPlus)
+                    _PlusMenu(tools: notEnabled, onSelected: onEnableTool!, withLabel: enabled.isEmpty),
+                  if (!showPlus && enabled.isEmpty)
+                    Text(l?.segmentUnused ?? '未用到工具', style: KcType.caption.copyWith(color: cs.mutedForeground)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActiveChip extends StatelessWidget {
+  const _ActiveChip({required this.tool});
+  final AiToolType tool;
+
+  @override
+  Widget build(BuildContext context) {
+    final kc = context.kc;
+    final l = AppLocalizations.of(context);
+    return Tooltip(
+      message: l?.activeInToolTip(kcToolName(tool)) ?? '正在 ${kcToolName(tool)} 生效',
+      child: Container(
+        key: ValueKey('toolChip.active.${tool.value}'),
+        height: 24,
+        padding: const EdgeInsets.only(left: 3, right: 8),
+        decoration: BoxDecoration(color: kc.okSoft, borderRadius: BorderRadius.circular(999)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            KcToolLogo(tool: tool, size: 18),
+            const SizedBox(width: 5),
+            Text(kcToolShortName(tool), style: KcType.badge.copyWith(color: kc.okText)),
+            const SizedBox(width: 5),
+            Container(width: 6, height: 6, decoration: BoxDecoration(color: kc.ok, shape: BoxShape.circle)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EnabledChip extends StatefulWidget {
+  const _EnabledChip({required this.tool, required this.tooltip, this.onTap});
+  final AiToolType tool;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  State<_EnabledChip> createState() => _EnabledChipState();
+}
+
+class _EnabledChipState extends State<_EnabledChip> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final clickable = widget.onTap != null;
+    return Tooltip(
+      message: widget.tooltip,
+      child: Semantics(
+        button: clickable,
+        label: widget.tooltip,
+        child: MouseRegion(
+          cursor: clickable ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            key: ValueKey('toolChip.enabled.${widget.tool.value}'),
+            behavior: HitTestBehavior.opaque,
+            // 不可切换（OpenClaw / 工具页）时也吞掉点击，避免冒泡成「打开详情」
+            onTap: widget.onTap ?? () {},
+            child: AnimatedContainer(
+              duration: KcMotion.of(context),
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: _hover && clickable ? cs.primary : cs.border, width: _hover && clickable ? 1.5 : 1),
+              ),
+              child: KcToolLogo(tool: widget.tool, size: 18),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlusMenu extends StatelessWidget {
+  const _PlusMenu({required this.tools, required this.onSelected, required this.withLabel});
+  final List<AiToolType> tools;
+  final ValueChanged<AiToolType> onSelected;
+  final bool withLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final l = AppLocalizations.of(context);
+    final circle = CustomPaint(
+      painter: _DashedCirclePainter(color: cs.input),
+      child: SizedBox(width: 24, height: 24, child: Icon(Icons.add, size: 14, color: kc.text2)),
+    );
+    return PopupMenuButton<AiToolType>(
+      key: const ValueKey('toolChip.plus'),
+      tooltip: l?.enableMoreTools ?? '启用到更多工具',
+      padding: EdgeInsets.zero,
+      position: PopupMenuPosition.under,
+      color: cs.popover,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(KcRadius.panel),
+        side: BorderSide(color: cs.border),
+      ),
+      onSelected: onSelected,
+      itemBuilder: (_) => [
+        for (final t in tools)
+          PopupMenuItem<AiToolType>(
+            value: t,
+            height: 32,
+            child: Row(children: [
+              KcToolLogo(tool: t, size: 18),
+              const SizedBox(width: 8),
+              Text(l?.enableForTool(kcToolName(t)) ?? '启用到 ${kcToolName(t)}',
+                  style: KcType.body.copyWith(color: cs.popoverForeground)),
+            ]),
+          ),
+      ],
+      child: withLabel
+          ? Row(mainAxisSize: MainAxisSize.min, children: [
+              circle,
+              const SizedBox(width: 6),
+              Text(l?.segmentUnused ?? '未用到工具', style: KcType.caption.copyWith(color: cs.mutedForeground)),
+            ])
+          : circle,
+    );
+  }
+}
+
+class _DashedCirclePainter extends CustomPainter {
+  _DashedCirclePainter({required this.color});
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 1.0;
-
-    final random = math.Random(42); // 固定种子，保持纹理一致
-
-    // 绘制随机点
-    for (int i = 0; i < size.width * size.height * 0.05 * density; i++) {
-      final x = random.nextDouble() * size.width;
-      final y = random.nextDouble() * size.height;
-      
-      // 随机透明度，增加层次感
-      paint.color = color.withOpacity(random.nextDouble() * 0.5);
-      canvas.drawPoints(ui.PointMode.points, [Offset(x, y)], paint);
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final r = size.shortestSide / 2 - 0.5;
+    final c = size.center(Offset.zero);
+    const n = 14;
+    for (var i = 0; i < n; i++) {
+      final a0 = 2 * math.pi * i / n;
+      canvas.drawArc(Rect.fromCircle(center: c, radius: r), a0, math.pi / n, false, paint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _NoisePainter oldDelegate) {
-    return false; // 静态纹理不需要重绘
+  bool shouldRepaint(covariant _DashedCirclePainter old) => old.color != color;
+}
+
+/// 拖拽中跟随指针的卡片（mockup 02b）：同一个 KeyCard（管理态），外加 -1.5° 旋转、1.03 缩放、
+/// shadow-lg 与 1px 操作色描边。系统开启「减少动态效果」时不旋转、不缩放。
+class KeyCardDragFeedback extends StatelessWidget {
+  const KeyCardDragFeedback({super.key, required this.constraints, required this.child});
+
+  final BoxConstraints constraints;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    Widget card = ConstrainedBox(
+      constraints: constraints,
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(KcRadius.panel),
+          border: Border.all(color: cs.primary, width: 1),
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(KcRadius.panel),
+            boxShadow: kc.shadowLg,
+          ),
+          child: child,
+        ),
+      ),
+    );
+    if (!reduce) {
+      card = Transform.rotate(angle: -1.5 * math.pi / 180, child: Transform.scale(scale: 1.03, child: card));
+    }
+    return MouseRegion(
+      cursor: SystemMouseCursors.grabbing,
+      child: Material(type: MaterialType.transparency, child: card),
+    );
   }
 }
