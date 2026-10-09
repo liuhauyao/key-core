@@ -91,6 +91,13 @@ class ExportService {
             'enable_openclaw': key.enableOpenclaw,
             'openclaw_base_url': key.openclawBaseUrl,
             'openclaw_model': key.openclawModel,
+            'claude_code_config': key.claudeCodeConfig != null ? jsonEncode(key.claudeCodeConfig) : null,
+            'enable_claude_desktop': key.enableClaudeDesktop,
+            'claude_desktop_base_url': key.claudeDesktopBaseUrl,
+            'claude_desktop_model': key.claudeDesktopModel,
+            'claude_desktop_sonnet_model': key.claudeDesktopSonnetModel,
+            'claude_desktop_haiku_model': key.claudeDesktopHaikuModel,
+            'claude_desktop_opus_model': key.claudeDesktopOpusModel,
           });
         } catch (e) {
           // 跳过无法处理的密钥
@@ -230,6 +237,13 @@ class ExportService {
             'enable_openclaw': key.enableOpenclaw,
             'openclaw_base_url': key.openclawBaseUrl,
             'openclaw_model': key.openclawModel,
+            'claude_code_config': key.claudeCodeConfig != null ? jsonEncode(key.claudeCodeConfig) : null,
+            'enable_claude_desktop': key.enableClaudeDesktop,
+            'claude_desktop_base_url': key.claudeDesktopBaseUrl,
+            'claude_desktop_model': key.claudeDesktopModel,
+            'claude_desktop_sonnet_model': key.claudeDesktopSonnetModel,
+            'claude_desktop_haiku_model': key.claudeDesktopHaikuModel,
+            'claude_desktop_opus_model': key.claudeDesktopOpusModel,
           });
         } catch (e) {
           continue;

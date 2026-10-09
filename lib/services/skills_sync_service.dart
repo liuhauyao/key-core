@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/mcp_server.dart';
+import 'skills/skills_fs.dart';
 import '../models/skill.dart';
 import 'skill_parser_service.dart';
 import 'skills_database_service.dart';
@@ -64,6 +66,34 @@ class SkillsSyncService {
   final SkillsStoreService _storeService = SkillsStoreService();
   final SkillsDatabaseService _databaseService = SkillsDatabaseService();
   final SkillParserService _parserService = SkillParserService();
+
+  /// 同步方式设置键（auto / symlink / copy）
+  static const String syncMethodKey = 'skills_sync_method';
+
+  /// 测试专用：覆盖同步方式
+  static SkillSyncMethod? debugSyncMethodOverride;
+
+  /// 测试专用：模拟创建符号链接失败（用于验证 auto 模式回退为复制）
+  static bool debugFailSymlinks = false;
+
+  static Future<SkillSyncMethod> getSyncMethod() async {
+    if (debugSyncMethodOverride != null) return debugSyncMethodOverride!;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return SkillSyncMethod.fromString(prefs.getString(syncMethodKey));
+    } catch (_) {
+      return SkillSyncMethod.auto;
+    }
+  }
+
+  static Future<void> setSyncMethod(SkillSyncMethod method) async {
+    if (debugSyncMethodOverride != null) {
+      debugSyncMethodOverride = method;
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(syncMethodKey, method.value);
+  }
 
   /// 扫描工具目录中的 Skills
   Future<List<ToolSkillEntry>> scanToolSkills(SkillTargetTool tool) async {
@@ -199,6 +229,7 @@ class SkillsSyncService {
     SkillTargetTool tool, {
     bool replaceExisting = false,
   }) async {
+    await SkillsFs.cleanupLegacySourceMarkers(await _pathService.getSkillsSourceDir());
     final skills = await _databaseService.getAllSkills();
     final activeSkills = skills.where((s) => s.isActive && s.enabledTools.contains(tool));
 
@@ -285,6 +316,15 @@ class SkillsSyncService {
       return SkillSyncState.notSynced;
     }
 
+    if (toolEntityType == FileSystemEntityType.directory) {
+      final marker = await SkillsFs.readCopyMarker(toolPath);
+      if (marker != null && marker.relativePath == skill.relativePath) {
+        final sourceHash = await SkillsFs.computeDirHash(sourcePath);
+        final copyHash = await SkillsFs.computeDirHash(toolPath);
+        return copyHash == sourceHash ? SkillSyncState.synced : SkillSyncState.outdated;
+      }
+    }
+
     final normalizedSource = path.normalize(sourcePath);
     try {
       final resolvedToolPath = path.normalize(await Directory(toolPath).resolveSymbolicLinks());
@@ -351,12 +391,13 @@ class SkillsSyncService {
       await _pathService.ensureToolSkillsDir(tool);
       final toolPath = await _pathService.getSkillToolPath(tool, skill.relativePath);
       final entityType = await FileSystemEntity.type(toolPath, followLinks: false);
+      final method = await getSyncMethod();
 
       if (entityType == FileSystemEntityType.link) {
         final link = Link(toolPath);
-        final target = await link.target();
-        if (_pathsEqual(target, sourcePath)) {
-          await _writeManagedMarker(toolPath);
+        final target = _resolvePath(path.dirname(toolPath), await link.target());
+        final pointsToSource = _pathsEqual(target, sourcePath);
+        if (pointsToSource && method != SkillSyncMethod.copy) {
           return SkillSyncItemResult(
             relativePath: skill.relativePath,
             tool: tool,
@@ -366,7 +407,8 @@ class SkillsSyncService {
           );
         }
 
-        if (!replaceExisting) {
+        // 指向 Key Core 的链接（如切换为复制模式）属于自己，可直接替换
+        if (!pointsToSource && !replaceExisting) {
           return SkillSyncItemResult(
             relativePath: skill.relativePath,
             tool: tool,
@@ -378,7 +420,24 @@ class SkillsSyncService {
 
         await link.delete();
       } else if (entityType != FileSystemEntityType.notFound) {
-        if (!replaceExisting) {
+        final marker = entityType == FileSystemEntityType.directory
+            ? await SkillsFs.readCopyMarker(toolPath)
+            : null;
+        final ownCopy = marker != null && marker.relativePath == skill.relativePath;
+        if (ownCopy && method == SkillSyncMethod.copy) {
+          final sourceHash = await SkillsFs.computeDirHash(sourcePath);
+          if (await SkillsFs.computeDirHash(toolPath) == sourceHash) {
+            return SkillSyncItemResult(
+              relativePath: skill.relativePath,
+              tool: tool,
+              success: true,
+              state: SkillSyncState.synced,
+              message: 'already synced',
+            );
+          }
+        }
+
+        if (!ownCopy && !replaceExisting) {
           return SkillSyncItemResult(
             relativePath: skill.relativePath,
             tool: tool,
@@ -388,23 +447,42 @@ class SkillsSyncService {
           );
         }
 
-        final existing = Directory(toolPath);
-        if (await existing.exists()) {
-          await existing.delete(recursive: true);
+        if (ownCopy) {
+          await Directory(toolPath).delete(recursive: true);
         } else {
-          await File(toolPath).delete();
+          // 用户自己的目录/文件：不直接删除，移动到 skill-backups/_replaced 下
+          await _moveAsideReplaced(tool, skill.relativePath, toolPath);
         }
       }
 
       await Directory(path.dirname(toolPath)).create(recursive: true);
-      await Link(toolPath).create(sourcePath);
-      await _writeManagedMarker(toolPath);
+      var linked = false;
+      if (method != SkillSyncMethod.copy) {
+        try {
+          if (debugFailSymlinks) {
+            throw const FileSystemException('symlink disabled for test');
+          }
+          await Link(toolPath).create(sourcePath);
+          linked = true;
+        } on FileSystemException {
+          if (method == SkillSyncMethod.symlink) rethrow;
+        }
+      }
+      if (!linked) {
+        await SkillsFs.copyDirectory(sourcePath, toolPath);
+        await SkillsFs.writeCopyMarker(
+          toolPath,
+          relativePath: skill.relativePath,
+          hash: await SkillsFs.computeDirHash(sourcePath),
+        );
+      }
 
       return SkillSyncItemResult(
         relativePath: skill.relativePath,
         tool: tool,
         success: true,
         state: SkillSyncState.synced,
+        message: linked ? null : 'copied',
       );
     } catch (e) {
       return SkillSyncItemResult(
@@ -429,14 +507,7 @@ class SkillsSyncService {
     for (final linkPath in managedLinks) {
       final relativePath = path.relative(linkPath, from: toolDirPath);
       if (!activeRelativePaths.contains(relativePath)) {
-        final link = Link(linkPath);
-        if (await link.exists()) {
-          await link.delete();
-        }
-        final marker = File(_pathService.getManagedMarkerPath(linkPath));
-        if (await marker.exists()) {
-          await marker.delete();
-        }
+        await removeManagedEntry(linkPath);
       }
     }
   }
@@ -463,13 +534,15 @@ class SkillsSyncService {
       final target = await link.target();
       final resolved = path.normalize(_resolvePath(skillDir.parent.path, target));
       final normalizedSource = path.normalize(sourceDir);
-      final isManaged = resolved.startsWith(normalizedSource);
+      final isManaged = _isWithinOrEqual(normalizedSource, resolved);
       return (isSymlink: true, isKeyCoreManaged: isManaged, target: target);
     }
 
-    return (isSymlink: false, isKeyCoreManaged: false, target: null);
+    final marker = await SkillsFs.readCopyMarker(skillDir.path);
+    return (isSymlink: false, isKeyCoreManaged: marker != null, target: null);
   }
 
+  /// 查找工具目录中由 Key Core 管理的条目：指向源目录的符号链接，或带受管标记的副本目录
   Future<List<String>> _findManagedLinks(String toolDirPath) async {
     final links = <String>[];
     final toolDir = Directory(toolDirPath);
@@ -477,25 +550,99 @@ class SkillsSyncService {
 
     final sourceDir = path.normalize(await _pathService.getSkillsSourceDir());
 
-    await for (final entity in toolDir.list(recursive: true, followLinks: false)) {
-      final entityType = await FileSystemEntity.type(entity.path, followLinks: false);
-      if (entityType != FileSystemEntityType.link) continue;
-
-      final link = Link(entity.path);
-      final target = await link.target();
-      final resolved = path.normalize(_resolvePath(entity.parent.path, target));
-      if (resolved.startsWith(sourceDir)) {
-        links.add(entity.path);
+    Future<void> walk(Directory dir) async {
+      await for (final entity in dir.list(followLinks: false)) {
+        final entityType = await FileSystemEntity.type(entity.path, followLinks: false);
+        if (entityType == FileSystemEntityType.link) {
+          final target = await Link(entity.path).target();
+          final resolved = path.normalize(_resolvePath(entity.parent.path, target));
+          if (_isWithinOrEqual(sourceDir, resolved)) {
+            links.add(entity.path);
+          }
+        } else if (entityType == FileSystemEntityType.directory) {
+          if (await SkillsFs.readCopyMarker(entity.path) != null) {
+            links.add(entity.path);
+          } else {
+            await walk(Directory(entity.path));
+          }
+        }
       }
     }
+
+    await walk(toolDir);
     return links;
   }
 
-  Future<void> _writeManagedMarker(String linkPath) async {
-    final marker = File(_pathService.getManagedMarkerPath(linkPath));
-    if (!await marker.exists()) {
-      await marker.writeAsString('managed-by=keycore\n');
+  /// 删除工具目录中的受管条目（符号链接或受管副本）；非受管的真实目录不会被删除
+  Future<bool> removeManagedEntry(String entryPath) async {
+    final type = await FileSystemEntity.type(entryPath, followLinks: false);
+    if (type == FileSystemEntityType.link) {
+      await Link(entryPath).delete();
+      return true;
     }
+    if (type == FileSystemEntityType.directory &&
+        await SkillsFs.readCopyMarker(entryPath) != null) {
+      await Directory(entryPath).delete(recursive: true);
+      return true;
+    }
+    return false;
+  }
+
+  /// 从所有工具目录移除某个 Skill 的受管条目
+  Future<void> removeSkillFromTools(Skill skill) async {
+    final sourcePath = path.normalize(await _pathService.getSkillSourcePath(skill.relativePath));
+    for (final tool in SkillsPathService.supportedTools) {
+      final toolPath = await _pathService.getSkillToolPath(tool, skill.relativePath);
+      final type = await FileSystemEntity.type(toolPath, followLinks: false);
+      if (type == FileSystemEntityType.link) {
+        final target = _resolvePath(path.dirname(toolPath), await Link(toolPath).target());
+        if (_pathsEqual(target, sourcePath)) await Link(toolPath).delete();
+      } else if (type == FileSystemEntityType.directory) {
+        final marker = await SkillsFs.readCopyMarker(toolPath);
+        if (marker != null && marker.relativePath == skill.relativePath) {
+          await Directory(toolPath).delete(recursive: true);
+        }
+      }
+    }
+  }
+
+  /// 列出所有工具中由 Key Core 管理的条目（用于存储迁移前清理）
+  Future<Map<SkillTargetTool, List<String>>> listManagedEntries() async {
+    final result = <SkillTargetTool, List<String>>{};
+    for (final tool in SkillsPathService.supportedTools) {
+      result[tool] = await _findManagedLinks(await _pathService.getToolSkillsDir(tool));
+    }
+    return result;
+  }
+
+  Future<void> _moveAsideReplaced(SkillTargetTool tool, String relativePath, String toolPath) async {
+    final ts = DateTime.now().toUtc().toIso8601String().replaceAll(RegExp(r'[^0-9]'), '').substring(0, 14);
+    final dest = path.join(
+      await _pathService.getBackupsDir(),
+      '_replaced',
+      tool.value,
+      '${relativePath.replaceAll(RegExp(r'[\\/]'), '__')}-$ts',
+    );
+    await Directory(path.dirname(dest)).create(recursive: true);
+    try {
+      if (await FileSystemEntity.isDirectory(toolPath)) {
+        await Directory(toolPath).rename(dest);
+      } else {
+        await File(toolPath).rename(dest);
+      }
+    } on FileSystemException {
+      if (await FileSystemEntity.isDirectory(toolPath)) {
+        await SkillsFs.copyDirectory(toolPath, dest);
+        await Directory(toolPath).delete(recursive: true);
+      } else {
+        await File(toolPath).copy(dest);
+        await File(toolPath).delete();
+      }
+    }
+  }
+
+  bool _isWithinOrEqual(String parent, String child) {
+    return _pathsEqual(parent, child) || path.isWithin(parent, child);
   }
 
   bool _pathsEqual(String a, String b) {
@@ -507,6 +654,92 @@ class SkillsSyncService {
       return path.normalize(target);
     }
     return path.normalize(path.join(base, target));
+  }
+
+  /// 扫描所有工具目录中尚未被 Key Core 管理的 Skill（不含指向外部的符号链接）
+  Future<Map<SkillTargetTool, List<ToolSkillEntry>>> scanUnmanaged() async {
+    final result = <SkillTargetTool, List<ToolSkillEntry>>{};
+    for (final tool in SkillsPathService.supportedTools) {
+      final entries = (await scanToolSkills(tool))
+          .where((e) => !e.isKeyCoreManaged && !e.isSymlink)
+          .toList();
+      if (entries.isNotEmpty) result[tool] = entries;
+    }
+    return result;
+  }
+
+  /// 从所有工具目录导入未管理的 Skill（同名冲突默认跳过）
+  Future<Map<SkillTargetTool, SkillImportSummary>> importFromAllTools({
+    SkillImportConflictAction defaultConflictAction = SkillImportConflictAction.skip,
+  }) async {
+    final result = <SkillTargetTool, SkillImportSummary>{};
+    for (final tool in SkillsPathService.supportedTools) {
+      final dir = Directory(await _pathService.getToolSkillsDir(tool));
+      if (!await dir.exists()) continue;
+      result[tool] = await importFromTool(tool, defaultConflictAction: defaultConflictAction);
+    }
+    return result;
+  }
+
+  /// 迁移 Skills 存储位置（`keycore` ↔ `agents`）。
+  /// 先移除各工具中指向旧位置的受管条目，再移动目录、切换设置，最后重新同步。
+  Future<({int moved, int skipped})> migrateStorage(String location) async {
+    if (location != 'keycore' && location != 'agents') {
+      throw ArgumentError.value(location, 'location');
+    }
+    final current = await _pathService.getStorageLocation();
+    if (current == location) return (moved: 0, skipped: 0);
+
+    final oldRoot = await _pathService.getSkillsSourceDir();
+    final newRoot = location == 'agents'
+        ? await _pathService.getAgentsSkillsDir()
+        : await _pathService.getKeyCoreSkillsDir();
+
+    // 先检查冲突，任何目标已存在就不做任何修改
+    final skills = await _databaseService.getAllSkills();
+    final conflicts = <String>[];
+    for (final skill in skills) {
+      final to = path.join(newRoot, skill.relativePath);
+      if (await Directory(path.join(oldRoot, skill.relativePath)).exists() &&
+          await FileSystemEntity.type(to, followLinks: false) != FileSystemEntityType.notFound) {
+        conflicts.add(skill.relativePath);
+      }
+    }
+    if (conflicts.isNotEmpty) {
+      throw StateError('目标位置已存在同名 Skill: ${conflicts.join(', ')}');
+    }
+
+    final managed = await listManagedEntries();
+    for (final entries in managed.values) {
+      for (final e in entries) {
+        await removeManagedEntry(e);
+      }
+    }
+
+    var moved = 0;
+    var skipped = 0;
+    await Directory(newRoot).create(recursive: true);
+    for (final skill in skills) {
+      final from = Directory(path.join(oldRoot, skill.relativePath));
+      final to = path.join(newRoot, skill.relativePath);
+      if (!await from.exists()) continue;
+      if (await FileSystemEntity.type(to, followLinks: false) != FileSystemEntityType.notFound) {
+        skipped++;
+        continue;
+      }
+      await Directory(path.dirname(to)).create(recursive: true);
+      try {
+        await from.rename(to);
+      } on FileSystemException {
+        await SkillsFs.copyDirectory(from.path, to);
+        await from.delete(recursive: true);
+      }
+      moved++;
+    }
+
+    await _pathService.setStorageLocation(location);
+    await syncAll();
+    return (moved: moved, skipped: skipped);
   }
 
   /// 从 AiToolType 导入

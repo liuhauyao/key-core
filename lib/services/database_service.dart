@@ -37,10 +37,41 @@ class DatabaseService {
   /// - v16：PR #5「供应商中心」新增 `providers` 表（已回退）。
   /// - v17：把 `providers` 表中保存过的 API Key 导入 `ai_keys` 后删除该表，
   ///   回到以密钥为唯一实体的设计。版本号只增不减，避免 v16 的数据库被静默降级。
-  static const int schemaVersion = 17;
+  /// - v18：`ai_keys.claude_code_config`（Claude Code 的密钥字段名与供应商专属 env）。
+  /// - v19：`mcp_server_apps`（MCP 服务按工具启用的关系表）。
+  /// - v20：`skills` 增加来源仓库与内容哈希（source_repo/source_ref/source_subdir/content_hash）。
+  /// - v21：新增 `prompts` 表（系统提示词，CC Switch Prompts 对齐）。
+  static const int schemaVersion = 21;
+
+  static const String promptsDdl = '''
+    CREATE TABLE IF NOT EXISTS prompts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tool TEXT NOT NULL,
+      name TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      description TEXT,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  ''';
+
+  /// MCP 服务 × 工具 启用关系（主键 server_id + tool；删除服务时一并删除）
+  static const String mcpServerAppsDdl = '''
+    CREATE TABLE IF NOT EXISTS mcp_server_apps (
+      server_id TEXT NOT NULL,
+      tool TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (server_id, tool)
+    )
+  ''';
 
   /// 迁移前备份最多保留的份数
   static const int maxMigrationBackups = 5;
+
+  /// 仅供测试：数据库路径（如 `inMemoryDatabasePath`）。设置后需调用 [close] 重新打开
+  @visibleForTesting
+  static String? debugDatabasePathOverride;
 
   /// 仅供测试：在给定数据库上执行建表逻辑
   @visibleForTesting
@@ -65,6 +96,19 @@ class DatabaseService {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
       _isFfiInitialized = true;
+    }
+
+    final override = debugDatabasePathOverride;
+    if (override != null) {
+      return await databaseFactoryFfi.openDatabase(
+        override,
+        options: OpenDatabaseOptions(
+          version: schemaVersion,
+          onCreate: _onCreate,
+          onUpgrade: _onUpgrade,
+          singleInstance: false,
+        ),
+      );
     }
 
     final directory = await getApplicationDocumentsDirectory();
@@ -171,6 +215,7 @@ class DatabaseService {
         codex_model TEXT,
         codex_base_url TEXT,
         codex_config TEXT,
+        claude_code_config TEXT,
         enable_gemini INTEGER DEFAULT 0,
         gemini_api_endpoint TEXT,
         gemini_model TEXT,
@@ -225,6 +270,9 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_mcp_servers_server_id ON mcp_servers(server_id)');
     await db.execute('CREATE INDEX idx_mcp_servers_active ON mcp_servers(is_active)');
     await db.execute('CREATE INDEX idx_mcp_servers_type ON mcp_servers(server_type)');
+    await db.execute(mcpServerAppsDdl);
+    await db.execute(promptsDdl);
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_prompts_tool ON prompts(tool)');
 
     await _createSkillsTable(db);
   }
@@ -244,6 +292,10 @@ class DatabaseService {
         sort_order INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1,
         source_tool TEXT,
+        source_repo TEXT,
+        source_ref TEXT,
+        source_subdir TEXT,
+        content_hash TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -476,6 +528,29 @@ class DatabaseService {
 
       // 回退 PR #5 的「供应商中心」：保存过 API Key 的供应商导入为密钥，然后删除 providers 表。
       await _migrateProviderCenterToAiKeys(db);
+    }
+
+    if (oldVersion < 18) {
+      await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_config', 'TEXT');
+    }
+    if (oldVersion < 19) {
+      await db.execute(mcpServerAppsDdl);
+    }
+    if (oldVersion < 20) {
+      // 早期 PR #5 分支的 v14 数据库没有 skills 表（main 在 v13 才创建），这里补建
+      final hasSkills = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='skills'",
+      );
+      if (hasSkills.isEmpty) {
+        await _createSkillsTable(db);
+      }
+      for (final col in ['source_repo', 'source_ref', 'source_subdir', 'content_hash']) {
+        await _addColumnIfNotExists(db, 'skills', col, 'TEXT');
+      }
+    }
+    if (oldVersion < 21) {
+      await db.execute(promptsDdl);
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_prompts_tool ON prompts(tool)');
     }
   }
 

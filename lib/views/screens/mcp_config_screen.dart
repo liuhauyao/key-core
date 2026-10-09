@@ -12,6 +12,8 @@ import '../../utils/app_localizations.dart';
 import '../../services/url_launcher_service.dart';
 import '../../services/clipboard_service.dart';
 import '../widgets/kc_toast.dart';
+import '../../services/mcp_sync_service.dart';
+import '../../viewmodels/settings_viewmodel.dart';
 import 'dart:convert';
 
 /// MCP 配置管理页面
@@ -135,6 +137,18 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                                 color: shadTheme.colorScheme.primary,
                               ),
                             ),
+                          ),
+                          // 按工具启用：从工具导入 / 重新写入
+                          PopupMenuButton<String>(
+                            tooltip: '按工具启用',
+                            icon: Icon(Icons.apps_outlined, size: 18, color: shadTheme.colorScheme.primary),
+                            onSelected: (v) => v == 'import'
+                                ? _importFromEnabledTools(context, viewModel)
+                                : _syncAllEnabled(context, viewModel),
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'import', child: Text('从已启用的工具导入')),
+                              PopupMenuItem(value: 'sync', child: Text('重新写入全部已启用的服务')),
+                            ],
                           ),
                           // 分隔线
                           Container(
@@ -341,6 +355,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
             onDelete: () => _deleteServer(context, server, viewModel),
             onToggleActive: (isActive) => _toggleActive(context, server, isActive, viewModel),
             onViewDetails: () => _showMcpDetails(context, server),
+            onManageApps: () => _showServerAppsDialog(context, server, viewModel),
             onOpenHomepage: server.homepage != null && server.homepage!.isNotEmpty
                 ? () => UrlLauncherService().openUrl(server.homepage!)
                 : null,
@@ -514,6 +529,69 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
         isError: true,
       );
     }
+  }
+
+  /// 已启用、可作为 MCP 同步目标的工具
+  List<AiToolType> _mcpTools(BuildContext context) {
+    final enabled = context.read<SettingsViewModel>().getEnabledTools().toSet();
+    return McpSyncService.mcpTargetTools.where(enabled.contains).toList();
+  }
+
+  /// 按工具启用：每个工具一个开关，切换后立即写入该工具的配置
+  Future<void> _showServerAppsDialog(BuildContext context, McpServer server, McpViewModel viewModel) async {
+    final tools = _mcpTools(context);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final enabled = viewModel.serverApps[server.serverId] ?? const <AiToolType>{};
+          return AlertDialog(
+            title: Text('${server.name} · 按工具启用'),
+            content: SizedBox(
+              width: 360,
+              child: tools.isEmpty
+                  ? const Text('请先在设置中启用至少一个工具')
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: tools
+                          .map((tool) => SwitchListTile(
+                                dense: true,
+                                title: Text(tool.displayName),
+                                value: enabled.contains(tool),
+                                onChanged: (v) async {
+                                  final ok = await viewModel.setServerEnabledForTool(server, tool, v);
+                                  if (!ok && context.mounted) {
+                                    _showSnackBarSafe(context, viewModel.errorMessage ?? '写入失败', isError: true);
+                                  }
+                                  setDialogState(() {});
+                                },
+                              ))
+                          .toList(),
+                    ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('关闭')),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _importFromEnabledTools(BuildContext context, McpViewModel viewModel) async {
+    final r = await viewModel.importFromTools(_mcpTools(context));
+    if (!context.mounted || r == null) return;
+    final linked = r.linked.values.fold<int>(0, (a, b) => a + b.length);
+    _showSnackBarSafe(context, '新增 ${r.added.length} 个服务，记录 $linked 条启用关系'
+        '${r.failed.isEmpty ? '' : '，失败 ${r.failed.length} 个'}');
+  }
+
+  Future<void> _syncAllEnabled(BuildContext context, McpViewModel viewModel) async {
+    final r = await viewModel.syncAllEnabled();
+    if (!context.mounted) return;
+    final failed = r.entries.where((e) => !e.value).map((e) => e.key.displayName).toList();
+    _showSnackBarSafe(context, failed.isEmpty ? '已写入 ${r.length} 个工具' : '写入失败：${failed.join('、')}',
+        isError: failed.isNotEmpty);
   }
 
   void _showSyncDialog(BuildContext context) {

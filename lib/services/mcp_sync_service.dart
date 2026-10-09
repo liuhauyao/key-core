@@ -6,35 +6,13 @@ import 'mcp_database_service.dart';
 import 'ai_tool_config_service.dart';
 import 'settings_service.dart';
 import 'live_config/live_config_writer.dart';
+import 'mcp/mcp_tool_formats.dart';
 
 /// MCP 配置同步服务
 /// 负责将激活的 MCP 服务器同步到各 AI 工具的配置文件中
 class McpSyncService {
   final McpDatabaseService _databaseService = McpDatabaseService();
   final AiToolConfigService _configService = AiToolConfigService();
-
-  /// 规范化服务器名称用于 codex（将空格替换为连字符）
-  /// codex 要求服务器名称符合模式 ^[a-zA-Z0-9_-]+$，不允许空格
-  String _normalizeCodexServerName(String name) {
-    // 移除首尾空格
-    name = name.trim();
-    // 将空格和制表符替换为连字符
-    name = name.replaceAll(RegExp(r'[\s\t]+'), '-');
-    // 移除其他不允许的字符（保留 a-zA-Z0-9_-）
-    name = name.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '-');
-    // 合并连续的连字符
-    name = name.replaceAll(RegExp(r'-+'), '-');
-    // 移除首尾的连字符
-    name = name.replaceAll(RegExp(r'^-+|-$'), '');
-    return name.isEmpty ? 'mcp-server' : name;
-  }
-
-  /// 规范化 TOML 表名（写入时使用）
-  /// 对于 codex，将空格替换为连字符，不使用引号
-  String _normalizeTomlTableName(String name) {
-    // 规范化服务器名称（将空格替换为连字符）
-    return _normalizeCodexServerName(name);
-  }
 
   /// 解析 TOML 表名（读取时使用）
   /// 从 [mcp_servers.xxx] 格式中提取表名
@@ -52,20 +30,6 @@ class McpSyncService {
       return name;
     }
     return '';
-  }
-
-  /// 规范化服务器名称用于比对（将空格和连字符统一处理）
-  /// 用于比对时容错：空格和连字符视为相同
-  String _normalizeServerNameForComparison(String name) {
-    // 移除首尾空格
-    name = name.trim();
-    // 将空格和制表符替换为连字符
-    name = name.replaceAll(RegExp(r'[\s\t]+'), '-');
-    // 合并连续的连字符
-    name = name.replaceAll(RegExp(r'-+'), '-');
-    // 移除首尾的连字符
-    name = name.replaceAll(RegExp(r'^-+|-$'), '');
-    return name.toLowerCase(); // 转换为小写以支持大小写不敏感比对
   }
 
   /// 拆分 command 字符串为 command 和 args
@@ -220,7 +184,7 @@ class McpSyncService {
   /// [serverIds] 要下发的 MCP 服务 ID 列表
   /// 同步 MCP 服务到工具
   /// [scope] 对于 claudecode，可以是 'global' 或项目路径
-  Future<bool> syncToTool(AiToolType tool, Set<String> serverIds, {String? scope}) async {
+  Future<bool> syncToTool(AiToolType tool, Set<String> serverIds, {String? scope, bool throwOnError = false}) async {
     try {
       if (serverIds.isEmpty) {
         return false;
@@ -256,6 +220,10 @@ class McpSyncService {
         return await _syncToCodexToml(configFile, serversToSync);
       }
 
+      if (tool.isSyncOnly) {
+        return await _syncToNewTool(tool, expandedPath, serversToSync);
+      }
+
       // Gemini 使用 JSON 格式（settings.json），但需要特殊处理以保留 apiKey 字段
       if (tool == AiToolType.gemini) {
         return await _syncToGeminiJson(configFile, serversToSync);
@@ -281,6 +249,7 @@ class McpSyncService {
       return true;
     } catch (e) {
       print('同步到工具 ${tool.displayName} 失败: $e');
+      if (throwOnError) rethrow;
       return false;
     }
   }
@@ -376,332 +345,94 @@ class McpSyncService {
     }
   }
 
+  /// Codex 下发前的兼容处理：command 含空格时拆分，args 中的 `KEY=value` 提取到 env（沿用旧行为）
+  McpServer _prepareForCodex(McpServer server) {
+    if (server.serverType != McpServerType.stdio) return server;
+    var command = server.command;
+    var args = <String>[...?server.args];
+    if (command != null && command.contains(' ')) {
+      final split = _splitCommand(command);
+      command = split.$1;
+      args = [...split.$2, ...args];
+    }
+    final extracted = _extractEnvFromArgs(args);
+    final env = <String, String>{...?server.env, ...extracted.$2};
+    return server.copyWith(command: command, args: extracted.$1, env: env.isEmpty ? null : env);
+  }
+
+  /// 同步 / 删除 Codex、Grok Build 的 `[mcp_servers.*]`（按表解析，只改涉及的服务表）
+  ///
+  /// 旧实现按行扫描：服务表中出现不认识的键（如 `startup_timeout_sec`）时会把它挪到上一张表，
+  /// 且写入值时不做转义、请求头字段写成了 Codex 不认识的 `headers`（应为 `http_headers`）。
+  Future<bool> _applyTomlMcp(
+    AiToolType tool,
+    File configFile, {
+    Map<String, McpServer> upserts = const {},
+    Set<String> removals = const {},
+  }) async {
+    final grok = tool == AiToolType.grokBuild;
+    final prepared = grok ? upserts : upserts.map((k, v) => MapEntry(k, _prepareForCodex(v)));
+    await LiveConfigWriter.instance.updateText(
+      tool,
+      configFile.path,
+      (current) => McpToolFormats.applyToml(current, upserts: prepared, removals: removals, grok: grok),
+    );
+    return true;
+  }
+
   /// 同步 MCP 服务到 Codex 的 TOML 配置文件
   Future<bool> _syncToCodexToml(File configFile, List<McpServer> serversToSync) async {
     try {
-      String existingContent = '';
-      if (await configFile.exists()) {
-        existingContent = await configFile.readAsString();
-      }
-
-      // 解析现有的 TOML 内容，提取非 MCP 配置部分
-      final lines = existingContent.split('\n');
-      final nonMcpLines = <String>[];
-      final mcpServerSections = <String, Map<String, dynamic>>{};
-      
-      String? currentServerId;
-      Map<String, dynamic>? currentServerConfig;
-      bool inMcpServerSection = false;
-
-      for (final line in lines) {
-        final trimmed = line.trim();
-        
-        // 检查是否是 MCP 服务器配置节
-        if (trimmed.startsWith('[mcp_servers.') && trimmed.endsWith(']')) {
-          // 保存之前的服务器配置
-          if (currentServerId != null && currentServerConfig != null) {
-            mcpServerSections[currentServerId] = currentServerConfig!;
-          }
-          
-          // 开始新的服务器配置，使用统一的解析方法处理带引号的表名
-          currentServerId = _parseTomlTableName(trimmed);
-          currentServerConfig = {};
-          inMcpServerSection = true;
-          continue;
-        }
-        
-        // 检查是否是其他配置节（非 MCP）
-        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-          // 保存之前的服务器配置
-          if (currentServerId != null && currentServerConfig != null) {
-            mcpServerSections[currentServerId] = currentServerConfig!;
-          }
-          
-          currentServerId = null;
-          currentServerConfig = null;
-          inMcpServerSection = false;
-          nonMcpLines.add(line);
-          continue;
-        }
-        
-        // 如果在 MCP 服务器配置节中，解析配置项
-        if (inMcpServerSection && currentServerConfig != null && trimmed.isNotEmpty && !trimmed.startsWith('#')) {
-          // 检查是否是 MCP 服务器配置的有效字段
-          // MCP 服务器配置的有效字段：command, args, env, cwd, url, headers, type
-          final validMcpFields = {'command', 'args', 'env', 'cwd', 'url', 'headers', 'type'};
-          
-          // 找到第一个 = 的位置（key和value之间的等号）
-          // 注意：不能直接用split('=')，因为对象内部也有等号
-          final equalIndex = trimmed.indexOf('=');
-          if (equalIndex > 0) {
-            final key = trimmed.substring(0, equalIndex).trim();
-            
-            // 如果不是 MCP 服务器的有效字段，说明已经离开了 MCP 服务器节，应该保存当前配置并结束
-            if (!validMcpFields.contains(key)) {
-              // 保存当前的服务器配置
-              if (currentServerId != null && currentServerConfig != null) {
-                mcpServerSections[currentServerId] = currentServerConfig!;
-              }
-              // 结束 MCP 服务器节，将当前行作为非 MCP 配置行处理
-              currentServerId = null;
-              currentServerConfig = null;
-              inMcpServerSection = false;
-              nonMcpLines.add(line);
-              continue;
-            }
-            
-            var value = trimmed.substring(equalIndex + 1).trim();
-            
-            // 处理数组（使用改进的解析逻辑，支持嵌套引号和自动提取环境变量）
-            if (value.startsWith('[') && value.endsWith(']')) {
-              final arrayContent = value.substring(1, value.length - 1);
-              final result = _parseTomlArrayWithEnvExtraction(arrayContent);
-              
-              // 保存 args
-              if (result.$1.isNotEmpty) {
-                currentServerConfig![key] = result.$1;
-              }
-              
-              // 如果有环境变量，保存到 env
-              if (result.$2.isNotEmpty) {
-                Map<String, String>? existingEnv = currentServerConfig!['env'] as Map<String, String>?;
-                if (existingEnv == null) {
-                  existingEnv = <String, String>{};
-                }
-                existingEnv.addAll(result.$2);
-                currentServerConfig!['env'] = existingEnv;
-                print('修复服务器 ${currentServerId}：从 args 中提取环境变量: ${result.$2.keys.join(", ")}');
-              }
-            }
-            // 处理对象（env）
-            else if (value.startsWith('{') && value.endsWith('}')) {
-              final envMap = <String, String>{};
-              final envContent = value.substring(1, value.length - 1);
-              
-              // 解析TOML对象格式： "key" = "value", "key2" = "value2"
-              // 使用正则表达式匹配 "key" = "value" 格式
-              final regex = RegExp(r'"([^"]+)"\s*=\s*"([^"]+)"');
-              final matches = regex.allMatches(envContent);
-              for (final match in matches) {
-                if (match.groupCount >= 2) {
-                  final k = match.group(1)!;
-                  final v = match.group(2)!;
-                  envMap[k] = v;
-                }
-              }
-              
-              // 如果没有匹配到（可能是单引号或其他格式），使用原来的方法作为后备
-              if (envMap.isEmpty) {
-                final envPairs = envContent.split(',');
-                for (final pair in envPairs) {
-                  // 找到第一个 = 的位置
-                  final pairEqualIndex = pair.indexOf('=');
-                  if (pairEqualIndex > 0) {
-                    var k = pair.substring(0, pairEqualIndex).trim();
-                    var v = pair.substring(pairEqualIndex + 1).trim();
-                    if ((k.startsWith('"') && k.endsWith('"')) ||
-                        (k.startsWith("'") && k.endsWith("'"))) {
-                      k = k.substring(1, k.length - 1);
-                    }
-                    if ((v.startsWith('"') && v.endsWith('"')) ||
-                        (v.startsWith("'") && v.endsWith("'"))) {
-                      v = v.substring(1, v.length - 1);
-                    }
-                    if (k.isNotEmpty && v.isNotEmpty) {
-                      envMap[k] = v;
-                    }
-                  }
-                }
-              }
-              
-              if (envMap.isNotEmpty) {
-                currentServerConfig![key] = envMap;
-              }
-            }
-            // 处理字符串（包括url字段）
-            else {
-              // 移除引号
-              if ((value.startsWith('"') && value.endsWith('"')) ||
-                  (value.startsWith("'") && value.endsWith("'"))) {
-                value = value.substring(1, value.length - 1);
-              }
-              currentServerConfig![key] = value;
-            }
-          }
-        } else if (!inMcpServerSection) {
-          // 非 MCP 配置行，保留
-          nonMcpLines.add(line);
-        }
-      }
-      
-      // 保存最后一个服务器配置
-      if (currentServerId != null && currentServerConfig != null) {
-        mcpServerSections[currentServerId] = currentServerConfig!;
-      }
-
-      // 更新或添加新的 MCP 服务器配置
-      // 注意：合并配置而不是完全覆盖，保留原始配置中的其他字段
-      // 创建规范化名称到原始名称的映射，用于容错比对
-      final normalizedToOriginal = <String, String>{};
-      for (final key in mcpServerSections.keys) {
-        final normalized = _normalizeServerNameForComparison(key);
-        normalizedToOriginal[normalized] = key;
-      }
-
-      for (final server in serversToSync) {
-        var serverConfig = server.toToolConfigFormat();
-        
-        // 对于 codex，需要从 args 中提取环境变量到 env
-        if (serverConfig.containsKey('args') && serverConfig['args'] is List) {
-          final args = serverConfig['args'] as List<String>;
-          final result = _extractEnvFromArgs(args);
-          
-          // 更新 args（移除环境变量）
-          if (result.$1.isNotEmpty) {
-            serverConfig['args'] = result.$1;
-          } else {
-            serverConfig.remove('args');
-          }
-          
-          // 合并 env（提取的环境变量 + 原有的 env）
-          if (result.$2.isNotEmpty) {
-            Map<String, String>? existingEnv = serverConfig['env'] as Map<String, String>?;
-            if (existingEnv == null) {
-              existingEnv = <String, String>{};
-            }
-            existingEnv.addAll(result.$2);
-            serverConfig['env'] = existingEnv;
-          }
-        }
-        
-        final normalizedServerId = _normalizeServerNameForComparison(server.serverId);
-        
-        // 使用规范化名称进行容错比对（空格和连字符视为相同）
-        String? existingKey;
-        if (normalizedToOriginal.containsKey(normalizedServerId)) {
-          existingKey = normalizedToOriginal[normalizedServerId];
-        } else if (mcpServerSections.containsKey(server.serverId)) {
-          existingKey = server.serverId;
-        }
-        
-        if (existingKey != null) {
-          // 服务器已存在，合并配置（保留原始字段）
-          final existingConfig = mcpServerSections[existingKey]!;
-          // 合并配置：先保留原始配置，然后更新需要更新的字段
-          // 只合并 MCP 服务器的有效字段，过滤掉其他字段（如 model_provider, model 等）
-          final mergedConfig = Map<String, dynamic>.from(existingConfig);
-          final validMcpFields = {'command', 'args', 'env', 'cwd', 'url', 'headers', 'type'};
-          for (final entry in serverConfig.entries) {
-            if (validMcpFields.contains(entry.key)) {
-              mergedConfig[entry.key] = entry.value;
-            }
-          }
-          // 使用规范化后的名称作为新键（符合 codex 格式要求）
-          final normalizedName = _normalizeCodexServerName(server.serverId);
-          mcpServerSections.remove(existingKey);
-          mcpServerSections[normalizedName] = mergedConfig;
-        } else {
-          // 新服务器，使用规范化后的名称
-          // 过滤掉无效字段
-          final validMcpFields = {'command', 'args', 'env', 'cwd', 'url', 'headers', 'type'};
-          final filteredConfig = <String, dynamic>{};
-          for (final entry in serverConfig.entries) {
-            if (validMcpFields.contains(entry.key)) {
-              filteredConfig[entry.key] = entry.value;
-            }
-          }
-          final normalizedName = _normalizeCodexServerName(server.serverId);
-          mcpServerSections[normalizedName] = filteredConfig;
-        }
-      }
-
-      // 生成 TOML 内容
-      final buffer = StringBuffer();
-      
-      // 写入非 MCP 配置部分
-      for (final line in nonMcpLines) {
-        buffer.writeln(line);
-      }
-      
-      // 写入 MCP 服务器配置
-      if (mcpServerSections.isNotEmpty) {
-        if (nonMcpLines.isNotEmpty && !nonMcpLines.last.trim().isEmpty) {
-          buffer.writeln('');
-        }
-        for (final entry in mcpServerSections.entries) {
-          // 使用规范化方法处理表名，将空格替换为连字符（符合 codex 格式要求）
-          final normalizedName = _normalizeTomlTableName(entry.key);
-          buffer.writeln('[mcp_servers.$normalizedName]');
-          final config = entry.value;
-          
-          // 判断服务器类型：如果有url字段，是http/sse类型；否则是stdio类型
-          final hasUrl = config.containsKey('url') && config['url'] != null;
-          
-          if (hasUrl) {
-            // http/sse 类型：写入 url 和 headers
-            if (config['url'] != null) {
-              buffer.writeln('url = "${config['url']}"');
-            }
-            
-            if (config['headers'] != null && config['headers'] is Map) {
-              final headers = config['headers'] as Map<String, dynamic>;
-              if (headers.isNotEmpty) {
-                final headerPairs = headers.entries.map((e) => '"${e.key}" = "${e.value}"').join(', ');
-                buffer.writeln('headers = { $headerPairs }');
-              }
-            }
-          } else {
-            // stdio 类型：写入 command, args, env, cwd
-            // 只写入 MCP 服务器的有效字段，过滤掉其他字段（如 model_provider, model 等）
-            final commandValue = config['command'] as String?;
-            if (commandValue != null) {
-              // 检查 command 是否包含空格，如果包含则拆分
-              if (commandValue.contains(' ')) {
-                final splitResult = _splitCommand(commandValue);
-                buffer.writeln('command = "${splitResult.$1}"');
-                // 将拆分出的 args 合并到现有的 args 中
-                List<String> allArgs = List<String>.from(splitResult.$2);
-                if (config['args'] != null && config['args'] is List) {
-                  allArgs.addAll(List<String>.from(config['args'] as List));
-                }
-                if (allArgs.isNotEmpty) {
-                  final argsStr = allArgs.map((e) => '"$e"').join(', ');
-                  buffer.writeln('args = [$argsStr]');
-                }
-              } else {
-                buffer.writeln('command = "$commandValue"');
-                
-                if (config['args'] != null && config['args'] is List) {
-                  final args = config['args'] as List;
-                  final argsStr = args.map((e) => '"$e"').join(', ');
-                  buffer.writeln('args = [$argsStr]');
-                }
-              }
-            }
-            
-            if (config['env'] != null && config['env'] is Map) {
-              final env = config['env'] as Map<String, dynamic>;
-              if (env.isNotEmpty) {
-                final envPairs = env.entries.map((e) => '"${e.key}" = "${e.value}"').join(', ');
-                buffer.writeln('env = { $envPairs }');
-              }
-            }
-            
-            if (config['cwd'] != null) {
-              buffer.writeln('cwd = "${config['cwd']}"');
-            }
-          }
-          
-          buffer.writeln('');
-        }
-      }
-
-      // 写入文件（以读取时的内容为底；期间被改动则中止）
-      await _publishTextBasedOn(AiToolType.codex, configFile.path, existingContent, buffer.toString());
-      return true;
+      return await _applyTomlMcp(AiToolType.codex, configFile,
+          upserts: {for (final s in serversToSync) s.serverId: s});
     } catch (e) {
       print('同步到 Codex TOML 配置失败: $e');
       return false;
+    }
+  }
+
+  /// 同步到新增的工具（OpenCode / Grok Build / Hermes / Pi / MiniMax Code）
+  Future<bool> _syncToNewTool(AiToolType tool, String filePath, List<McpServer> servers) async {
+    final supported = <McpServer>[];
+    for (final s in servers) {
+      final reason = McpToolFormats.unsupportedReason(tool, s);
+      if (reason != null) {
+        print('跳过 ${s.serverId} → ${tool.displayName}: $reason');
+      } else {
+        supported.add(s);
+      }
+    }
+    if (supported.isEmpty) return false;
+    switch (tool) {
+      case AiToolType.grokBuild:
+        return _applyTomlMcp(tool, File(filePath), upserts: {for (final s in supported) s.serverId: s});
+      case AiToolType.hermes:
+        await LiveConfigWriter.instance.updateText(
+          tool,
+          filePath,
+          (current) => McpToolFormats.applyHermes(current, upserts: {for (final s in supported) s.serverId: s}),
+        );
+        return true;
+      case AiToolType.opencode:
+        await LiveConfigWriter.instance.updateJson(tool, filePath, (config) {
+          final mcp = config['mcp'] is Map ? Map<String, dynamic>.from(config['mcp'] as Map) : <String, dynamic>{};
+          for (final s in supported) {
+            mcp[s.serverId] = McpToolFormats.toOpenCode(s);
+          }
+          config['mcp'] = mcp;
+        });
+        return true;
+      default:
+        await LiveConfigWriter.instance.updateJson(tool, filePath, (config) {
+          final servers = config['mcpServers'] is Map
+              ? Map<String, dynamic>.from(config['mcpServers'] as Map)
+              : <String, dynamic>{};
+          for (final s in supported) {
+            servers[s.serverId] = tool == AiToolType.mcode ? McpToolFormats.toMCode(s) : McpToolFormats.toPi(s);
+          }
+          config['mcpServers'] = servers;
+        });
+        return true;
     }
   }
 
@@ -746,6 +477,25 @@ class McpSyncService {
       // Codex 使用 TOML 格式，需要特殊处理
       if (tool == AiToolType.codex) {
         return await _readCodexTomlConfig(content);
+      }
+
+      // 新增工具：转换为统一的 {mcpServers: {...}}
+      switch (tool) {
+        case AiToolType.grokBuild:
+          return {'mcpServers': McpToolFormats.readToml(content)};
+        case AiToolType.hermes:
+          return {'mcpServers': McpToolFormats.readHermes(content)};
+        case AiToolType.opencode:
+          final doc = jsonDecode(content) as Map<String, dynamic>;
+          final mcp = doc['mcp'] is Map ? doc['mcp'] as Map : const {};
+          return {
+            'mcpServers': {
+              for (final e in mcp.entries)
+                if (e.value is Map) '${e.key}': McpToolFormats.fromOpenCode(e.value as Map),
+            },
+          };
+        default:
+          break;
       }
 
       // Gemini 和其他工具使用 JSON 格式
@@ -987,111 +737,6 @@ class McpSyncService {
     }
   }
 
-  /// 写入工具配置文件
-  Future<bool> writeToolConfig(AiToolType tool, Map<String, dynamic> config) async {
-    try {
-      final configDir = await _configService.getConfigDir(tool);
-      await _configService.ensureConfigDirExists(tool, customConfigDir: configDir);
-      final configFilePath = AiToolConfigService.getConfigFilePath(tool, customConfigDir: configDir);
-      final expandedPath = AiToolConfigService.expandPath(configFilePath);
-
-      // 备份由 LiveConfigWriter 在写入前自动完成（首写 + 滚动备份）
-
-      // Codex 使用 TOML 格式，需要特殊处理
-      if (tool == AiToolType.codex) {
-        // 将 JSON 格式的配置转换为 TOML
-        final mcpServers = config['mcpServers'] as Map<String, dynamic>? ?? {};
-        final buffer = StringBuffer();
-        
-        for (final entry in mcpServers.entries) {
-          // 使用规范化方法处理表名，将空格替换为连字符（符合 codex 格式要求）
-          final normalizedName = _normalizeTomlTableName(entry.key);
-          buffer.writeln('[mcp_servers.$normalizedName]');
-          var serverConfig = Map<String, dynamic>.from(entry.value as Map<String, dynamic>);
-          
-          // 对于 codex，需要从 args 中提取环境变量到 env
-          if (serverConfig.containsKey('args') && serverConfig['args'] is List) {
-            final args = List<String>.from(serverConfig['args'] as List);
-            final result = _extractEnvFromArgs(args);
-            
-            // 更新 args（移除环境变量）
-            if (result.$1.isNotEmpty) {
-              serverConfig['args'] = result.$1;
-            } else {
-              serverConfig.remove('args');
-            }
-            
-            // 合并 env（提取的环境变量 + 原有的 env）
-            if (result.$2.isNotEmpty) {
-              Map<String, String>? existingEnv = serverConfig['env'] as Map<String, String>?;
-              if (existingEnv == null) {
-                existingEnv = <String, String>{};
-              }
-              existingEnv.addAll(result.$2);
-              serverConfig['env'] = existingEnv;
-            }
-          }
-          
-          // 处理 command：确保不包含空格（如果包含，应该已经在 args 中）
-          final commandValue = serverConfig['command'] as String?;
-          if (commandValue != null) {
-            // 检查 command 是否包含空格，如果包含则拆分
-            if (commandValue.contains(' ')) {
-              final splitResult = _splitCommand(commandValue);
-              buffer.writeln('command = "${splitResult.$1}"');
-              // 将拆分出的 args 合并到现有的 args 中
-              List<String> allArgs = List<String>.from(splitResult.$2);
-              if (serverConfig['args'] != null && serverConfig['args'] is List) {
-                allArgs.addAll(List<String>.from(serverConfig['args'] as List));
-              }
-              if (allArgs.isNotEmpty) {
-                final argsStr = allArgs.map((e) => '"$e"').join(', ');
-                buffer.writeln('args = [$argsStr]');
-              }
-            } else {
-              buffer.writeln('command = "$commandValue"');
-              
-              if (serverConfig['args'] != null && serverConfig['args'] is List) {
-                final args = serverConfig['args'] as List;
-                final argsStr = args.map((e) => '"$e"').join(', ');
-                buffer.writeln('args = [$argsStr]');
-              }
-            }
-          }
-          
-          if (serverConfig['env'] != null && serverConfig['env'] is Map) {
-            final env = serverConfig['env'] as Map<String, dynamic>;
-            if (env.isNotEmpty) {
-              final envPairs = env.entries.map((e) => '"${e.key}" = "${e.value}"').join(', ');
-              buffer.writeln('env = { $envPairs }');
-            }
-          }
-          
-          if (serverConfig['cwd'] != null) {
-            buffer.writeln('cwd = "${serverConfig['cwd']}"');
-          }
-          
-          buffer.writeln('');
-        }
-        
-        await LiveConfigWriter.instance.apply(tool, [
-          LiveEdit(expandedPath, (_) => buffer.toString()),
-        ]);
-        return true;
-      }
-
-      // 其他工具使用 JSON 格式（整体替换，原子写入）
-      await LiveConfigWriter.instance.apply(tool, [
-        LiveEdit(expandedPath, (current) => JsonPatch.encode(config, original: current)),
-      ]);
-
-      return true;
-    } catch (e) {
-      print('写入工具 ${tool.displayName} 配置失败: $e');
-      return false;
-    }
-  }
-
   /// 获取工具配置中的 mcpServers
   /// [scope] 对于 claudecode，可以是 'global' 或项目路径（如 '/Users/liuhuayao/dev'）
   /// 返回 mcpServers 和是否有项目配置的标志
@@ -1283,10 +928,9 @@ class McpSyncService {
     if (serverType == McpServerType.http || serverType == McpServerType.sse) {
       url = config['url'] as String?;
       
-      if (config['headers'] != null) {
-        if (config['headers'] is Map) {
-          headers = Map<String, String>.from(config['headers'] as Map);
-        }
+      final rawHeaders = config['headers'] ?? config['http_headers'];
+      if (rawHeaders is Map) {
+        headers = rawHeaders.map((k, v) => MapEntry('$k', '$v'));
       }
     }
 
@@ -1313,7 +957,7 @@ class McpSyncService {
   /// [tool] 目标工具
   /// [serverIds] 要删除的 MCP 服务 ID 列表
   /// [scope] 对于 claudecode，可以是 'global' 或项目路径
-  Future<bool> deleteFromTool(AiToolType tool, Set<String> serverIds, {String? scope}) async {
+  Future<bool> deleteFromTool(AiToolType tool, Set<String> serverIds, {String? scope, bool throwOnError = false}) async {
     try {
       if (serverIds.isEmpty) {
         return false;
@@ -1336,9 +980,32 @@ class McpSyncService {
 
       // 备份由 LiveConfigWriter 在写入前自动完成（首写 + 滚动备份）
 
-      // Codex 使用 TOML 格式，需要特殊处理
-      if (tool == AiToolType.codex) {
-        return await _deleteFromCodexToml(configFile, serverIds);
+      // Codex / Grok Build 使用 TOML 格式
+      if (tool == AiToolType.codex || tool == AiToolType.grokBuild) {
+        return await _applyTomlMcp(tool, configFile, removals: serverIds);
+      }
+
+      if (tool == AiToolType.hermes) {
+        await LiveConfigWriter.instance.updateText(
+          tool,
+          expandedPath,
+          (current) => McpToolFormats.applyHermes(current, removals: serverIds),
+        );
+        return true;
+      }
+
+      if (tool == AiToolType.opencode) {
+        var had = false;
+        await LiveConfigWriter.instance.updateJson(tool, expandedPath, (config) {
+          final mcp = config['mcp'];
+          if (mcp is! Map) return;
+          final next = Map<String, dynamic>.from(mcp);
+          for (final id in serverIds) {
+            had = next.remove(id) != null || had;
+          }
+          config['mcp'] = next;
+        }, createIfMissing: false);
+        return had;
       }
 
       // Gemini 和其他工具使用 JSON 格式
@@ -1369,6 +1036,7 @@ class McpSyncService {
       return hadMcpServers;
     } catch (e) {
       print('从工具 ${tool.displayName} 删除 MCP 服务失败: $e');
+      if (throwOnError) rethrow;
       return false;
     }
   }
@@ -1419,290 +1087,94 @@ class McpSyncService {
     }
   }
 
-  /// 从 Codex 的 TOML 配置文件中删除 MCP 服务
-  Future<bool> _deleteFromCodexToml(File configFile, Set<String> serverIds) async {
-    try {
-      final content = await configFile.readAsString();
-      final lines = content.split('\n');
-      final nonMcpLines = <String>[];
-      final mcpServerSections = <String, Map<String, dynamic>>{};
-      
-      String? currentServerId;
-      Map<String, dynamic>? currentServerConfig;
-      bool inMcpServerSection = false;
+  // ---------------------------------------------------------------------------
+  // 按工具启用（对齐 CC Switch：enabled_<app> + 切换即写入 + sync_all_enabled + import_from_apps）
+  // ---------------------------------------------------------------------------
 
-      // 解析 TOML 内容
-      for (final line in lines) {
-        final trimmed = line.trim();
-        
-        // 检查是否是 MCP 服务器配置节
-        if (trimmed.startsWith('[mcp_servers.') || trimmed.startsWith('[mcp.servers.')) {
-          // 保存上一个服务器配置
-          if (currentServerId != null && currentServerConfig != null) {
-            mcpServerSections[currentServerId] = currentServerConfig!;
-          }
-          
-          // 提取服务器ID，使用统一的解析方法处理带引号的表名
-          if (trimmed.startsWith('[mcp_servers.')) {
-            currentServerId = _parseTomlTableName(trimmed);
-          } else {
-            // 处理 [mcp.servers.xxx] 格式
-            final match = RegExp(r'\[mcp\.servers\.(.+)\]').firstMatch(trimmed);
-            if (match != null) {
-              var name = match.group(1)!;
-              // 移除可能的引号
-              if ((name.startsWith('"') && name.endsWith('"')) ||
-                  (name.startsWith("'") && name.endsWith("'"))) {
-                name = name.substring(1, name.length - 1);
-              }
-              currentServerId = name;
-            } else {
-              continue;
-            }
-          }
-          currentServerConfig = <String, dynamic>{};
-          inMcpServerSection = true;
-          continue;
-        }
-        
-        // 如果不在 MCP 服务器配置节中，保留原行
-        if (!inMcpServerSection) {
-          nonMcpLines.add(line);
-          continue;
-        }
-        
-        // 检查是否结束当前节
-        if (trimmed.startsWith('[') && !trimmed.startsWith('[mcp')) {
-          if (currentServerId != null && currentServerConfig != null) {
-            mcpServerSections[currentServerId] = currentServerConfig!;
-          }
-          currentServerId = null;
-          currentServerConfig = null;
-          inMcpServerSection = false;
-          nonMcpLines.add(line);
-          continue;
-        }
-        
-        // 解析配置项（使用与_readCodexTomlConfig相同的逻辑）
-        if (inMcpServerSection && currentServerConfig != null && trimmed.isNotEmpty && !trimmed.startsWith('#')) {
-          // 找到第一个 = 的位置（key和value之间的等号）
-          // 注意：不能直接用split('=')，因为对象内部也有等号
-          final equalIndex = trimmed.indexOf('=');
-          if (equalIndex > 0) {
-            final key = trimmed.substring(0, equalIndex).trim();
-            var value = trimmed.substring(equalIndex + 1).trim();
-            
-            // 处理数组（使用改进的解析逻辑，支持嵌套引号和自动提取环境变量）
-            if (value.startsWith('[') && value.endsWith(']')) {
-              final arrayContent = value.substring(1, value.length - 1);
-              final result = _parseTomlArrayWithEnvExtraction(arrayContent);
-              
-              // 保存 args
-              if (result.$1.isNotEmpty) {
-                currentServerConfig![key] = result.$1;
-              }
-              
-              // 如果有环境变量，保存到 env
-              if (result.$2.isNotEmpty) {
-                Map<String, String>? existingEnv = currentServerConfig!['env'] as Map<String, String>?;
-                if (existingEnv == null) {
-                  existingEnv = <String, String>{};
-                }
-                existingEnv.addAll(result.$2);
-                currentServerConfig!['env'] = existingEnv;
-                print('修复服务器 ${currentServerId}：从 args 中提取环境变量: ${result.$2.keys.join(", ")}');
-              }
-            }
-            // 处理对象（env）
-            else if (value.startsWith('{') && value.endsWith('}')) {
-              final envMap = <String, String>{};
-              final envContent = value.substring(1, value.length - 1);
-              
-              // 解析TOML对象格式： "key" = "value", "key2" = "value2"
-              // 使用正则表达式匹配 "key" = "value" 格式
-              final regex = RegExp(r'"([^"]+)"\s*=\s*"([^"]+)"');
-              final matches = regex.allMatches(envContent);
-              for (final match in matches) {
-                if (match.groupCount >= 2) {
-                  final k = match.group(1)!;
-                  final v = match.group(2)!;
-                  envMap[k] = v;
-                }
-              }
-              
-              // 如果没有匹配到（可能是单引号或其他格式），使用原来的方法作为后备
-              if (envMap.isEmpty) {
-                final envPairs = envContent.split(',');
-                for (final pair in envPairs) {
-                  // 找到第一个 = 的位置
-                  final pairEqualIndex = pair.indexOf('=');
-                  if (pairEqualIndex > 0) {
-                    var k = pair.substring(0, pairEqualIndex).trim();
-                    var v = pair.substring(pairEqualIndex + 1).trim();
-                    if ((k.startsWith('"') && k.endsWith('"')) ||
-                        (k.startsWith("'") && k.endsWith("'"))) {
-                      k = k.substring(1, k.length - 1);
-                    }
-                    if ((v.startsWith('"') && v.endsWith('"')) ||
-                        (v.startsWith("'") && v.endsWith("'"))) {
-                      v = v.substring(1, v.length - 1);
-                    }
-                    if (k.isNotEmpty && v.isNotEmpty) {
-                      envMap[k] = v;
-                    }
-                  }
-                }
-              }
-              
-              if (envMap.isNotEmpty) {
-                currentServerConfig![key] = envMap;
-              }
-            }
-            // 处理字符串
-            else {
-              // 移除引号
-              if ((value.startsWith('"') && value.endsWith('"')) ||
-                  (value.startsWith("'") && value.endsWith("'"))) {
-                value = value.substring(1, value.length - 1);
-              }
-              currentServerConfig![key] = value;
-            }
-          }
-        }
-      }
-      
-      // 保存最后一个服务器配置
-      if (currentServerId != null && currentServerConfig != null) {
-        mcpServerSections[currentServerId] = currentServerConfig!;
-      }
+  /// 可作为 MCP 同步目标的工具（OpenClaw 的 MCP 由其自身管理，不在此列）
+  static List<AiToolType> get mcpTargetTools =>
+      AiToolType.values.where((t) => t != AiToolType.openclaw).toList();
 
-      // 删除指定的服务（使用容错比对）
-      // 创建规范化名称到原始名称的映射
-      final normalizedToOriginal = <String, String>{};
-      for (final key in mcpServerSections.keys) {
-        final normalized = _normalizeServerNameForComparison(key);
-        normalizedToOriginal[normalized] = key;
-      }
+  /// 启用 / 停用某个服务在某个工具上，并立即写入（或移除）该工具的配置。
+  /// 写入失败时数据库保持原状并抛出异常。
+  Future<void> setServerEnabledForTool(McpServer server, AiToolType tool, bool enabled) async {
+    if (enabled) {
+      final reason = McpToolFormats.unsupportedReason(tool, server);
+      if (reason != null) throw StateError(reason);
+      final ok = await syncToTool(tool, {server.serverId}, throwOnError: true);
+      if (!ok) throw StateError('写入 ${tool.displayName} 配置失败');
+    } else {
+      await deleteFromTool(tool, {server.serverId}, throwOnError: true);
+    }
+    await _databaseService.setServerApp(server.serverId, tool, enabled);
+  }
 
-      for (final serverId in serverIds) {
-        final normalizedServerId = _normalizeServerNameForComparison(serverId);
-        
-        // 使用规范化名称进行容错比对
-        String? keyToRemove;
-        if (normalizedToOriginal.containsKey(normalizedServerId)) {
-          keyToRemove = normalizedToOriginal[normalizedServerId];
-        } else if (mcpServerSections.containsKey(serverId)) {
-          keyToRemove = serverId;
-        }
-        
-        if (keyToRemove != null) {
-          mcpServerSections.remove(keyToRemove);
-        }
+  /// 把所有“已启用”关系重新写入各工具（如手动改坏了工具配置后一键恢复）
+  /// 返回每个工具的写入结果
+  Future<Map<AiToolType, bool>> syncAllEnabled() async {
+    final apps = await _databaseService.getAllServerApps();
+    final byTool = <AiToolType, Set<String>>{};
+    apps.forEach((id, tools) {
+      for (final t in tools) {
+        (byTool[t] ??= <String>{}).add(id);
       }
+    });
+    final result = <AiToolType, bool>{};
+    for (final e in byTool.entries) {
+      result[e.key] = await syncToTool(e.key, e.value);
+    }
+    return result;
+  }
 
-      // 生成新的 TOML 内容
-      final buffer = StringBuffer();
-      
-      // 写入非 MCP 配置部分
-      for (final line in nonMcpLines) {
-        buffer.writeln(line);
+  /// 服务内容修改后，重新写入它已启用的工具
+  Future<void> resyncServer(McpServer server, {String? previousServerId}) async {
+    if (previousServerId != null && previousServerId != server.serverId) {
+      final tools = await _databaseService.getServerApps(previousServerId);
+      for (final t in tools) {
+        await deleteFromTool(t, {previousServerId});
       }
-      
-      // 写入剩余的 MCP 服务器配置
-      if (mcpServerSections.isNotEmpty) {
-        if (nonMcpLines.isNotEmpty && !nonMcpLines.last.trim().isEmpty) {
-          buffer.writeln('');
-        }
-        for (final entry in mcpServerSections.entries) {
-          // 使用规范化方法处理表名，将空格替换为连字符（符合 codex 格式要求）
-          final normalizedName = _normalizeTomlTableName(entry.key);
-          buffer.writeln('[mcp_servers.$normalizedName]');
-          final config = entry.value;
-          
-          // 判断服务器类型：如果有url字段，是http/sse类型；否则是stdio类型
-          final hasUrl = config.containsKey('url') && config['url'] != null;
-          
-          if (hasUrl) {
-            // http/sse 类型：写入 url 和 headers
-            if (config['url'] != null) {
-              buffer.writeln('url = "${config['url']}"');
-            }
-            
-            if (config['headers'] != null && config['headers'] is Map) {
-              final headers = config['headers'] as Map<String, dynamic>;
-              if (headers.isNotEmpty) {
-                final headerPairs = headers.entries.map((e) => '"${e.key}" = "${e.value}"').join(', ');
-                buffer.writeln('headers = { $headerPairs }');
-              }
-            }
-          } else {
-            // stdio 类型：写入 command, args, env, cwd
-            if (config['command'] != null) {
-              buffer.writeln('command = "${config['command']}"');
-            }
-            
-            if (config['args'] != null && config['args'] is List) {
-              final args = config['args'] as List;
-              final argsStr = args.map((e) => '"$e"').join(', ');
-              buffer.writeln('args = [$argsStr]');
-            }
-            
-            if (config['env'] != null && config['env'] is Map) {
-              final env = config['env'] as Map<String, dynamic>;
-              if (env.isNotEmpty) {
-                final envPairs = env.entries.map((e) => '"${e.key}" = "${e.value}"').join(', ');
-                buffer.writeln('env = { $envPairs }');
-              }
-            }
-            
-            if (config['cwd'] != null) {
-              buffer.writeln('cwd = "${config['cwd']}"');
-            }
-          }
-          
-          // 写入其他可能存在的字段（保留原始配置中的其他字段，但排除已处理的字段和type字段）
-          for (final kv in config.entries) {
-            final key = kv.key;
-            if (key != 'command' && key != 'args' && key != 'env' && key != 'cwd' && 
-                key != 'url' && key != 'headers' && key != 'type') {
-              final value = kv.value;
-              if (value is String) {
-                buffer.writeln('$key = "$value"');
-              } else if (value is List) {
-                final listStr = value.map((e) => '"$e"').join(', ');
-                buffer.writeln('$key = [$listStr]');
-              } else if (value is Map) {
-                final mapPairs = (value as Map<String, dynamic>).entries.map((e) => '"${e.key}" = "${e.value}"').join(', ');
-                buffer.writeln('$key = { $mapPairs }');
-              }
-            }
-          }
-          
-          buffer.writeln('');
-        }
-      }
-
-      // 写入文件（以读取时的内容为底；期间被改动则中止）
-      await _publishTextBasedOn(AiToolType.codex, configFile.path, content, buffer.toString());
-
-      return true;
-    } catch (e) {
-      print('从 Codex TOML 配置删除 MCP 服务失败: $e');
-      return false;
+      await _databaseService.renameServerApps(previousServerId, server.serverId);
+    }
+    for (final t in await _databaseService.getServerApps(server.serverId)) {
+      await syncToTool(t, {server.serverId});
     }
   }
 
-  /// 以 [basedOn]（之前读到的内容）为底发布新内容。
-  ///
-  /// 经 [LiveConfigWriter] 原子写入并自动备份；若文件在读取之后被修改，抛出
-  /// [LiveConfigConflictException] 并放弃写入，避免覆盖其他程序刚写入的内容。
-  Future<void> _publishTextBasedOn(AiToolType tool, String filePath, String basedOn, String next) {
-    return LiveConfigWriter.instance.apply(tool, [
-      LiveEdit(filePath, (current) {
-        if ((current ?? '') != basedOn) throw LiveConfigConflictException(filePath);
-        return next;
-      }),
-    ]);
+  /// 删除服务前，从它已启用的工具中移除
+  Future<void> removeServerFromEnabledTools(String serverId) async {
+    for (final t in await _databaseService.getServerApps(serverId)) {
+      await deleteFromTool(t, {serverId});
+    }
+  }
+
+  /// 从多个工具导入 MCP 服务（对齐 CC Switch `import_from_all_apps`）：
+  /// 库中没有的服务新增；已有的保持不变；并记录“该服务在该工具上已启用”。
+  Future<McpImportAllResult> importFromTools(Iterable<AiToolType> tools) async {
+    final result = McpImportAllResult();
+    for (final tool in tools) {
+      if (tool == AiToolType.openclaw) continue;
+      final read = await readMcpServersFromTool(tool);
+      for (final entry in read.servers.entries) {
+        try {
+          final existing = await _databaseService.getMcpServerByServerId(entry.key);
+          if (existing == null) {
+            await _databaseService.addMcpServer(entry.value);
+            result.added.add(entry.key);
+          }
+          await _databaseService.setServerApp(entry.key, tool, true);
+          (result.linked[tool] ??= <String>{}).add(entry.key);
+        } catch (e) {
+          result.failed.add('${tool.displayName}/${entry.key}');
+        }
+      }
+    }
+    return result;
   }
 }
 
+/// 从所有工具导入的结果
+class McpImportAllResult {
+  final List<String> added = [];
+  final Map<AiToolType, Set<String>> linked = {};
+  final List<String> failed = [];
+}

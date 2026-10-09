@@ -939,6 +939,8 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
               AiToolType.claudeDesktop,
               AiToolType.windsurf,
               AiToolType.openclaw,
+              // MCP / Skills / 提示词同步目标
+              ...AiToolType.syncOnlyTools,
             ];
             
                 return GridView.builder(
