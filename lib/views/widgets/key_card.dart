@@ -940,7 +940,10 @@ class _KeyCardState extends State<KeyCard> {
         // 1. 顶部：logo + 名称/★ + 平台 · 掩码密钥 + 右上角
         SizedBox(
           height: 36,
-          child: Row(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Row(
             children: [
               KcPlatformLogo(platform: key.platformType, customIconFileName: key.icon, name: key.name),
               const SizedBox(width: 10),
@@ -956,7 +959,7 @@ class _KeyCardState extends State<KeyCard> {
                             key.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: KcType.strong.copyWith(color: cs.foreground),
+                            style: KcType.strong.copyWith(color: cs.foreground, height: 1.25),
                           ),
                         ),
                         if (key.isFavorite) ...[
@@ -983,6 +986,12 @@ class _KeyCardState extends State<KeyCard> {
               ),
               const SizedBox(width: KcSpace.x1_5),
               _buildTopRight(context, localizations),
+            ],
+          ),
+              ),
+              // 悬停操作浮在名称右端之上，不常驻占位（否则名称被截得很短）
+              if (!widget.isEditMode && widget.onToggle == null)
+                Positioned(top: 0, bottom: 0, right: 0, child: _buildHoverActions(context, localizations)),
             ],
           ),
         ),
@@ -1041,6 +1050,20 @@ class _KeyCardState extends State<KeyCard> {
         child: Switch(value: widget.isCurrent, onChanged: widget.onToggle, activeColor: cs.primary),
       );
     }
+    final showActions = _isHovering || _menuOpen;
+    final badge = (widget.cardMode == KeyCardMode.switchKey && widget.isCurrent)
+        ? _StatusBadge(text: localizations?.statusActive ?? '生效中', fg: kc.okText, bg: kc.okSoft, dot: kc.ok)
+        : null;
+    if (badge == null) return const SizedBox.shrink();
+    return AnimatedOpacity(opacity: showActions ? 0 : 1, duration: KcMotion.of(context), child: badge);
+  }
+
+  Widget _buildHoverActions(BuildContext context, AppLocalizations? localizations) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final isLensCurrent = widget.cardMode == KeyCardMode.switchKey && widget.isCurrent;
+    final bg = isLensCurrent ? Color.alphaBlend(kc.okSoft, cs.card) : cs.card;
+
     final actions = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1064,19 +1087,24 @@ class _KeyCardState extends State<KeyCard> {
       ],
     );
     final showActions = _isHovering || _menuOpen;
-    final badge = (widget.cardMode == KeyCardMode.switchKey && widget.isCurrent)
-        ? _StatusBadge(text: localizations?.statusActive ?? '生效中', fg: kc.okText, bg: kc.okSoft, dot: kc.ok)
-        : null;
-    return Stack(
-      alignment: Alignment.centerRight,
-      children: [
-        if (badge != null) AnimatedOpacity(opacity: showActions ? 0 : 1, duration: KcMotion.of(context), child: badge),
-        AnimatedOpacity(
-          opacity: showActions ? 1 : 0,
-          duration: KcMotion.of(context),
-          child: IgnorePointer(ignoring: !showActions, child: actions),
+    return AnimatedOpacity(
+      opacity: showActions ? 1 : 0,
+      duration: KcMotion.of(context),
+      child: IgnorePointer(
+        ignoring: !showActions,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 16,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [bg.withAlpha(0), bg]),
+              ),
+            ),
+            ColoredBox(color: bg, child: Center(child: actions)),
+          ],
         ),
-      ],
+      ),
     );
   }
 

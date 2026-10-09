@@ -487,7 +487,6 @@ class _MainScreenState extends State<MainScreen> {
           ),
           const SizedBox(width: KcSpace.x3),
           Expanded(
-            flex: 2,
             child: Text(
               localizations?.keyGridSubtitle(all.length, inUse) ?? '${all.length} 个密钥 · $inUse 个正被工具使用',
               maxLines: 1,
@@ -496,11 +495,10 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           const SizedBox(width: KcSpace.x2),
-          Flexible(
-            flex: 3,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 240),
-              child: ShadInput(
+          // 搜索框固定 240 宽、靠右；之前 Flexible 的剩余空间不会被重分配，导致右侧空出一大块
+          SizedBox(
+            width: 240,
+            child: ShadInput(
               key: const ValueKey('keyGrid.search'),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               style: KcType.body,
@@ -517,7 +515,6 @@ class _MainScreenState extends State<MainScreen> {
                       child: Icon(Icons.close, size: 14, color: cs.mutedForeground),
                     )
                   : null,
-              ),
             ),
           ),
           const SizedBox(width: KcSpace.x2),

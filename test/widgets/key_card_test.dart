@@ -230,4 +230,12 @@ void main() {
     expect(byKey('keyGrid.emptyAdd'), findsOneWidget);
     expect(byKey('keyGrid.emptyImport'), findsOneWidget);
   });
+
+  testWidgets('未悬停时名称不给悬停操作按钮预留宽度（避免名称被截得很短）', (tester) async {
+    await pumpGrid(tester);
+    final card = tester.getSize(cardFor(1));
+    final name = tester.getSize(inCard(1, find.text('DeepSeek 主力')));
+    // 只扣 logo + 内边距 + 收藏星，不再扣 3 个操作按钮（约 84px）
+    expect(card.width - name.width, lessThan(130), reason: 'card ${card.width}, name ${name.width}');
+  });
 }
