@@ -5,7 +5,10 @@ import 'package:reorderables/reorderables.dart';
 import '../../viewmodels/mcp_viewmodel.dart';
 import '../../models/mcp_server.dart';
 import '../widgets/kc_manage_scaffold.dart';
+import '../widgets/kc_logo.dart';
+import '../../theme/kc_tokens.dart';
 import '../widgets/mcp_card.dart';
+import '../widgets/key_details_dialog.dart' show showKeyDetailsSheet;
 import '../widgets/confirm_dialog.dart';
 import 'mcp_sync_page.dart';
 import 'mcp_form_page.dart';
@@ -141,15 +144,28 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                             ),
                           ),
                           // 按工具启用：从工具导入 / 重新写入
+                          // ⋯ 分组菜单（form_v3.md §7）：同步 / 导入导出
                           PopupMenuButton<String>(
-                            tooltip: '按工具启用',
-                            icon: Icon(Icons.apps_outlined, size: 18, color: shadTheme.colorScheme.primary),
-                            onSelected: (v) => v == 'import'
-                                ? _importFromEnabledTools(context, viewModel)
-                                : _syncAllEnabled(context, viewModel),
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(value: 'import', child: Text('从已启用的工具导入')),
-                              PopupMenuItem(value: 'sync', child: Text('重新写入全部已启用的服务')),
+                            key: const ValueKey('mcp.moreMenu'),
+                            tooltip: localizations?.tr('more', '更多') ?? '更多',
+                            icon: Icon(Icons.more_horiz, size: 18, color: shadTheme.colorScheme.primary),
+                            onSelected: (v) {
+                              switch (v) {
+                                case 'import':
+                                  _importFromEnabledTools(context, viewModel);
+                                case 'sync':
+                                  _syncAllEnabled(context, viewModel);
+                                case 'diff':
+                                  _showSyncDialog(context);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              PopupMenuItem(enabled: false, height: 28, child: Text(localizations?.tr('menu_group_sync', '同步') ?? '同步', style: KcType.caption)),
+                              PopupMenuItem(value: 'diff', child: Text(localizations?.tr('mcp_menu_diff', '对比与同步…') ?? '对比与同步…')),
+                              PopupMenuItem(value: 'sync', child: Text(localizations?.tr('mcp_menu_rewrite', '重新写入全部已启用的服务') ?? '重新写入全部已启用的服务')),
+                              const PopupMenuDivider(),
+                              PopupMenuItem(enabled: false, height: 28, child: Text(localizations?.tr('menu_group_import', '导入') ?? '导入', style: KcType.caption)),
+                              PopupMenuItem(value: 'import', child: Text(localizations?.tr('mcp_menu_import', '从已启用的工具导入') ?? '从已启用的工具导入')),
                             ],
                           ),
                           // 分隔线
@@ -420,6 +436,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
             onToggleActive: (isActive) => _toggleActive(context, server, isActive, viewModel),
             onViewDetails: () => _showMcpDetails(context, server),
             onManageApps: () => _showServerAppsDialog(context, server, viewModel),
+            enabledTools: viewModel.serverApps[server.serverId] ?? const <AiToolType>{},
             onOpenHomepage: server.homepage != null && server.homepage!.isNotEmpty
                 ? () => UrlLauncherService().openUrl(server.homepage!)
                 : null,
@@ -605,39 +622,109 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
 
   /// 按工具启用：每个工具一个开关，切换后立即写入该工具的配置
   Future<void> _showServerAppsDialog(BuildContext context, McpServer server, McpViewModel viewModel) async {
-    final tools = _mcpTools(context);
+    // 按工具启用 sheet（form_v3.md §7）：列出**全部** MCP 目标工具；设置里未启用的置灰并提示去哪开启。
+    final enabledInSettings = context.read<SettingsViewModel>().getEnabledTools().toSet();
+    final all = McpSyncService.mcpTargetTools;
+    final l = AppLocalizations.of(context);
+    final busy = <AiToolType>{};
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
+          final cs = ShadTheme.of(dialogContext).colorScheme;
+          final kc = dialogContext.kc;
           final enabled = viewModel.serverApps[server.serverId] ?? const <AiToolType>{};
-          return AlertDialog(
-            title: Text('${server.name} · 按工具启用'),
-            content: SizedBox(
-              width: 360,
-              child: tools.isEmpty
-                  ? const Text('请先在设置中启用至少一个工具')
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: tools
-                          .map((tool) => SwitchListTile(
-                                dense: true,
-                                title: Text(tool.displayName),
-                                value: enabled.contains(tool),
-                                onChanged: (v) async {
-                                  final ok = await viewModel.setServerEnabledForTool(server, tool, v);
-                                  if (!ok && context.mounted) {
-                                    _showSnackBarSafe(context, viewModel.errorMessage ?? '写入失败', isError: true);
-                                  }
-                                  setDialogState(() {});
-                                },
-                              ))
-                          .toList(),
+          final onCount = all.where(enabled.contains).length;
+          return Dialog(
+            key: const ValueKey('mcpApps.sheet'),
+            backgroundColor: cs.background,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KcRadius.dialog)),
+            child: SizedBox(
+              width: 520,
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 12, 12),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('${server.name} · ${l?.tr('mcp_enable_per_tool', '按工具启用') ?? '按工具启用'}',
+                            style: KcType.title.copyWith(color: cs.foreground)),
+                        const SizedBox(height: 2),
+                        Text((l?.tr('mcp_enable_summary', '已在 {n} / {total} 个工具启用 · 切换后立即写入该工具配置') ?? '已在 {n} / {total} 个工具启用 · 切换后立即写入该工具配置')
+                                .replaceAll('{n}', '$onCount').replaceAll('{total}', '${all.length}'),
+                            style: KcType.caption.copyWith(color: kc.text2)),
+                      ]),
                     ),
+                    IconButton(
+                      key: const ValueKey('mcpApps.close'),
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      icon: Icon(Icons.close, size: 18, color: kc.text2),
+                    ),
+                  ]),
+                ),
+                Divider(height: 1, color: cs.border),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.62),
+                  child: ListView(shrinkWrap: true, padding: const EdgeInsets.symmetric(vertical: 6), children: [
+                    for (final tool in all)
+                      Builder(builder: (_) {
+                        final avail = enabledInSettings.contains(tool);
+                        final on = enabled.contains(tool);
+                        return Opacity(
+                          opacity: avail ? 1 : 0.5,
+                          child: SizedBox(
+                            key: ValueKey('mcpApps.tool.${tool.value}'),
+                            height: 44,
+                            child: Row(children: [
+                              const SizedBox(width: 20),
+                              KcToolLogo(tool: tool, size: 22),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(kcToolName(tool), maxLines: 1, overflow: TextOverflow.ellipsis,
+                                    style: KcType.strong.copyWith(color: cs.foreground)),
+                              ),
+                              if (!avail)
+                                Text(l?.tr('enable_in_settings_hint', '在 设置 › 工具配置 中开启') ?? '在 设置 › 工具配置 中开启',
+                                    style: KcType.caption.copyWith(color: kc.text2))
+                              else if (busy.contains(tool))
+                                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                              else
+                                Switch.adaptive(
+                                  value: on,
+                                  onChanged: (v) async {
+                                    setDialogState(() => busy.add(tool));
+                                    final ok = await viewModel.setServerEnabledForTool(server, tool, v);
+                                    busy.remove(tool);
+                                    if (!ok && context.mounted) {
+                                      _showSnackBarSafe(context, viewModel.errorMessage ?? (l?.tr('write_failed', '写入失败') ?? '写入失败'), isError: true);
+                                    }
+                                    if (dialogContext.mounted) setDialogState(() {});
+                                  },
+                                ),
+                              const SizedBox(width: 16),
+                            ]),
+                          ),
+                        );
+                      }),
+                  ]),
+                ),
+                Divider(height: 1, color: cs.border),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 16, 12),
+                  child: Row(children: [
+                    Expanded(
+                      child: Text(l?.tr('mcp_enable_footer', '停用会从该工具的配置中移除此服务') ?? '停用会从该工具的配置中移除此服务',
+                          style: KcType.caption.copyWith(color: kc.text2)),
+                    ),
+                    ShadButton(
+                      height: KcSize.control,
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: Text(l?.tr('done', '完成') ?? '完成'),
+                    ),
+                  ]),
+                ),
+              ]),
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('关闭')),
-            ],
           );
         },
       ),
@@ -648,15 +735,25 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
     final r = await viewModel.importFromTools(_mcpTools(context));
     if (!context.mounted || r == null) return;
     final linked = r.linked.values.fold<int>(0, (a, b) => a + b.length);
-    _showSnackBarSafe(context, '新增 ${r.added.length} 个服务，记录 $linked 条启用关系'
-        '${r.failed.isEmpty ? '' : '，失败 ${r.failed.length} 个'}');
+    final l = AppLocalizations.of(context);
+    var msg = (l?.tr('mcp_import_result', '新增 {a} 个服务，记录 {b} 条启用关系') ?? '新增 {a} 个服务，记录 {b} 条启用关系')
+        .replaceAll('{a}', '${r.added.length}').replaceAll('{b}', '$linked');
+    if (r.failed.isNotEmpty) {
+      msg += (l?.tr('mcp_import_failed_suffix', '，失败 {n} 个') ?? '，失败 {n} 个').replaceAll('{n}', '${r.failed.length}');
+    }
+    _showSnackBarSafe(context, msg);
   }
 
   Future<void> _syncAllEnabled(BuildContext context, McpViewModel viewModel) async {
     final r = await viewModel.syncAllEnabled();
     if (!context.mounted) return;
     final failed = r.entries.where((e) => !e.value).map((e) => e.key.displayName).toList();
-    _showSnackBarSafe(context, failed.isEmpty ? '已写入 ${r.length} 个工具' : '写入失败：${failed.join('、')}',
+    final l = AppLocalizations.of(context);
+    _showSnackBarSafe(
+        context,
+        failed.isEmpty
+            ? (l?.tr('mcp_written_n', '已写入 {n} 个工具') ?? '已写入 {n} 个工具').replaceAll('{n}', '${r.length}')
+            : '${l?.tr('write_failed', '写入失败') ?? '写入失败'}：${failed.join('、')}',
         isError: failed.isNotEmpty);
   }
 
@@ -670,7 +767,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
   }
 
   void _showMcpDetails(BuildContext context, McpServer server) {
-    showDialog(
+    showKeyDetailsSheet(
       context: context,
       builder: (context) => _McpDetailsDialog(
         server: server,
@@ -760,28 +857,21 @@ class _McpDetailsDialog extends StatelessWidget {
     final shadTheme = ShadTheme.of(context);
     final localizations = AppLocalizations.of(context);
     
-    return Dialog(
-      backgroundColor: Colors.transparent,
+    // 右侧抽屉（与密钥详情一致，form_v3.md §7）：宽 560，满高，左边线 + 阴影
+    final width = MediaQuery.sizeOf(context).width;
+    return Material(
+      key: const ValueKey('mcpDetails.sheet'),
+      color: shadTheme.colorScheme.background,
       child: Container(
-        width: 800,
-        constraints: const BoxConstraints(maxHeight: 700),
+        width: width < 640 ? width : 560,
+        height: double.infinity,
         decoration: BoxDecoration(
           color: shadTheme.colorScheme.background,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: shadTheme.colorScheme.border,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border(left: BorderSide(color: shadTheme.colorScheme.border)),
+          boxShadow: context.kc.shadowLg,
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
           children: [
             // 标题栏
             Container(

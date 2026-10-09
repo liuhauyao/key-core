@@ -757,5 +757,18 @@
   "models_search_hint": "Search model ID",
   "refresh": "Refresh",
   "models_count_hint": "{n} models · click to copy ID",
-  "models_match_hint": "{n} / {total} match"
+  "models_match_hint": "{n} / {total} match",
+  "mcp_enable_per_tool": "Enable per tool",
+  "mcp_enable_summary": "On in {n} / {total} tools · changes are written immediately",
+  "write_failed": "Write failed",
+  "mcp_enable_footer": "Turning off removes this server from that tool's config",
+  "more": "More",
+  "menu_group_sync": "Sync",
+  "menu_group_import": "Import",
+  "mcp_menu_diff": "Compare & sync…",
+  "mcp_menu_rewrite": "Rewrite all enabled servers",
+  "mcp_menu_import": "Import from enabled tools",
+  "mcp_import_result": "Added {a} servers, recorded {b} tool links",
+  "mcp_import_failed_suffix": ", {n} failed",
+  "mcp_written_n": "Written to {n} tools"
 }

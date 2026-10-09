@@ -757,5 +757,18 @@
   "models_search_hint": "搜索模型 ID",
   "refresh": "刷新",
   "models_count_hint": "共 {n} 个模型 · 点击复制 ID",
-  "models_match_hint": "匹配 {n} / {total}"
+  "models_match_hint": "匹配 {n} / {total}",
+  "mcp_enable_per_tool": "按工具启用",
+  "mcp_enable_summary": "已在 {n} / {total} 个工具启用 · 切换后立即写入该工具配置",
+  "write_failed": "写入失败",
+  "mcp_enable_footer": "停用会从该工具的配置中移除此服务",
+  "more": "更多",
+  "menu_group_sync": "同步",
+  "menu_group_import": "导入",
+  "mcp_menu_diff": "对比与同步…",
+  "mcp_menu_rewrite": "重新写入全部已启用的服务",
+  "mcp_menu_import": "从已启用的工具导入",
+  "mcp_import_result": "新增 {a} 个服务，记录 {b} 条启用关系",
+  "mcp_import_failed_suffix": "，失败 {n} 个",
+  "mcp_written_n": "已写入 {n} 个工具"
 }
