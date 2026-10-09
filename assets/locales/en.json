@@ -721,5 +721,7 @@
   "enable": "Enable",
   "disable": "Disable",
   "batch_delete_mcp_confirm": "Delete the {n} selected MCP servers?",
-  "uninstall": "Uninstall"
+  "uninstall": "Uninstall",
+  "sidebar_official_tip": "{tool} is using: official sign-in",
+  "official_login": "Official sign-in"
 }

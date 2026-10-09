@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import '../../services/platform/window_chrome.dart';
 import 'kc_window_header.dart' show KcDragArea;
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -255,47 +256,49 @@ class AppSidebar extends StatelessWidget {
     ];
   }
 
+  /// 工具行：当前密钥只显示图标（form_v3.md §8）——自有密钥 = 供应商 logo；官方登录 = 厂商标志 + 蓝色 ✓；
+  /// 未选择 = 虚线方块；OpenClaw 多个已启用 = 最多叠 3 个 + 「+N」。工具名因此不再截断。
   Widget _toolRow(BuildContext context, AppType app, KeyManagerViewModel vm, AppLocalizations? l10n, Widget leading) {
-    final kc = context.kc;
-    final cs = ShadTheme.of(context).colorScheme;
-    String? trailing;
-    Color? trailingColor;
     final tool = app.tool!;
+    final label = app.getLabel(context);
+    Widget? trailing;
+    String? tip;
     if (tool == AiToolType.openclaw) {
-      final n = vm.allKeys.where((k) => k.enableOpenclaw).length;
-      if (n > 0) {
-        trailing = l10n?.nEnabled(n) ?? '$n 个已启用';
-        trailingColor = kc.okText;
+      final keys = vm.allKeys.where((k) => k.enableOpenclaw).toList();
+      if (keys.isNotEmpty) {
+        trailing = KeyLogoStack(keys: keys, key: ValueKey('sidebar.current.${tool.name}'));
+        tip = l10n?.sidebarCurrentKeyTip(label, keys.map((k) => k.name).join('、')) ?? '$label 当前使用：${keys.map((k) => k.name).join('、')}';
+      } else {
+        trailing = const KeyLogoChip.none();
       }
     } else {
       final id = vm.currentKeyIds[tool];
+      AIKey? key;
       if (id != null) {
-        AIKey? key;
         for (final k in vm.allKeys) {
           if (k.id == id) {
             key = k;
             break;
           }
         }
-        if (key != null) {
-          trailing = key.name;
-          trailingColor = kc.okText;
-        }
-      } else if (vm.currentToolKeysLoaded) {
-        trailing = l10n?.officialShort ?? '官方';
-        trailingColor = cs.mutedForeground;
+      }
+      if (key != null) {
+        trailing = KeyLogoChip(aiKey: key, key: ValueKey('sidebar.current.${tool.name}'));
+        tip = l10n?.sidebarCurrentKeyTip(label, key.name) ?? '$label 当前使用：${key.name}';
+      } else if (id == null && vm.currentToolKeysLoaded) {
+        trailing = KeyLogoChip.official(tool: tool, key: ValueKey('sidebar.official.${tool.name}'));
+        tip = l10n?.tr('sidebar_official_tip', '{tool} 当前使用：官方登录').replaceAll('{tool}', label) ?? '$label 当前使用：官方登录';
+      } else {
+        trailing = const KeyLogoChip.none();
       }
     }
-    final label = app.getLabel(context);
     return _SidebarRow(
       key: ValueKey('sidebar.${app.name}'),
       app: app,
       leading: leading,
       label: label,
-      trailing: trailing,
-      trailingColor: trailingColor,
-      trailingStyle: KcType.badge,
-      tooltip: trailing != null ? (l10n?.sidebarCurrentKeyTip(label, trailing) ?? '$label 当前使用：$trailing') : null,
+      trailingWidget: trailing,
+      tooltip: tip,
       selected: activeApp == app,
       collapsed: collapsed,
       onTap: () => onSwitch(app),
@@ -318,22 +321,26 @@ class _Brand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = ShadTheme.of(context).colorScheme;
-    final icon = Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(6)),
-      child: Icon(Icons.vpn_key_outlined, size: 13, color: cs.primaryForeground),
+    // D1j 钥匙纯字形（form_v3.md §7）：无背景无边框，随主题着色（浅色石墨近黑，深色浅银）
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final size = collapsed ? 24.0 : 28.0;
+    final icon = SvgPicture.asset(
+      'assets/images/brand_glyph.svg',
+      key: const ValueKey('sidebar.brandGlyph'),
+      width: size,
+      height: size,
+      colorFilter: ColorFilter.mode(dark ? const Color(0xFFD4D7DC) : const Color(0xFF1D1E21), BlendMode.srcIn),
     );
     return SizedBox(
       height: 36,
       child: Row(
         mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
         children: [
-          if (!collapsed) const SizedBox(width: KcSpace.x1_5),
+          if (!collapsed) const SizedBox(width: KcSpace.x1),
           icon,
           if (!collapsed) ...[
-            const SizedBox(width: KcSpace.x2),
-            Text('密枢', style: KcType.strong.copyWith(color: cs.foreground)),
+            const SizedBox(width: KcSpace.x1_5),
+            Text('密枢', style: KcType.strong.copyWith(color: cs.foreground, fontWeight: FontWeight.w600)),
             const SizedBox(width: KcSpace.x1_5),
             Text('Key Core', style: KcType.caption.copyWith(color: cs.mutedForeground)),
           ],
@@ -379,8 +386,7 @@ class _SidebarRow extends StatefulWidget {
     required this.collapsed,
     required this.onTap,
     this.trailing,
-    this.trailingColor,
-    this.trailingStyle,
+    this.trailingWidget,
     this.tooltip,
     this.primary = false,
   });
@@ -389,8 +395,9 @@ class _SidebarRow extends StatefulWidget {
   final Widget leading;
   final String label;
   final String? trailing;
-  final Color? trailingColor;
-  final TextStyle? trailingStyle;
+
+  /// 图标型 trailing（工具行的当前密钥），优先于 [trailing]
+  final Widget? trailingWidget;
   final String? tooltip;
   final bool selected;
   final bool collapsed;
@@ -424,7 +431,10 @@ class _SidebarRowState extends State<_SidebarRow> {
           Expanded(
             child: Text(widget.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: labelStyle),
           ),
-          if (widget.trailing != null) ...[
+          if (widget.trailingWidget != null) ...[
+            const SizedBox(width: KcSpace.x1_5),
+            widget.trailingWidget!,
+          ] else if (widget.trailing != null) ...[
             const SizedBox(width: KcSpace.x1_5),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 76),
@@ -432,8 +442,8 @@ class _SidebarRowState extends State<_SidebarRow> {
                 widget.trailing!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: (widget.trailingStyle ?? KcType.badge).copyWith(
-                  color: widget.trailingColor ?? cs.mutedForeground,
+                style: KcType.badge.copyWith(
+                  color: cs.mutedForeground,
                   fontWeight: FontWeight.w500,
                   fontFeatures: KcType.tabular,
                 ),
@@ -445,7 +455,7 @@ class _SidebarRowState extends State<_SidebarRow> {
     }
 
     final tip = widget.collapsed
-        ? (widget.trailing != null ? '${widget.label} · ${widget.trailing}' : widget.label)
+        ? (widget.tooltip ?? (widget.trailing != null ? '${widget.label} · ${widget.trailing}' : widget.label))
         : widget.tooltip;
 
     Widget row = Semantics(

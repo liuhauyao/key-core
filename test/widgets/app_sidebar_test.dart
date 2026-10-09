@@ -7,6 +7,7 @@ import 'package:key_core/theme/kc_tokens.dart';
 import 'package:key_core/views/screens/main_screen.dart';
 import 'package:key_core/views/screens/settings_screen.dart';
 import 'package:key_core/views/widgets/app_switcher.dart';
+import 'package:key_core/views/widgets/kc_logo.dart';
 
 import '../fixtures/fake_key_manager_viewmodel.dart';
 import '../fixtures/fake_keys.dart';
@@ -69,13 +70,26 @@ void main() {
       .map((t) => t.data)
       .join('|');
 
-  testWidgets('工具行右侧显示当前生效密钥 / 官方 / OpenClaw 已启用数量', (tester) async {
+  String tipOf(WidgetTester tester, String key) => tester
+      .widget<Tooltip>(find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(Tooltip)).first)
+      .message!;
+
+  // v3（form_v3.md §8）：当前密钥只显示图标，名称放在 tooltip；工具名不再被截断
+  testWidgets('工具行右侧显示当前密钥图标 / 官方标志 / OpenClaw 叠放', (tester) async {
     await pumpSidebar(tester);
-    expect(rowText(tester, 'sidebar.claudeCode'), 'Claude Code|DeepSeek 主力');
-    expect(rowText(tester, 'sidebar.claudeDesktop'), 'Claude Desktop|官方');
-    expect(rowText(tester, 'sidebar.codex'), 'Codex|官方');
-    expect(rowText(tester, 'sidebar.gemini'), 'Gemini|Gemini 个人');
-    expect(rowText(tester, 'sidebar.openClaw'), 'OpenClaw|2 个已启用');
+    Finder inRow(String row, String key) => find.descendant(of: find.byKey(ValueKey(row)), matching: find.byKey(ValueKey(key)));
+    expect(inRow('sidebar.claudeCode', 'sidebar.current.claudecode'), findsOneWidget);
+    expect(tipOf(tester, 'sidebar.claudeCode'), 'Claude Code 当前使用：DeepSeek 主力');
+    expect(inRow('sidebar.claudeDesktop', 'sidebar.official.claudeDesktop'), findsOneWidget);
+    expect(inRow('sidebar.codex', 'sidebar.official.codex'), findsOneWidget);
+    expect(tipOf(tester, 'sidebar.codex'), 'Codex 当前使用：官方登录');
+    expect(inRow('sidebar.gemini', 'sidebar.current.gemini'), findsOneWidget);
+    expect(inRow('sidebar.openClaw', 'sidebar.current.openclaw'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('sidebar.openClaw')), matching: find.byType(KeyLogoStack)), findsOneWidget);
+    // 工具名完整显示，没有密钥名文字
+    expect(find.text('DeepSeek 主力'), findsNothing);
+    expect(find.text('Claude Desktop'), findsOneWidget);
+    expect(find.byKey(const ValueKey('sidebar.brandGlyph')), findsOneWidget);
     expect(rowText(tester, 'sidebar.keyManager'), '钥匙包|12');
     expect(find.text('工具 · 按工具查看密钥'), findsOneWidget);
     expect(find.text('扩展'), findsOneWidget);
@@ -93,7 +107,9 @@ void main() {
     final vm = await pumpSidebar(tester);
     await vm.switchCodexProvider(6);
     await tester.pump();
-    expect(rowText(tester, 'sidebar.codex'), 'Codex|OpenRouter 测试');
+    expect(find.descendant(of: find.byKey(const ValueKey('sidebar.codex')), matching: find.byKey(const ValueKey('sidebar.current.codex'))),
+        findsOneWidget);
+    expect(tipOf(tester, 'sidebar.codex'), 'Codex 当前使用：OpenRouter 测试');
   });
 
   testWidgets('点击行回调 onSwitch；选中行使用 selected 底色', (tester) async {
@@ -136,7 +152,7 @@ void main() {
     final tip = tester.widget<Tooltip>(find
         .descendant(of: find.byKey(const ValueKey('sidebar.claudeCode')), matching: find.byType(Tooltip))
         .first);
-    expect(tip.message, 'Claude Code · DeepSeek 主力');
+    expect(tip.message, 'Claude Code 当前使用：DeepSeek 主力');
   });
 
   testWidgets('深色模式下侧栏用 KcTokens.dark.sidebar', (tester) async {
