@@ -120,7 +120,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
       if (!key.isActive) continue;
       if (!key.enableOpenclaw) continue; // 只显示在编辑表单中开启了 OpenClaw 的密钥
       final platformId = key.platformType.id;
-      final info = OpenClawConfigService.platformMapping[platformId];
+      final info = OpenClawConfigService.platformInfoFor(platformId);
       final isEnabled = info != null
           ? appliedKeyIds[info.envKey] == key.id
           : false;

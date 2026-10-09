@@ -224,6 +224,10 @@ void main() {
           'fs': {'command': 'npx'}
         },
         'apiKey': '',
+        // 显式选择 API Key 认证，否则已 OAuth 登录的用户切换无效
+        'security': {
+          'auth': {'selectedType': 'gemini-api-key'}
+        },
       });
       if (!Platform.isWindows) expect(_mode(envPath), 0x180);
     });
@@ -365,7 +369,11 @@ void main() {
 
     test('mergeConfigToml replaces our block and keeps user tables', () {
       final merged = CodexConfigService.mergeConfigToml(userToml, ourBlock);
-      expect(merged.startsWith(ourBlock), isTrue);
+      // 我们的顶层键在最前，provider 表紧随用户的顶层内容之后、用户的表之前
+      expect(merged.startsWith('model_provider = "keycore"\nmodel = "gpt-5"'), isTrue);
+      expect(merged, contains('[model_providers.keycore]\nname = "keycore"\nbase_url = "https://new.example/v1"'));
+      expect(merged.indexOf('[model_providers.keycore]'), lessThan(merged.indexOf('[mcp_servers.fs]')));
+      expect(merged, contains('# my codex config'));
       expect(merged, contains('[mcp_servers.fs]\ncommand = "npx"'));
       expect(merged, contains('[projects."/Users/me/repo"]\ntrust_level = "trusted"'));
       expect(merged, isNot(contains('old.example')));

@@ -271,17 +271,12 @@ class GeminiConfigService {
       final envPath = await _getEnvFilePath();
 
       await LiveConfigWriter.instance.apply(AiToolType.gemini, [
-        LiveEdit.json(settingsPath, (settings) {
-          // 确保 mcpServers 字段存在
-          settings.putIfAbsent('mcpServers', () => <String, dynamic>{});
-          // 清除 settings.json 中的 apiKey（优先使用 .env 文件）
-          settings['apiKey'] = '';
-        }),
-        // 设置 GEMINI_API_KEY（Gemini 只支持官方 API，只写入 API Key），
-        // 并清除可能存在的第三方配置字段
+        LiveEdit.json(settingsPath, (settings) => applyProviderToSettings(settings)),
+        // 写入 GEMINI_API_KEY；密钥配置了第三方端点时同时写 GOOGLE_GEMINI_BASE_URL / GEMINI_MODEL，
+        // 否则清除这些字段（回到官方端点）
         LiveEdit.dotenv(
           envPath,
-          set: {KeyFieldFloor.geminiApiKey: apiKey},
+          set: providerEnv(key, apiKey),
           remove: KeyFieldFloor.geminiClearedOnSwitch.toSet(),
         ),
       ]);
@@ -292,6 +287,37 @@ class GeminiConfigService {
       print('GeminiConfigService: 切换配置失败: $e');
       return false;
     }
+  }
+
+  /// 切换到某把密钥时 `.env` 中应写入的关键字段（纯函数，便于测试）
+  ///
+  /// 与 CC Switch 一致：第三方端点写 `GOOGLE_GEMINI_BASE_URL`，模型写 `GEMINI_MODEL`。
+  static Map<String, String> providerEnv(AIKey key, String apiKey) {
+    final env = <String, String>{KeyFieldFloor.geminiApiKey: apiKey};
+    final baseUrl = key.geminiBaseUrl?.trim();
+    if (baseUrl != null && baseUrl.isNotEmpty) env[KeyFieldFloor.geminiBaseUrl] = baseUrl;
+    final model = key.geminiModel?.trim();
+    if (model != null && model.isNotEmpty) env[KeyFieldFloor.geminiModel] = model;
+    return env;
+  }
+
+  /// 切换到密钥时 settings.json 的修改（纯函数）
+  ///
+  /// `security.auth.selectedType` 必须是 `gemini-api-key`，否则之前用 Google 账号登录过的
+  /// Gemini CLI 会继续走 OAuth，切换不生效（CC Switch `live/project/gemini.rs` 同样处理）。
+  static void applyProviderToSettings(Map<String, dynamic> settings) {
+    settings.putIfAbsent('mcpServers', () => <String, dynamic>{});
+    // 清除 settings.json 中的 apiKey（优先使用 .env 文件）
+    settings['apiKey'] = '';
+    final security = settings['security'] is Map
+        ? Map<String, dynamic>.from(settings['security'] as Map)
+        : <String, dynamic>{};
+    final auth = security['auth'] is Map
+        ? Map<String, dynamic>.from(security['auth'] as Map)
+        : <String, dynamic>{};
+    auth['selectedType'] = 'gemini-api-key';
+    security['auth'] = auth;
+    settings['security'] = security;
   }
 
   /// 备份当前配置

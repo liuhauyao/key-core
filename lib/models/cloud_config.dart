@@ -291,6 +291,10 @@ class CodexAuthRule {
   final String? authJsonKey;
   final String wireApi;
 
+  /// 密钥写入位置：`bearerToken`（config.toml 的 experimental_bearer_token）/ `authJson` / `env`。
+  /// 缺省时按旧字段推导（supportsAuthJson → authJson，否则 env），兼容旧版云端配置。
+  final String? keyPlacement;
+
   CodexAuthRule({
     this.platformType,
     this.baseUrlPatterns,
@@ -299,6 +303,7 @@ class CodexAuthRule {
     required this.requiresOpenaiAuth,
     this.authJsonKey,
     this.wireApi = 'chat',
+    this.keyPlacement,
   });
 
   factory CodexAuthRule.fromJson(Map<String, dynamic> json) {
@@ -312,11 +317,13 @@ class CodexAuthRule {
       requiresOpenaiAuth: json['requiresOpenaiAuth'] as bool? ?? false,
       authJsonKey: json['authJsonKey'] as String?,
       wireApi: json['wireApi'] as String? ?? 'chat',
+      keyPlacement: json['keyPlacement'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      if (keyPlacement != null) 'keyPlacement': keyPlacement,
       if (platformType != null) 'platformType': platformType,
       if (baseUrlPatterns != null) 'baseUrlPatterns': baseUrlPatterns,
       'supportsAuthJson': supportsAuthJson,

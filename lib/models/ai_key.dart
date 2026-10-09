@@ -33,6 +33,11 @@ class AIKey extends Equatable {
   final String? claudeCodeSonnetModel; // Sonnet 模型 (ANTHROPIC_DEFAULT_SONNET_MODEL)
   final String? claudeCodeOpusModel; // Opus 模型 (ANTHROPIC_DEFAULT_OPUS_MODEL)
   final String? claudeCodeBaseUrl;
+
+  /// Claude Code 的供应商专属参数（JSON 列 `claude_code_config`）：
+  /// - `apiKeyField`：密钥写入的 env 变量名（缺省 `ANTHROPIC_AUTH_TOKEN`）；
+  /// - `env`：该供应商额外需要的 env（如 `CLAUDE_CODE_MAX_CONTEXT_TOKENS`）。
+  final Map<String, dynamic>? claudeCodeConfig;
   
   // Codex 相关配置
   final bool enableCodex;
@@ -88,6 +93,7 @@ class AIKey extends Equatable {
     this.claudeCodeSonnetModel,
     this.claudeCodeOpusModel,
     this.claudeCodeBaseUrl,
+    this.claudeCodeConfig,
     this.enableCodex = false,
     this.codexApiEndpoint,
     this.codexModel,
@@ -134,6 +140,7 @@ class AIKey extends Equatable {
     String? claudeCodeSonnetModel,
     String? claudeCodeOpusModel,
     String? claudeCodeBaseUrl,
+    Map<String, dynamic>? claudeCodeConfig,
     bool? enableCodex,
     String? codexApiEndpoint,
     String? codexModel,
@@ -179,6 +186,7 @@ class AIKey extends Equatable {
       claudeCodeSonnetModel: claudeCodeSonnetModel ?? this.claudeCodeSonnetModel,
       claudeCodeOpusModel: claudeCodeOpusModel ?? this.claudeCodeOpusModel,
       claudeCodeBaseUrl: claudeCodeBaseUrl ?? this.claudeCodeBaseUrl,
+      claudeCodeConfig: claudeCodeConfig ?? this.claudeCodeConfig,
       enableCodex: enableCodex ?? this.enableCodex,
       codexApiEndpoint: codexApiEndpoint ?? this.codexApiEndpoint,
       codexModel: codexModel ?? this.codexModel,
@@ -228,6 +236,7 @@ class AIKey extends Equatable {
       'claude_code_sonnet_model': claudeCodeSonnetModel,
       'claude_code_opus_model': claudeCodeOpusModel,
       'claude_code_base_url': claudeCodeBaseUrl,
+      'claude_code_config': claudeCodeConfig != null ? jsonEncode(claudeCodeConfig) : null,
       'enable_codex': enableCodex ? 1 : 0,
       'codex_api_endpoint': codexApiEndpoint,
       'codex_model': codexModel,
@@ -250,6 +259,22 @@ class AIKey extends Equatable {
     };
   }
 
+  /// Claude Code 密钥写入的 env 变量名
+  String get claudeCodeApiKeyField {
+    final v = claudeCodeConfig?['apiKeyField'];
+    return v is String && v.trim().isNotEmpty ? v.trim() : 'ANTHROPIC_AUTH_TOKEN';
+  }
+
+  /// Claude Code 供应商额外 env
+  Map<String, String> get claudeCodeExtraEnv {
+    final v = claudeCodeConfig?['env'];
+    if (v is! Map) return const {};
+    return {
+      for (final e in v.entries)
+        if (e.key.toString().trim().isNotEmpty) e.key.toString().trim(): e.value?.toString() ?? '',
+    };
+  }
+
   factory AIKey.fromMap(Map<String, dynamic> map) {
     Map<String, dynamic>? codexConfig;
     if (map['codex_config'] != null) {
@@ -257,6 +282,14 @@ class AIKey extends Equatable {
         codexConfig = jsonDecode(map['codex_config'] as String) as Map<String, dynamic>;
       } catch (e) {
         codexConfig = null;
+      }
+    }
+    Map<String, dynamic>? claudeCodeConfig;
+    if (map['claude_code_config'] != null) {
+      try {
+        claudeCodeConfig = jsonDecode(map['claude_code_config'] as String) as Map<String, dynamic>;
+      } catch (e) {
+        claudeCodeConfig = null;
       }
     }
     
@@ -336,6 +369,7 @@ class AIKey extends Equatable {
       claudeCodeSonnetModel: map['claude_code_sonnet_model'],
       claudeCodeOpusModel: map['claude_code_opus_model'],
       claudeCodeBaseUrl: map['claude_code_base_url'],
+      claudeCodeConfig: claudeCodeConfig,
       enableCodex: (map['enable_codex']?.toInt() ?? 0) == 1,
       codexApiEndpoint: map['codex_api_endpoint'],
       codexModel: map['codex_model'],
@@ -426,6 +460,7 @@ class AIKey extends Equatable {
         claudeCodeSonnetModel,
         claudeCodeOpusModel,
         claudeCodeBaseUrl,
+        claudeCodeConfig,
         enableCodex,
         codexApiEndpoint,
         codexModel,
