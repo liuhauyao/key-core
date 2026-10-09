@@ -194,16 +194,6 @@ class KcSelectCheck extends StatelessWidget {
   }
 }
 
-/// 选中卡片：蓝色描边 + 3px 光晕（不改变尺寸）。
-BoxDecoration kcSelectedDecoration(BuildContext context) {
-  final cs = ShadTheme.of(context).colorScheme;
-  return BoxDecoration(
-    borderRadius: BorderRadius.circular(KcRadius.panel),
-    border: Border.all(color: cs.primary, width: 1.5),
-    boxShadow: [BoxShadow(color: cs.primary.withValues(alpha: 0.18), spreadRadius: 3)],
-  );
-}
-
 /// 把卡片包一层：管理模式下右上角放选择框，选中时叠加描边；几何与普通模式完全一致。
 class KcSelectableCard extends StatelessWidget {
   const KcSelectableCard({super.key, required this.manage, required this.selected, required this.onSelect, required this.child, this.checkKey});
@@ -216,12 +206,34 @@ class KcSelectableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = ShadTheme.of(context).colorScheme;
     return Stack(
       clipBehavior: Clip.none,
       children: [
+        // 光晕在卡片下方，描边在卡片上方；两者都不改变尺寸
+        if (manage && selected)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(KcRadius.panel),
+                  boxShadow: [BoxShadow(color: cs.primary.withValues(alpha: 0.22), spreadRadius: 3)],
+                ),
+              ),
+            ),
+          ),
         Positioned.fill(child: child),
         if (manage && selected)
-          Positioned.fill(child: IgnorePointer(child: DecoratedBox(decoration: kcSelectedDecoration(context)))),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(KcRadius.panel),
+                  border: Border.all(color: cs.primary, width: 1.5),
+                ),
+              ),
+            ),
+          ),
         if (manage)
           Positioned(top: 10, right: 10, child: KcSelectCheck(key: checkKey, selected: selected, onChanged: onSelect)),
       ],
