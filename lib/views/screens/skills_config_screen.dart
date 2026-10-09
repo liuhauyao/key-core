@@ -14,6 +14,7 @@ import '../widgets/confirm_dialog.dart';
 import '../widgets/skill_card.dart';
 import '../widgets/skill_details_dialog.dart';
 import 'skill_form_page.dart';
+import 'prompts_page.dart';
 import 'skills_sync_page.dart';
 
 class SkillsConfigScreen extends StatefulWidget {
@@ -203,6 +204,15 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                       icon: Icons.file_upload_outlined,
                       tooltip: localizations?.skillsImport ?? 'Import',
                       onPressed: () => _importFromFolder(context, viewModel),
+                      shadTheme: shadTheme,
+                    ),
+                    _divider(shadTheme),
+                    _toolbarButton(
+                      icon: Icons.notes_outlined,
+                      tooltip: '系统提示词（CLAUDE.md / AGENTS.md 等）',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PromptsPage()),
+                      ),
                       shadTheme: shadTheme,
                     ),
                     _divider(shadTheme),

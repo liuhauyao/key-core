@@ -40,7 +40,21 @@ class DatabaseService {
   /// - v18：`ai_keys.claude_code_config`（Claude Code 的密钥字段名与供应商专属 env）。
   /// - v19：`mcp_server_apps`（MCP 服务按工具启用的关系表）。
   /// - v20：`skills` 增加来源仓库与内容哈希（source_repo/source_ref/source_subdir/content_hash）。
-  static const int schemaVersion = 20;
+  /// - v21：新增 `prompts` 表（系统提示词，CC Switch Prompts 对齐）。
+  static const int schemaVersion = 21;
+
+  static const String promptsDdl = '''
+    CREATE TABLE IF NOT EXISTS prompts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tool TEXT NOT NULL,
+      name TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      description TEXT,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  ''';
 
   /// MCP 服务 × 工具 启用关系（主键 server_id + tool；删除服务时一并删除）
   static const String mcpServerAppsDdl = '''
@@ -257,6 +271,8 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_mcp_servers_active ON mcp_servers(is_active)');
     await db.execute('CREATE INDEX idx_mcp_servers_type ON mcp_servers(server_type)');
     await db.execute(mcpServerAppsDdl);
+    await db.execute(promptsDdl);
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_prompts_tool ON prompts(tool)');
 
     await _createSkillsTable(db);
   }
@@ -531,6 +547,10 @@ class DatabaseService {
       for (final col in ['source_repo', 'source_ref', 'source_subdir', 'content_hash']) {
         await _addColumnIfNotExists(db, 'skills', col, 'TEXT');
       }
+    }
+    if (oldVersion < 21) {
+      await db.execute(promptsDdl);
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_prompts_tool ON prompts(tool)');
     }
   }
 
