@@ -1903,6 +1903,18 @@ class AppLocalizations {
   String skillsBatchDeleteTitle(int count) =>
       translate('skills_batch_delete_title').replaceAll('{count}', count.toString());
   String skillsBatchDeleteMessage() => translate('skills_batch_delete_message');
+  String get mcpEnablePerTool => translate('mcp_enable_per_tool');
+  String get mcpImportFromTools => translate('mcp_import_from_tools');
+  String get mcpResyncAll => translate('mcp_resync_all');
+  String get mcpNoToolsEnabled => translate('mcp_no_tools_enabled');
+  String get mcpWriteFailed => translate('mcp_write_failed');
+  String mcpImportResult(int added, int linked, int failed) => translate('mcp_import_result')
+      .replaceAll('{added}', '$added')
+      .replaceAll('{linked}', '$linked')
+      .replaceAll('{failed}', failed == 0 ? '' : translate('mcp_import_failed_suffix').replaceAll('{count}', '$failed'));
+  String mcpResyncDone(int count) => translate('mcp_resync_done').replaceAll('{count}', '$count');
+  String mcpResyncFailed(String tools) => translate('mcp_resync_failed').replaceAll('{tools}', tools);
+  String mcpEnablePerToolTitle(String name) => translate('mcp_enable_per_tool_title').replaceAll('{name}', name);
   String skillsFullSyncComplete(int synced, int conflicts) =>
       translate('skills_full_sync_complete')
           .replaceAll('{synced}', synced.toString())

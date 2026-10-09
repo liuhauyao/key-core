@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -154,8 +155,61 @@ class SkillsMarketService {
     SkillRepo(owner: 'JimLiu', name: 'baoyu-skills', branch: 'main'),
   ];
 
-  /// 本次运行内的仓库解压缓存（key: owner/name@branch）
+  /// 本次运行内的仓库解压缓存（key: owner/name@branch → 仓库根目录）
   final Map<String, String> _extracted = {};
+
+  /// 解压用临时目录前缀；[clearDownloadCache] / [cleanupStaleTempDirs] 依此清理
+  static const String repoTempPrefix = 'keycore-skill-repo-';
+  static const String zipTempPrefix = 'keycore-skill-zip-';
+
+  /// 仓库根目录所在的临时目录（`<tmp>/<repo-branch>/` 的 `<tmp>`）
+  static String _tempOf(String root) =>
+      path.basename(root).startsWith(repoTempPrefix) ? root : path.dirname(root);
+
+  static bool _stale = false;
+
+  /// 删除本次运行下载的全部仓库解压目录（关闭市场对话框 / 应用退出时调用）
+  Future<void> clearDownloadCache() async {
+    final roots = _extracted.values.toList();
+    _extracted.clear();
+    for (final root in roots) {
+      await _deleteTemp(_tempOf(root));
+    }
+  }
+
+  /// 清理以前运行遗留的临时目录（崩溃或未调用 [clearDownloadCache] 时留下的），
+  /// 只删除超过 [olderThan] 的，以免误删另一个正在运行的实例的目录。每次运行只执行一次。
+  static Future<int> cleanupStaleTempDirs({
+    Duration olderThan = const Duration(hours: 6),
+    Directory? tempRoot,
+    bool force = false,
+  }) async {
+    if (_stale && !force) return 0;
+    _stale = true;
+    final rootDir = tempRoot ?? Directory.systemTemp;
+    var removed = 0;
+    try {
+      await for (final e in rootDir.list(followLinks: false)) {
+        final name = path.basename(e.path);
+        if (e is! Directory || !(name.startsWith(repoTempPrefix) || name.startsWith(zipTempPrefix))) continue;
+        final stat = await e.stat();
+        if (DateTime.now().difference(stat.modified) < olderThan) continue;
+        await _deleteTemp(e.path);
+        removed++;
+      }
+    } catch (_) {}
+    return removed;
+  }
+
+  static Future<void> _deleteTemp(String dir) async {
+    // 只删除我们自己创建的临时目录
+    final name = path.basename(dir);
+    if (!(name.startsWith(repoTempPrefix) || name.startsWith(zipTempPrefix))) return;
+    try {
+      final d = Directory(dir);
+      if (await d.exists()) await d.delete(recursive: true);
+    } catch (_) {}
+  }
 
   // ========== 仓库管理 ==========
 
@@ -201,13 +255,22 @@ class SkillsMarketService {
     final cached = _extracted[cacheKey];
     if (!force && cached != null && await Directory(cached).exists()) return cached;
 
+    unawaited(cleanupStaleTempDirs());
     final response = await _client.get(repo.zipUrl);
     if (response.statusCode != 200) {
       throw HttpException('下载仓库 ${repo.fullName} 失败: HTTP ${response.statusCode}', uri: repo.zipUrl);
     }
-    final tmp = await Directory.systemTemp.createTemp('keycore-skill-repo-');
-    await extractZipBytes(response.bodyBytes, tmp.path);
-    final root = await _singleTopLevelDir(tmp.path);
+    final tmp = await Directory.systemTemp.createTemp(repoTempPrefix);
+    final String root;
+    try {
+      await extractZipBytes(response.bodyBytes, tmp.path);
+      root = await _singleTopLevelDir(tmp.path);
+    } catch (_) {
+      await _deleteTemp(tmp.path);
+      rethrow;
+    }
+    // 强制重新下载时，删除旧的解压目录
+    if (cached != null) await _deleteTemp(_tempOf(cached));
     _extracted[cacheKey] = root;
     return root;
   }
@@ -326,7 +389,7 @@ class SkillsMarketService {
     String zipPath, {
     List<SkillTargetTool> enabledTools = const [],
   }) async {
-    final tmp = await Directory.systemTemp.createTemp('keycore-skill-zip-');
+    final tmp = await Directory.systemTemp.createTemp(zipTempPrefix);
     try {
       await extractZipBytes(await File(zipPath).readAsBytes(), tmp.path);
       final dirs = await SkillsFs.findSkillDirs(tmp.path);

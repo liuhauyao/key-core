@@ -53,9 +53,16 @@ class SkillsDatabaseService {
     return null;
   }
 
+  /// 新增 Skill：未指定排序时排到末尾（否则 sort_order=0 会和第一项并列，新装的 Skill 跳到最前）
   Future<int> addSkill(Skill skill) async {
     final db = await _databaseService.database;
-    return await db.insert('skills', skill.toMap());
+    final map = skill.toMap();
+    if (skill.sortOrder == 0) {
+      final r = await db.rawQuery('SELECT MAX(sort_order) AS m, COUNT(*) AS c FROM skills');
+      final count = (r.first['c'] as int?) ?? 0;
+      if (count > 0) map['sort_order'] = ((r.first['m'] as int?) ?? 0) + 1;
+    }
+    return await db.insert('skills', map);
   }
 
   Future<int> updateSkill(Skill skill) async {
@@ -108,10 +115,8 @@ class SkillsDatabaseService {
       final skill = skills[i];
       batch.update(
         'skills',
-        {
-          'sort_order': i,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
+        // 只改排序，不改 updated_at（updated_at 表示内容变更时间）
+        {'sort_order': i},
         where: 'id = ?',
         whereArgs: [skill.id],
       );

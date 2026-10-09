@@ -8,9 +8,13 @@ import '../services/auth_service.dart';
 import '../services/mcp_database_service.dart';
 import '../services/settings_service.dart';
 import '../constants/app_constants.dart';
+import 'backup/backup_extras.dart';
 
 /// 导出服务
 class ExportService {
+  ExportService({BackupExtras? extras}) : _extras = extras;
+
+  final BackupExtras? _extras;
   final DatabaseService _databaseService = DatabaseService.instance;
   final McpDatabaseService _mcpDatabaseService = McpDatabaseService();
   final CryptService _cryptService = CryptService();
@@ -31,6 +35,7 @@ class ExportService {
 
       // 解密所有密钥值（如果有主密码）或直接使用明文
       final exportKeys = <Map<String, dynamic>>[];
+      final failedKeys = <String>[];
       for (final key in keys) {
         try {
           String decryptedValue;
@@ -57,6 +62,8 @@ class ExportService {
             'name': key.name,
             'platform': key.platform,
             'platform_type': key.platformType.index,
+            // 稳定的平台 ID（索引会随平台注册表变化，导入时优先用 ID）
+            'platform_type_id': key.platformType.id,
             'management_url': key.managementUrl,
             'api_endpoint': key.apiEndpoint,
             'key_value': decryptedValue,
@@ -95,15 +102,22 @@ class ExportService {
             'enable_claude_desktop': key.enableClaudeDesktop,
             'claude_desktop_base_url': key.claudeDesktopBaseUrl,
             'claude_desktop_model': key.claudeDesktopModel,
+            'tool_configs': key.toolConfigs.isEmpty ? null : key.toolConfigs,
             'claude_desktop_sonnet_model': key.claudeDesktopSonnetModel,
             'claude_desktop_haiku_model': key.claudeDesktopHaikuModel,
             'claude_desktop_opus_model': key.claudeDesktopOpusModel,
           });
         } catch (e) {
-          // 跳过无法处理的密钥
+          // 无法解密的密钥不再静默丢弃：记录下来，导出完成后作为错误抛出，避免得到一份“看似完整”的备份
+          failedKeys.add(key.name);
           continue;
         }
       }
+      if (failedKeys.isNotEmpty) {
+        throw Exception('以下密钥无法解密，导出已中止（请检查主密码）：${failedKeys.join('、')}');
+      }
+      final extras = _extras ?? BackupExtras();
+      final mcpApps = await extras.mcpEnabledTools();
 
       // 获取所有MCP服务
       final mcpServers = await _mcpDatabaseService.getAllMcpServers();
@@ -125,6 +139,8 @@ class ExportService {
         'is_active': server.isActive,
         'created_at': server.createdAt.toIso8601String(),
         'updated_at': server.updatedAt.toIso8601String(),
+        // 按工具启用关系
+        'enabled_tools': mcpApps[server.serverId] ?? const <String>[],
       }).toList();
 
       // 获取官方 API Key 配置
@@ -141,6 +157,9 @@ class ExportService {
         'mcp_server_count': exportMcpServers.length,
         'keys': exportKeys,
         'mcp_servers': exportMcpServers,
+        // 系统提示词与 Skills（Skills 仅含仓库列表与记录元数据，不含 Skill 文件）
+        'prompts': await extras.exportPrompts(),
+        'skills': await extras.exportSkills(),
         // 官方 API Key 配置
         'official_api_keys': {
           'claude': officialClaudeApiKey,
@@ -157,7 +176,13 @@ class ExportService {
         if (!await parentDir.exists()) {
           await parentDir.create(recursive: true);
         }
-        await file.writeAsString(jsonData);
+        await file.writeAsString(jsonData, flush: true);
+        // 导出文件含明文密钥：仅本人可读写
+        if (!Platform.isWindows) {
+          try {
+            await Process.run('chmod', ['600', file.path]);
+          } catch (_) {}
+        }
         return filePath;
       } catch (e) {
         // 文件写入错误，提供更详细的错误信息
@@ -241,6 +266,7 @@ class ExportService {
             'enable_claude_desktop': key.enableClaudeDesktop,
             'claude_desktop_base_url': key.claudeDesktopBaseUrl,
             'claude_desktop_model': key.claudeDesktopModel,
+            'tool_configs': key.toolConfigs.isEmpty ? null : key.toolConfigs,
             'claude_desktop_sonnet_model': key.claudeDesktopSonnetModel,
             'claude_desktop_haiku_model': key.claudeDesktopHaikuModel,
             'claude_desktop_opus_model': key.claudeDesktopOpusModel,

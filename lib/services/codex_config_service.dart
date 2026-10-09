@@ -698,8 +698,17 @@ class CodexConfigService {
   /// TOML 规定顶层键必须位于第一个表之前，因此新片段置顶；用户的其他配置逐行保留。
   static String mergeConfigToml(String existing, String newConfigToml) {
     final ours = _splitToml(newConfigToml.trimRight());
+    // 用户已设置的通用偏好（如 model_reasoning_effort）沿用用户的值，不被预设覆盖（位置不变，保证幂等）
+    final userPrefLines = <String, String>{
+      for (final l in _splitToml(existing).preamble)
+        if (_userPreferenceKeys.contains(_assignedKey(l))) _assignedKey(l)!: l,
+    };
     final rest = _splitToml(_removeOurConfig(existing));
-    final out = <String>[..._trimBlank(ours.preamble)];
+    final out = <String>[
+      for (final l in _trimBlank(ours.preamble)) userPrefLines[_assignedKey(l)] ?? l,
+    ];
+    final ourKeys = ours.preamble.map(_assignedKey).toSet();
+    out.addAll(userPrefLines.entries.where((e) => !ourKeys.contains(e.key)).map((e) => e.value));
     final userTop = _trimBlank(rest.preamble);
     if (userTop.isNotEmpty) {
       out
@@ -984,6 +993,9 @@ class CodexConfigService {
   static const String keycoreProviderId = 'keycore';
 
   /// 我们写入的顶层键
+  /// 通用偏好：切换时保留用户已有的值，切回官方时也保留（对官方同样有效）
+  static const Set<String> _userPreferenceKeys = {'model_reasoning_effort'};
+
   static const Set<String> _ourTopLevelKeys = {
     'model_provider',
     'model',
@@ -1075,12 +1087,12 @@ class CodexConfigService {
   ///
   /// 旧实现会删除所有 `[model_providers.*]` 表头并把其中不认识的键遗留到上一张表里，
   /// 还会把用户的顶层设置挪到我们的 provider 表之后（变成 provider 的字段），已修复。
-  static String _removeOurConfig(String configContent) {
+  static String _removeOurConfig(String configContent, {Set<String> topLevelKeys = _ourTopLevelKeys}) {
     if (configContent.trim().isEmpty) return configContent;
     final split = _splitToml(configContent);
     final out = <String>[];
     out.addAll(_trimBlank(
-        split.preamble.where((l) => !_ourTopLevelKeys.contains(_assignedKey(l))).toList()));
+        split.preamble.where((l) => !topLevelKeys.contains(_assignedKey(l))).toList()));
     for (final t in split.tables) {
       if (_isOurProviderTable(t)) continue;
       final body = _trimBlank(t.lines);
@@ -1147,7 +1159,7 @@ class CodexConfigService {
   /// 切回官方时清理 config.toml（纯函数）：删除我们添加的配置；
   /// 若剩余内容只有空白或注释则清空文件。
   static String cleanConfigTomlForOfficial(String current) {
-    final cleaned = _removeOurConfig(current);
+    final cleaned = _removeOurConfig(current, topLevelKeys: _ourTopLevelKeys.difference(_userPreferenceKeys));
     final trimmed = cleaned.trim();
     if (trimmed.isEmpty ||
         trimmed.split('\n').every((line) => line.trim().isEmpty || line.trim().startsWith('#'))) {

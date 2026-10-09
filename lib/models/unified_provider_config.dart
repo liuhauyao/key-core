@@ -301,6 +301,13 @@ class UnifiedProviderConfig {
   /// 图标文件名（相对于 assets/icons/platforms 目录）
   final String? icon;
 
+  /// 新工具（OpenCode / Grok Build / Hermes / Pi / MiniMax Code）的预设块，
+  /// 键为 [newToolPresetKeys] 之一，值保持 JSON 原样（各工具原生字段，不含密钥）。
+  final Map<String, Map<String, dynamic>> toolPresets;
+
+  /// app_config.json 中新工具预设块的键
+  static const List<String> newToolPresetKeys = ['opencode', 'grokBuild', 'hermes', 'pi', 'mcode'];
+
   UnifiedProviderConfig({
     required this.id,
     required this.name,
@@ -323,6 +330,7 @@ class UnifiedProviderConfig {
     this.platform,
     this.validation,
     this.icon,
+    this.toolPresets = const {},
   });
 
   factory UnifiedProviderConfig.fromJson(Map<String, dynamic> json) {
@@ -365,6 +373,10 @@ class UnifiedProviderConfig {
           ? ValidationConfig.fromJson(json['validation'] as Map<String, dynamic>)
           : null,
       icon: json['icon'] as String?,
+      toolPresets: {
+        for (final k in newToolPresetKeys)
+          if (json[k] is Map) k: Map<String, dynamic>.from(json[k] as Map),
+      },
     );
   }
 
@@ -391,6 +403,7 @@ class UnifiedProviderConfig {
       if (platform != null) 'platform': platform!.toJson(),
       if (validation != null) 'validation': validation!.toJson(),
       if (icon != null) 'icon': icon,
+      ...toolPresets,
     };
   }
 
