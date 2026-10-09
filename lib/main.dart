@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'theme/kc_tokens.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -228,27 +229,18 @@ class KeyCoreApp extends StatelessWidget {
             }
           });
           
-          // 配置 Shadcn UI 主题
-          final shadLightTheme = ShadThemeData(
-            brightness: Brightness.light,
-            colorScheme: ShadSlateColorScheme.light(
-              primary: const Color(0xFF007AFF),
-            ),
-          );
-          
-          final shadDarkTheme = ShadThemeData(
-            brightness: Brightness.dark,
-            colorScheme: ShadSlateColorScheme.dark(
-              primary: const Color(0xFF007AFF),
-            ),
-          );
-          
-          // 根据主题模式选择对应的 ShadTheme
-          // 注意：对于 system 模式，将在 MaterialApp 的 builder 中动态处理
+          // 设计 token（lib/theme/kc_tokens.dart）：一份 ShadTheme + 一份 MaterialApp 主题，
+          // KcTokens 作为 ThemeExtension 挂在 Material 主题上。
+          final shadLightTheme = KcTheme.shad(Brightness.light);
+          final shadDarkTheme = KcTheme.shad(Brightness.dark);
+
+          // 外层 ShadTheme 只服务于 MaterialApp 之外的少量组件；
+          // 页面内的 ShadTheme 在 MaterialApp.builder 里按「实际生效的亮度」选择（修复：跟随系统时
+          // Material 用深色而 shadcn 组件仍是浅色）。
           final currentShadTheme = settingsViewModel.themeMode == ThemeMode.dark
               ? shadDarkTheme
               : shadLightTheme;
-          
+
         return ShadTheme(
           data: currentShadTheme,
           child: MaterialApp(
@@ -310,71 +302,13 @@ class KeyCoreApp extends StatelessWidget {
             },
               // 主题设置 - 使用 Shadcn UI 提供的主题，同时保留自定义配置
               themeMode: settingsViewModel.themeMode,
-              theme: ThemeData(
-                primarySwatch: Colors.blue,
-                primaryColor: const Color(0xFF007AFF),
-                useMaterial3: true,
-                appBarTheme: const AppBarTheme(
-                  elevation: 0,
-                  centerTitle: true,
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
-                  titleTextStyle: TextStyle(
-                    color: Colors.black,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                cardTheme: CardThemeData(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                elevatedButtonTheme: ElevatedButtonThemeData(
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                inputDecorationTheme: InputDecorationTheme(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  filled: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-              darkTheme: ThemeData(
-                useMaterial3: true,
-                appBarTheme: const AppBarTheme(
-                  elevation: 0,
-                  centerTitle: true,
-                  backgroundColor: Color(0xFF1C1C1E),
-                  foregroundColor: Colors.white,
-                  titleTextStyle: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                cardTheme: CardThemeData(
-                  color: const Color(0xFF2C2C2E),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                scaffoldBackgroundColor: const Color(0xFF1C1C1E),
+              theme: KcTheme.material(Brightness.light),
+              darkTheme: KcTheme.material(Brightness.dark),
+              builder: (context, child) => ShadTheme(
+                data: Theme.of(context).brightness == Brightness.dark
+                    ? shadDarkTheme
+                    : shadLightTheme,
+                child: child ?? const SizedBox.shrink(),
               ),
               home: const MainScreen(),
               debugShowCheckedModeBanner: false,

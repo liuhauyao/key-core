@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:key_core/theme/kc_tokens.dart';
 import 'package:key_core/utils/app_localizations.dart';
 import 'package:key_core/viewmodels/key_manager_viewmodel.dart';
 import 'package:key_core/viewmodels/settings_viewmodel.dart';
@@ -45,12 +46,7 @@ Widget buildTestApp({
   Brightness brightness = Brightness.light,
   SettingsViewModel? settings,
 }) {
-  final shad = ShadThemeData(
-    brightness: brightness,
-    colorScheme: brightness == Brightness.light
-        ? const ShadSlateColorScheme.light(primary: Color(0xFF007AFF))
-        : const ShadSlateColorScheme.dark(primary: Color(0xFF007AFF)),
-  );
+  final shad = KcTheme.shad(brightness);
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<KeyManagerViewModel>.value(value: viewModel),
@@ -68,7 +64,7 @@ Widget buildTestApp({
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        theme: ThemeData(brightness: brightness, useMaterial3: true),
+        theme: KcTheme.material(brightness),
         home: home,
       ),
     ),
