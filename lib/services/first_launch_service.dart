@@ -178,6 +178,8 @@ class FirstLaunchService {
     
     // 检查其他 AI 工具
     for (final tool in AiToolType.values) {
+      // 新增的同步目标工具不在首次启动时逐个请求目录授权，按需在设置中开启
+      if (tool.isSyncOnly) continue;
       final toolKey = 'has_prompted_${tool.name}_dir';
       if (!hasPromptedForTool(toolKey)) {
         final canAccess = await checkToolConfigAccess(tool);

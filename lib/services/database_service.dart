@@ -38,10 +38,25 @@ class DatabaseService {
   /// - v17：把 `providers` 表中保存过的 API Key 导入 `ai_keys` 后删除该表，
   ///   回到以密钥为唯一实体的设计。版本号只增不减，避免 v16 的数据库被静默降级。
   /// - v18：`ai_keys.claude_code_config`（Claude Code 的密钥字段名与供应商专属 env）。
-  static const int schemaVersion = 18;
+  /// - v19：`mcp_server_apps`（MCP 服务按工具启用的关系表）。
+  static const int schemaVersion = 19;
+
+  /// MCP 服务 × 工具 启用关系（主键 server_id + tool；删除服务时一并删除）
+  static const String mcpServerAppsDdl = '''
+    CREATE TABLE IF NOT EXISTS mcp_server_apps (
+      server_id TEXT NOT NULL,
+      tool TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (server_id, tool)
+    )
+  ''';
 
   /// 迁移前备份最多保留的份数
   static const int maxMigrationBackups = 5;
+
+  /// 仅供测试：数据库路径（如 `inMemoryDatabasePath`）。设置后需调用 [close] 重新打开
+  @visibleForTesting
+  static String? debugDatabasePathOverride;
 
   /// 仅供测试：在给定数据库上执行建表逻辑
   @visibleForTesting
@@ -66,6 +81,19 @@ class DatabaseService {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
       _isFfiInitialized = true;
+    }
+
+    final override = debugDatabasePathOverride;
+    if (override != null) {
+      return await databaseFactoryFfi.openDatabase(
+        override,
+        options: OpenDatabaseOptions(
+          version: schemaVersion,
+          onCreate: _onCreate,
+          onUpgrade: _onUpgrade,
+          singleInstance: false,
+        ),
+      );
     }
 
     final directory = await getApplicationDocumentsDirectory();
@@ -227,6 +255,7 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_mcp_servers_server_id ON mcp_servers(server_id)');
     await db.execute('CREATE INDEX idx_mcp_servers_active ON mcp_servers(is_active)');
     await db.execute('CREATE INDEX idx_mcp_servers_type ON mcp_servers(server_type)');
+    await db.execute(mcpServerAppsDdl);
 
     await _createSkillsTable(db);
   }
@@ -482,6 +511,9 @@ class DatabaseService {
 
     if (oldVersion < 18) {
       await _addColumnIfNotExists(db, 'ai_keys', 'claude_code_config', 'TEXT');
+    }
+    if (oldVersion < 19) {
+      await db.execute(mcpServerAppsDdl);
     }
   }
 
