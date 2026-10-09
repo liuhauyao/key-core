@@ -1,3 +1,4 @@
+import '../widgets/kc_menu.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -1325,7 +1326,6 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     AppLocalizations localizations,
     SettingsViewModel settingsViewModel,
   ) {
-    final shadTheme = ShadTheme.of(context);
     final currentLanguage = settingsViewModel.currentLanguage;
     
     // 如果没有加载到支持的语言列表，使用默认的中英文
@@ -1348,36 +1348,13 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
           ]
         : _supportedLanguages;
     
-    // ⭐ 使用语言代码列表作为 key，确保语言列表变化时 ShadSelect 重新构建
-    final languagesKey = languages.map((l) => l.code).join('_');
     
-    return ShadSelect<String>(
-      key: ValueKey('language_select_$languagesKey'),
-      initialValue: currentLanguage,
-      placeholder: Text(
-        localizations.interfaceLanguage,
-        style: shadTheme.textTheme.small,
-      ),
-      options: languages.map((lang) {
-        return ShadOption<String>(
-          value: lang.code,
-          child: Text(
-            lang.nativeName,
-            style: shadTheme.textTheme.small,
-          ),
-        );
-      }).toList(),
-      selectedOptionBuilder: (context, value) {
-        final lang = languages.firstWhere(
-          (l) => l.code == value,
-          orElse: () => languages.first,
-        );
-        return Text(
-          lang.nativeName,
-          style: shadTheme.textTheme.small,
-        );
-      },
-          onChanged: (String? newLanguage) async {
+    return KcSelect<String>(
+      key: const ValueKey('settings.language'),
+      width: 150,
+      value: currentLanguage,
+      options: [for (final lang in languages) (lang.code, lang.nativeName)],
+      onChanged: (String? newLanguage) async {
             if (newLanguage != null && newLanguage != currentLanguage) {
               if (!mounted) return;
               

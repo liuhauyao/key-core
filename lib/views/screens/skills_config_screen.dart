@@ -12,6 +12,7 @@ import '../../services/skills_path_service.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/skills_viewmodel.dart';
 import '../widgets/kc_manage_scaffold.dart';
+import '../widgets/kc_menu.dart';
 import '../widgets/kc_segmented.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/skill_card.dart';
@@ -167,22 +168,22 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
             tip: t('skills_prompts_tooltip', '系统提示词（CLAUDE.md / AGENTS.md 等）'),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PromptsPage()))),
         // iconButton 自带左间距 8，这里不再额外加
-        PopupMenuButton<String>(
+        KcMenuButton<String>(
             key: const ValueKey('skills.moreMenu'),
             tooltip: t('more', '更多'),
-            position: PopupMenuPosition.under,
+            alignRight: true,
             onSelected: (v) => _onMarketAction(context, viewModel, v),
-            itemBuilder: (_) => [
+            entries: () => [
               _menuHeader(t('menu_group_maintain', '维护')),
               _menuItem('updates', Icons.system_update_alt, t('skills_menu_updates', '检查更新')),
               _menuItem('backups', Icons.restore, t('skills_menu_backups', '卸载备份与恢复')),
               _menuItem('refresh', Icons.refresh, localizations?.refreshKeyList ?? '刷新'),
-              const PopupMenuDivider(),
+              const KcMenuDivider<String>(),
               _menuHeader(t('menu_group_settings', '设置')),
               _menuItem('method', Icons.link, t('skills_menu_method', '同步方式')),
               _menuItem('storage', Icons.folder_outlined, t('skills_menu_storage', '存储位置')),
             ],
-            child: IgnorePointer(child: icon(context, icon: Icons.more_horiz, tip: t('more', '更多'), onPressed: () {})),
+            child: icon(context, icon: Icons.more_horiz, tip: '', onPressed: () {}),
           ),
       ],
       primary: _isEditMode
@@ -197,21 +198,21 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
               }),
               child: Text(t('done', '完成')),
             )
-          : PopupMenuButton<String>(
+          : KcMenuButton<String>(
               key: const ValueKey('skills.addMenu'),
-              tooltip: '',
-              position: PopupMenuPosition.under,
+              alignRight: true,
+              minWidth: 240,
               onSelected: (v) => _onMarketAction(context, viewModel, v),
-              itemBuilder: (_) => _addMenuItems(localizations),
-              child: IgnorePointer(
-                child: ShadButton(
+              entries: () => _addMenuItems(localizations),
+              child: (
+                ShadButton(
                   height: KcSize.control,
                   width: 112,
                   leading: const Icon(Icons.add, size: 16),
                   trailing: const Icon(Icons.expand_more, size: 14),
                   onPressed: () {},
                   child: Text(t('add', '添加')),
-                ),
+                )
               ),
             ),
     );
@@ -603,26 +604,18 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
 
   Future<List<SkillTargetTool>> _installTargets() => SkillsPathService().detectInstalledTools();
 
-  PopupMenuItem<String> _menuHeader(String text) => PopupMenuItem<String>(
-        enabled: false,
-        height: 28,
-        child: Text(text, style: KcType.caption.copyWith(fontWeight: FontWeight.w600)),
-      );
+  KcMenuEntry<String> _menuHeader(String text) => KcMenuHeader<String>(text);
 
-  PopupMenuItem<String> _menuItem(String value, IconData icon, String text) => PopupMenuItem<String>(
-        value: value,
-        height: 36,
-        child: Row(children: [Icon(icon, size: 16), const SizedBox(width: 10), Text(text)]),
-      );
+  KcMenuEntry<String> _menuItem(String value, IconData icon, String text) => KcMenuItem<String>(value: value, icon: icon, label: text);
 
-  List<PopupMenuEntry<String>> _addMenuItems(AppLocalizations? l) => [
+  List<KcMenuEntry<String>> _addMenuItems(AppLocalizations? l) => [
         _menuItem('create', Icons.edit_note, l?.tr('skills_menu_create', '新建 Skill') ?? '新建 Skill'),
-        const PopupMenuDivider(),
+        const KcMenuDivider<String>(),
         _menuHeader(l?.tr('menu_group_install', '安装') ?? '安装'),
         _menuItem('repos', Icons.storefront_outlined, l?.tr('skills_menu_repos', '从仓库发现并安装') ?? '从仓库发现并安装'),
         _menuItem('skillssh', Icons.travel_explore, l?.tr('skills_menu_skillssh', '搜索 skills.sh') ?? '搜索 skills.sh'),
         _menuItem('zip', Icons.folder_zip_outlined, l?.tr('skills_menu_zip', '从 ZIP 安装') ?? '从 ZIP 安装'),
-        const PopupMenuDivider(),
+        const KcMenuDivider<String>(),
         _menuHeader(l?.tr('menu_group_import', '导入') ?? '导入'),
         _menuItem('folder', Icons.file_upload_outlined, l?.tr('skills_menu_folder', '从文件夹导入') ?? '从文件夹导入'),
         _menuItem('importAll', Icons.download_for_offline_outlined, l?.tr('skills_menu_import_all', '从所有工具导入未管理的 Skill') ?? '从所有工具导入未管理的 Skill'),

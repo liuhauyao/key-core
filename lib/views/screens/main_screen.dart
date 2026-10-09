@@ -40,6 +40,7 @@ import '../../services/codex_config_service.dart';
 import '../../theme/kc_tokens.dart';
 import '../widgets/kc_logo.dart';
 import '../widgets/kc_segmented.dart';
+import '../widgets/kc_menu.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -612,22 +613,14 @@ class _MainScreenState extends State<MainScreen> {
                 Flexible(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 150),
-                    child: ShadSelect<PlatformCategory?>(
-              key: ValueKey('platform_category_filter_${viewModel.filterPlatformCategory}_${addedCategories.length}'),
-              initialValue: viewModel.filterPlatformCategory,
-              placeholder: Text(localizations?.allCategories ?? '全部分组'),
-              options: [
-                ShadOption<PlatformCategory?>(value: null, child: Text(localizations?.allCategories ?? '全部分组')),
-                ...addedCategories.map((category) => ShadOption<PlatformCategory?>(
-                      value: category,
-                      child: Text(_getPlatformCategoryDisplayName(category, context)),
-                    )),
-              ],
-              selectedOptionBuilder: (selectContext, value) => Text(
-                value == null ? (localizations?.allCategories ?? '全部分组') : _getPlatformCategoryDisplayName(value, selectContext),
-                overflow: TextOverflow.ellipsis,
-              ),
-              onChanged: (value) => viewModel.setPlatformCategoryFilter(value),
+                    child: KcSelect<PlatformCategory?>(
+                      key: const ValueKey('keyGrid.categoryFilter'),
+                      value: viewModel.filterPlatformCategory,
+                      options: [
+                        (null, localizations?.allCategories ?? '全部分组'),
+                        for (final c in addedCategories) (c, _getPlatformCategoryDisplayName(c, context)),
+                      ],
+                      onChanged: (value) => viewModel.setPlatformCategoryFilter(value),
                     ),
                   ),
                 ),
@@ -635,30 +628,15 @@ class _MainScreenState extends State<MainScreen> {
                 Flexible(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 170),
-                    child: ShadSelect<PlatformType?>(
-              key: ValueKey('platform_filter_${viewModel.filterPlatform}_${viewModel.filterPlatformCategory}_${availablePlatforms.length}'),
-              initialValue: viewModel.filterPlatform,
-              placeholder: Text(localizations?.allPlatforms ?? '全部平台'),
-              options: [
-                ShadOption<PlatformType?>(value: null, child: Text(localizations?.allPlatforms ?? '全部平台')),
-                ...availablePlatforms.map((platform) => ShadOption<PlatformType?>(
-                      value: platform,
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        KcPlatformLogo(platform: platform, size: 18, logoSize: 13, radius: 4),
-                        const SizedBox(width: 8),
-                        Text(platform.value),
-                      ]),
-                    )),
-              ],
-              selectedOptionBuilder: (context, value) {
-                if (value == null) return Text(localizations?.allPlatforms ?? '全部平台');
-                return Row(mainAxisSize: MainAxisSize.min, children: [
-                  KcPlatformLogo(platform: value, size: 18, logoSize: 13, radius: 4),
-                  const SizedBox(width: 8),
-                  Flexible(child: Text(value.value, overflow: TextOverflow.ellipsis)),
-                ]);
-              },
-              onChanged: (value) => viewModel.setPlatformFilter(value),
+                    child: KcSelect<PlatformType?>(
+                      key: const ValueKey('keyGrid.platformFilter'),
+                      value: viewModel.filterPlatform,
+                      options: [
+                        (null, localizations?.allPlatforms ?? '全部平台'),
+                        for (final p in availablePlatforms) (p, p.value),
+                      ],
+                      leadingOf: (p) => p == null ? null : KcPlatformLogo(platform: p, size: 16, logoSize: 12, radius: 4),
+                      onChanged: (value) => viewModel.setPlatformFilter(value),
                     ),
                   ),
                 ),

@@ -1,22 +1,21 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import '../../theme/kc_tokens.dart';
-import '../widgets/kc_manage_scaffold.dart';
+import '../widgets/mcp_sync_board.dart';
+import '../widgets/kc_menu.dart';
+import '../../services/ai_tool_config_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/mcp_server.dart';
 import '../../viewmodels/mcp_viewmodel.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../services/mcp_sync_service.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/mcp_comparison.dart';
-import '../../services/clipboard_service.dart';
-import '../../services/url_launcher_service.dart';
 import '../../views/widgets/confirm_dialog.dart';
 import '../widgets/kc_window_header.dart';
 import '../widgets/kc_toast.dart';
-import 'dart:convert';
 
 /// MCP 同步页面
 /// 合并导入和导出功能，实现左右分栏对比和双向同步
@@ -79,6 +78,7 @@ class _McpSyncPageState extends State<McpSyncPage> {
         
         _readFromTool();
       }
+      _loadSummaries();
     });
   }
 
@@ -183,10 +183,10 @@ class _McpSyncPageState extends State<McpSyncPage> {
         _isLoading = false;
         _hasProjectConfig = hasProjectConfig;
         
-        if (toolServers.isEmpty && localServers.isEmpty) {
-          _errorMessage = localizations?.mcpNoConfigFound ?? '未找到 MCP 配置';
-        }
       });
+      _summaries[_selectedTool!] = _summarize(_selectedTool!, sortedResults);
+      _configPath = await _pathFor(_selectedTool!);
+      if (mounted) setState(() {});
     } catch (e) {
       setState(() {
         _errorMessage = localizations?.mcpReadFailed(e.toString()) ?? '读取失败: $e';
@@ -360,17 +360,6 @@ class _McpSyncPageState extends State<McpSyncPage> {
                   Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  /// macOS 26 风格：沉浸式标题栏（与界面融为一体）
-  Widget _buildImmersiveTitleBar(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    // 统一顶栏（form_v3.md §10 / §12.2）：工具分段放在标题之后，不再压在红绿灯所在行
-    return KcWindowHeader(
-      title: localizations?.tr('mcp_sync_title', 'MCP 同步') ?? 'MCP 同步',
-      onClose: _requestClose,
-    );
-  }
-
   /// 切换同步目标工具（保留「未保存变更」确认）
   Future<void> _selectTool(AiToolType tool) async {
       if (_selectedTool == tool) return;
@@ -414,1417 +403,177 @@ class _McpSyncPageState extends State<McpSyncPage> {
               _readFromTool();
   }
 
-  /// 工具选择：筛选行里的弹出菜单（取代旧的顶栏分段条）
-  Widget _buildToolSwitcher(BuildContext context, ShadThemeData shadTheme) {
-    final enabledTools = _getEnabledTools(context);
-    final l = AppLocalizations.of(context);
-    if (enabledTools.isEmpty) {
-      return Text(l?.mcpNoEnabledTools ?? '没有已启用的工具', style: KcType.caption.copyWith(color: shadTheme.colorScheme.mutedForeground));
-    }
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Text(l?.tr('mcp_sync_target', '同步目标') ?? '同步目标', style: KcType.caption.copyWith(color: shadTheme.colorScheme.mutedForeground)),
-      const SizedBox(width: 8),
-      KcFilterMenuButton<AiToolType>(
-        key: const ValueKey('mcpSync.tool'),
-        label: _selectedTool?.displayName ?? enabledTools.first.displayName,
-        selected: _selectedTool,
-        onSelected: _selectTool,
-        items: [for (final t in enabledTools) (t, t.displayName, null)],
-      ),
-    ]);
-  }
 
-  /// 构建简化的列表项
-  Widget _buildServerListItem({
-    required McpServer server,
-    required McpComparisonStatus? status,
-    required bool isLeftSide,
-    required ShadThemeData shadTheme,
-  }) {
-    final localizations = AppLocalizations.of(context);
-    final isPendingExport = isLeftSide && _pendingExportServers.containsKey(server.serverId);
-    final isPendingImport = !isLeftSide && _pendingImportServers.containsKey(server.serverId);
-    final isPendingDelete = !isLeftSide && _pendingDeleteServerIds.contains(server.serverId);
-    
-    // 获取比对结果
-    McpComparisonResult comparisonResult;
+  // ───────── v3：左侧工具状态 / 文件路径 / 待执行动作 ─────────
+  final Map<AiToolType, McpToolSummary> _summaries = {};
+  String? _configPath;
+
+  McpToolSummary _summarize(AiToolType tool, List<McpComparisonResult> r) => McpToolSummary(
+        tool: tool,
+        total: r.length,
+        pending: r.where((x) => x.status != McpComparisonStatus.identical).length,
+        conflicts: r.where((x) => x.status == McpComparisonStatus.different).length,
+      );
+
+  Future<String> _pathFor(AiToolType tool) async {
+    if (tool == AiToolType.claudecode) {
+      return (_selectedScope == null || _selectedScope == 'global')
+          ? '~/.claude.json  ·  mcpServers'
+          : '~/.claude.json  ·  projects["$_selectedScope"].mcpServers${_hasProjectConfig ? '' : '  (new)'}';
+    }
     try {
-      comparisonResult = _comparisonResults.firstWhere(
-        (r) {
-          if (r.server.serverId == server.serverId) return true;
-          if (r.toolServer != null && r.toolServer!.serverId == server.serverId) return true;
-          return false;
-        },
-      );
-    } catch (e) {
-      comparisonResult = McpComparisonResult(
-        server: server,
-        status: status ?? (isLeftSide ? McpComparisonStatus.onlyInLocal : McpComparisonStatus.onlyInTool),
-      );
-    }
-    
-    final finalStatus = comparisonResult.status;
-    final hasBothSides = finalStatus == McpComparisonStatus.identical ||
-                         finalStatus == McpComparisonStatus.different;
-    
-    final isOppositeSidePending = hasBothSides && finalStatus == McpComparisonStatus.different &&
-        ((isLeftSide && _pendingImportServers.containsKey(server.serverId)) ||
-         (!isLeftSide && _pendingExportServers.containsKey(server.serverId)));
-    
-    // 确定状态标签和颜色
-    String? statusLabel;
-    Color? statusColor;
-    
-    if (isPendingDelete) {
-      statusLabel = localizations?.mcpWillDelete ?? '将删除';
-      statusColor = Colors.red;
-    } else if (isPendingExport || isPendingImport) {
-      statusLabel = localizations?.mcpWillSync ?? '将同步';
-      statusColor = shadTheme.colorScheme.primary;
-    } else if (isOppositeSidePending) {
-      statusLabel = localizations?.mcpWillBeOverridden ?? '将被覆盖';
-      statusColor = Colors.orange;
-    } else {
-      statusLabel = McpComparison.getStatusLabel(finalStatus, localizations: localizations);
-      statusColor = Color(McpComparison.getStatusColor(finalStatus));
-    }
-    
-    final shouldShowSyncButton = finalStatus != McpComparisonStatus.identical &&
-        (!hasBothSides || 
-         (finalStatus == McpComparisonStatus.different && !isOppositeSidePending));
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isPendingDelete
-              ? Colors.red
-              : (isPendingExport || isPendingImport)
-                  ? shadTheme.colorScheme.primary
-                  : shadTheme.colorScheme.border,
-          width: (isPendingExport || isPendingImport || isPendingDelete) ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          SvgPicture.asset(
-            'assets/icons/platforms/${server.icon ?? 'mcp.svg'}',
-            width: 24,
-            height: 24,
-            allowDrawingOutsideViewBox: true,
-            placeholderBuilder: (context) => Icon(
-              Icons.extension,
-              size: 24,
-              color: shadTheme.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  server.name,
-                  style: shadTheme.textTheme.p.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: shadTheme.colorScheme.foreground,
-                  ),
-                ),
-                if (statusLabel != null) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: statusColor?.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: statusColor ?? Colors.transparent,
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      statusLabel,
-                      style: shadTheme.textTheme.small.copyWith(
-                        color: statusColor,
-                        fontSize: 11,
-                        fontWeight: (isPendingExport || isPendingImport || isPendingDelete || isOppositeSidePending)
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (isLeftSide) ...[
-            if (shouldShowSyncButton) ...[
-              IconButton(
-                icon: Icon(
-                  Icons.arrow_forward,
-                  size: 20,
-                  color: isPendingExport
-                      ? shadTheme.colorScheme.primary
-                      : shadTheme.colorScheme.mutedForeground,
-                ),
-                onPressed: () {
-                  if (isPendingExport) {
-                    setState(() {
-                      _pendingExportServers.remove(server.serverId);
-                    });
-                  } else {
-                    if (comparisonResult.status == McpComparisonStatus.different) {
-                      _pendingImportServers.remove(server.serverId);
-                    }
-                    _addToPendingExport(server.serverId);
-                  }
-                },
-                tooltip: localizations?.mcpSyncToTool ?? '同步到工具',
-              ),
-            ],
-          ] else ...[
-            if (shouldShowSyncButton && !isPendingDelete) ...[
-              IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  size: 20,
-                  color: isPendingImport
-                      ? shadTheme.colorScheme.primary
-                      : shadTheme.colorScheme.mutedForeground,
-                ),
-                onPressed: () {
-                  if (isPendingImport) {
-                    setState(() {
-                      _pendingImportServers.remove(server.serverId);
-                    });
-                  } else {
-                    if (finalStatus == McpComparisonStatus.different) {
-                      _pendingExportServers.remove(server.serverId);
-                    }
-                    _addToPendingImport(server.serverId);
-                  }
-                },
-                tooltip: localizations?.mcpSyncToLocal ?? '同步到本应用',
-              ),
-            ],
-            if (!isLeftSide) ...[
-              IconButton(
-                icon: Icon(
-                  Icons.delete_outline,
-                  size: 20,
-                  color: isPendingDelete
-                      ? Colors.red
-                      : shadTheme.colorScheme.mutedForeground,
-                ),
-                onPressed: () {
-                  if (isPendingDelete) {
-                    setState(() {
-                      _pendingDeleteServerIds.remove(server.serverId);
-                      _pendingImportServers.remove(server.serverId);
-                    });
-                  } else {
-                    _addToPendingDelete(server.serverId);
-                  }
-                },
-                tooltip: localizations?.mcpDelete ?? '删除',
-              ),
-            ],
-          ],
-          IconButton(
-            icon: Icon(
-              Icons.info_outline,
-              size: 20,
-              color: shadTheme.colorScheme.mutedForeground,
-            ),
-            onPressed: () => _showMcpDetails(server),
-            tooltip: localizations?.mcpViewDetails ?? '查看详情',
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 显示MCP详情
-  void _showMcpDetails(McpServer server) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    
-    // 检查是否是两边都有的服务
-    final comparisonResult = _comparisonResults.firstWhere(
-      (r) => r.server.serverId == server.serverId ||
-             (r.toolServer != null && r.toolServer!.serverId == server.serverId),
-      orElse: () => McpComparisonResult(
-        server: server,
-        status: McpComparisonStatus.onlyInLocal,
-      ),
-    );
-    
-    final isBothSides = comparisonResult.status == McpComparisonStatus.identical ||
-                        comparisonResult.status == McpComparisonStatus.different;
-    
-    if (isBothSides && comparisonResult.toolServer != null) {
-      // 两边都有的服务，显示对比视图
-      _showComparisonDetails(comparisonResult);
-    } else {
-      // 只有一边有的服务，显示单个详情
-      _showSingleDetails(server);
+      final svc = AiToolConfigService();
+      final p = AiToolConfigService.getConfigFilePath(tool, customConfigDir: await svc.getConfigDir(tool));
+      return _tildify(AiToolConfigService.expandPath(p));
+    } catch (_) {
+      return '';
     }
   }
 
-  /// 显示单个服务的详情
-  void _showSingleDetails(McpServer server) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    
-    showDialog(
+  String _tildify(String p) {
+    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    return home != null && p.startsWith(home) ? '~${p.substring(home.length)}' : p;
+  }
+
+  /// 只读扫描所有已启用工具，生成左侧状态徽标（不写任何文件）
+  Future<void> _loadSummaries() async {
+    final tools = _getEnabledTools(context);
+    final local = context.read<McpViewModel>().allServers.where((s) => s.isActive).toList();
+    setState(() {
+      for (final t in tools) {
+        _summaries.putIfAbsent(t, () => McpToolSummary(tool: t, loading: true));
+      }
+    });
+    for (final t in tools) {
+      McpToolSummary s;
+      try {
+        final dir = await AiToolConfigService().getConfigDir(t);
+        if (t != AiToolType.claudecode && !Directory(AiToolConfigService.expandPath(dir)).existsSync()) {
+          s = McpToolSummary(tool: t, notInstalled: true);
+        } else {
+          final r = await _syncService.readMcpServersFromTool(t, scope: t == AiToolType.claudecode ? 'global' : null);
+          s = _summarize(t, McpComparison.compare(localServers: local, toolServers: r.servers, toolType: t));
+        }
+      } catch (_) {
+        s = McpToolSummary(tool: t, error: true);
+      }
+      if (!mounted) return;
+      // 当前工具以页面里的实时比对为准
+      if (t == _selectedTool && _hasRead) continue;
+      setState(() => _summaries[t] = s);
+    }
+  }
+
+  Map<String, McpSyncAction> get _pending => {
+        for (final id in _pendingExportServers.keys) id: McpSyncAction.push,
+        for (final id in _pendingImportServers.keys) id: McpSyncAction.pull,
+        for (final id in _pendingDeleteServerIds) id: McpSyncAction.delete,
+      };
+
+  void _setAction(String id, McpSyncAction? a) {
+    setState(() {
+      _pendingExportServers.remove(id);
+      _pendingImportServers.remove(id);
+      _pendingDeleteServerIds.remove(id);
+    });
+    switch (a) {
+      case McpSyncAction.push:
+        _addToPendingExport(id);
+      case McpSyncAction.pull:
+        _addToPendingImport(id);
+      case McpSyncAction.delete:
+        _addToPendingDelete(id);
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _apply() async {
+    final tool = _selectedTool;
+    if (tool == null || !_hasUnsavedChanges()) return;
+    final ok = await showMcpSyncConfirm(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: 800,
-          constraints: const BoxConstraints(maxHeight: 700),
-          decoration: BoxDecoration(
-            color: shadTheme.colorScheme.background,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: shadTheme.colorScheme.border,
-              width: 1,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 标题栏
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: shadTheme.colorScheme.border,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        color: shadTheme.colorScheme.muted,
-                      ),
-                      child: Center(
-                        child: SvgPicture.asset(
-                          'assets/icons/platforms/${server.icon ?? 'mcp.svg'}',
-                          width: 20,
-                          height: 20,
-                          allowDrawingOutsideViewBox: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        server.name,
-                        style: shadTheme.textTheme.h4.copyWith(
-                          color: shadTheme.colorScheme.foreground,
-                        ),
-                      ),
-                    ),
-                    ShadButton.ghost(
-                      width: 30,
-                      height: 30,
-                      padding: EdgeInsets.zero,
-                      child: Icon(
-                        Icons.close,
-                        size: 20,
-                        color: shadTheme.colorScheme.mutedForeground,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              // 内容区域
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _buildServerDetailsContent(server, shadTheme, localizations),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      tool: tool,
+      configPath: _configPath ?? '',
+      pending: _pending,
     );
+    if (!ok || !mounted) return;
+    await _saveChanges();
   }
 
-  /// 显示对比详情（左右两边都有的服务）
-  void _showComparisonDetails(McpComparisonResult result) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    final localServer = result.server;
-    final toolServer = result.toolServer!;
-    
-    // 获取配置差异（传递工具类型用于codex的特殊处理）
-    final localConfig = localServer.toToolConfigFormat();
-    final toolConfig = toolServer.toToolConfigFormat();
-    final differences = McpComparison.getDifferences(
-      localConfig, 
-      toolConfig,
-      toolType: _selectedTool,
+  Widget? _scopeSelector() {
+    if (_selectedTool != AiToolType.claudecode || _availableScopes.length <= 1) return null;
+    final l = AppLocalizations.of(context);
+    return KcSelect<String>(
+      key: const ValueKey('mcpSync.scope'),
+      width: 180,
+      value: _selectedScope ?? 'global',
+      options: [for (final s in _availableScopes) (s, s == 'global' ? (l?.mcpGlobalConfig ?? '全局配置') : s)],
+      onChanged: (v) async {
+        if (v == _selectedScope) return;
+        if (_hasUnsavedChanges()) {
+          final r = await _showUnsavedChangesDialog();
+          if (r == null) return;
+          if (r == true && !await _saveChanges()) return;
+        }
+        setState(() => _selectedScope = v);
+        await _readFromTool();
+      },
     );
-    
-    final screenHeight = MediaQuery.of(context).size.height;
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: 1400,
-          constraints: BoxConstraints(maxHeight: screenHeight * 0.8),
-          decoration: BoxDecoration(
-            color: shadTheme.colorScheme.background,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: shadTheme.colorScheme.border,
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 标题栏
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: shadTheme.colorScheme.border,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        color: shadTheme.colorScheme.muted,
-                      ),
-                      child: Center(
-                        child: SvgPicture.asset(
-                          'assets/icons/platforms/${localServer.icon ?? 'mcp.svg'}',
-                          width: 20,
-                          height: 20,
-                          allowDrawingOutsideViewBox: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        localServer.name,
-                        style: shadTheme.textTheme.h4.copyWith(
-                          color: shadTheme.colorScheme.foreground,
-                        ),
-                      ),
-                    ),
-                    // 状态标签
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Color(McpComparison.getStatusColor(result.status)).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: Color(McpComparison.getStatusColor(result.status)),
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        McpComparison.getStatusLabel(result.status, localizations: AppLocalizations.of(context)),
-                        style: shadTheme.textTheme.small.copyWith(
-                          color: Color(McpComparison.getStatusColor(result.status)),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    ShadButton.ghost(
-                      width: 30,
-                      height: 30,
-                      padding: EdgeInsets.zero,
-                      child: Icon(
-                        Icons.close,
-                        size: 20,
-                        color: shadTheme.colorScheme.mutedForeground,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              // 内容区域：左右分栏（移除顶部padding，使竖向分割线与横向分割线相连）
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 左侧：本应用中的配置
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              right: BorderSide(
-                                color: shadTheme.colorScheme.border,
-                                width: 1,
-                              ),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                localizations?.mcpLocalServers ?? '本应用中的配置',
-                                style: shadTheme.textTheme.small.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: shadTheme.colorScheme.foreground,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ..._buildServerDetailsContent(
-                                localServer, 
-                                shadTheme, 
-                                localizations,
-                                differences: differences,
-                                isLeftSide: true,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // 右侧：工具中的配置
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                localizations?.mcpToolServers(_selectedTool?.displayName ?? '') ??
-                                    '工具 ${_selectedTool?.displayName ?? ''} 中的配置',
-                                style: shadTheme.textTheme.small.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: shadTheme.colorScheme.foreground,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ..._buildServerDetailsContent(
-                                toolServer, 
-                                shadTheme, 
-                                localizations,
-                                differences: differences,
-                                isLeftSide: false,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 构建服务器详情内容
-  List<Widget> _buildServerDetailsContent(
-    McpServer server,
-    ShadThemeData shadTheme,
-    AppLocalizations? localizations, {
-    Map<String, String>? differences,
-    bool isLeftSide = true,
-  }) {
-    // 检查字段是否有差异
-    bool _isFieldDifferent(String fieldPath) {
-      if (differences == null) return false;
-      // 检查差异中是否包含该字段路径
-      return differences.keys.any((key) => key.startsWith(fieldPath));
-    }
-    
-    return [
-      _buildDetailRow(
-        context, 
-        localizations?.mcpServerIdLabel ?? '服务器ID', 
-        server.serverId,
-        isDifferent: _isFieldDifferent('serverId'),
-      ),
-      const SizedBox(height: 10),
-      _buildDetailRow(
-        context,
-        localizations?.mcpServerType ?? '服务器类型',
-        server.serverType.value.toUpperCase(),
-        isDifferent: _isFieldDifferent('type'),
-      ),
-      const SizedBox(height: 10),
-      _buildDetailRow(
-        context,
-        localizations?.mcpStatus ?? '状态',
-        server.isActive
-            ? (localizations?.mcpActive ?? '已激活')
-            : (localizations?.mcpInactive ?? '未激活'),
-        isDifferent: false, // 状态字段不参与比对
-      ),
-      const SizedBox(height: 10),
-      // 根据服务器类型显示不同字段
-      if (server.serverType == McpServerType.stdio) ...[
-        if (server.command != null && server.command!.isNotEmpty) ...[
-          _buildDetailRow(
-            context,
-            localizations?.mcpCommandLabel ?? '命令',
-            server.command!,
-            isMonospace: true,
-            isDifferent: _isFieldDifferent('command'),
-          ),
-          const SizedBox(height: 10),
-        ],
-        if (server.args != null && server.args!.isNotEmpty) ...[
-          _buildDetailRow(
-            context,
-            localizations?.mcpArgsLabel ?? '参数',
-            server.args!.join(' '),
-            isMonospace: true,
-            isDifferent: _isFieldDifferent('args'),
-          ),
-          const SizedBox(height: 10),
-        ],
-        if (server.env != null && server.env!.isNotEmpty) ...[
-          _buildDetailRow(
-            context,
-            localizations?.mcpEnv ?? '环境变量',
-            server.env!.entries.map((e) => '${e.key}=${e.value}').join('\n'),
-            isMonospace: true,
-            isDifferent: _isFieldDifferent('env'),
-          ),
-          const SizedBox(height: 10),
-        ],
-        if (server.cwd != null && server.cwd!.isNotEmpty) ...[
-          _buildDetailRow(
-            context,
-            localizations?.mcpCwd ?? '工作目录',
-            server.cwd!,
-            isMonospace: true,
-            isDifferent: _isFieldDifferent('cwd'),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ] else if (server.serverType == McpServerType.http || server.serverType == McpServerType.sse) ...[
-        if (server.url != null && server.url!.isNotEmpty) ...[
-          _buildActionRow(
-            context,
-            localizations?.mcpUrlLabel ?? 'URL',
-            server.url!,
-            Icons.language,
-            localizations?.open ?? '打开',
-            () {
-              if (server.url != null) {
-                UrlLauncherService().openUrl(server.url!);
-              }
-            },
-            isMonospace: true,
-            isDifferent: _isFieldDifferent('url'),
-          ),
-          const SizedBox(height: 10),
-        ],
-        if (server.headers != null && server.headers!.isNotEmpty) ...[
-          _buildDetailRow(
-            context,
-            localizations?.mcpHeaders ?? '请求头',
-            server.headers!.entries.map((e) => '${e.key}: ${e.value}').join('\n'),
-            isMonospace: true,
-            isDifferent: _isFieldDifferent('headers'),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ],
-      // 管理地址
-      if (server.homepage != null && server.homepage!.isNotEmpty) ...[
-        _buildActionRow(
-          context,
-          localizations?.mcpHomepage ?? '管理地址',
-          server.homepage!,
-          Icons.language,
-          localizations?.open ?? '打开',
-          () => UrlLauncherService().openUrl(server.homepage!),
-        ),
-        const SizedBox(height: 10),
-      ],
-      // 文档地址
-      if (server.docs != null && server.docs!.isNotEmpty) ...[
-        _buildActionRow(
-          context,
-          localizations?.mcpDocs ?? '文档地址',
-          server.docs!,
-          Icons.description_outlined,
-          localizations?.open ?? '打开',
-          () => UrlLauncherService().openUrl(server.docs!),
-        ),
-        const SizedBox(height: 10),
-      ],
-      // 描述
-      if (server.description != null && server.description!.isNotEmpty) ...[
-        _buildDetailRow(
-          context,
-          localizations?.mcpDescription ?? '描述',
-          server.description!,
-        ),
-        const SizedBox(height: 10),
-      ],
-      // JSON配置
-      _buildJsonConfigRow(context, server),
-    ];
-  }
-
-  /// 构建详情行（参照 mcp_config_screen.dart 的样式）
-  Widget _buildDetailRow(
-    BuildContext context, 
-    String label, 
-    String value, {
-    bool isMonospace = false,
-    bool isDifferent = false,
-  }) {
-    final shadTheme = ShadTheme.of(context);
-    return Container(
-      decoration: isDifferent
-          ? BoxDecoration(
-              color: shadTheme.colorScheme.destructive.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: shadTheme.colorScheme.destructive.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            )
-          : null,
-      padding: isDifferent ? const EdgeInsets.all(8) : EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                '$label:',
-                style: shadTheme.textTheme.small.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: isDifferent
-                      ? shadTheme.colorScheme.destructive
-                      : shadTheme.colorScheme.mutedForeground,
-                ),
-              ),
-              if (isDifferent) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.warning_amber_rounded,
-                  size: 14,
-                  color: shadTheme.colorScheme.destructive,
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: shadTheme.textTheme.small.copyWith(
-              color: isDifferent
-                  ? shadTheme.colorScheme.destructive
-                  : shadTheme.colorScheme.foreground,
-              fontFamily: isMonospace ? 'monospace' : null,
-              fontSize: isMonospace ? 13 : null,
-              fontWeight: isDifferent ? FontWeight.w500 : null,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建操作行（参照 mcp_config_screen.dart 的样式）
-  Widget _buildActionRow(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-    String tooltip,
-    VoidCallback onPressed, {
-    bool isMonospace = false,
-    bool isDifferent = false,
-  }) {
-    final shadTheme = ShadTheme.of(context);
-    return Container(
-      decoration: isDifferent
-          ? BoxDecoration(
-              color: shadTheme.colorScheme.destructive.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: shadTheme.colorScheme.destructive.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            )
-          : null,
-      padding: isDifferent ? const EdgeInsets.all(8) : EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                '$label:',
-                style: shadTheme.textTheme.small.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: isDifferent
-                      ? shadTheme.colorScheme.destructive
-                      : shadTheme.colorScheme.mutedForeground,
-                ),
-              ),
-              if (isDifferent) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.warning_amber_rounded,
-                  size: 14,
-                  color: shadTheme.colorScheme.destructive,
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  value,
-                  style: shadTheme.textTheme.small.copyWith(
-                    color: isDifferent
-                        ? shadTheme.colorScheme.destructive
-                        : shadTheme.colorScheme.primary,
-                    fontFamily: isMonospace ? 'monospace' : null,
-                    fontSize: isMonospace ? 13 : null,
-                    fontWeight: isDifferent ? FontWeight.w500 : null,
-                  ),
-                ),
-              ),
-              Tooltip(
-                message: tooltip,
-                child: ShadButton.ghost(
-                  width: 32,
-                  height: 32,
-                  padding: const EdgeInsets.all(6),
-                  onPressed: onPressed,
-                  child: Icon(icon, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建JSON配置行（参照 mcp_config_screen.dart 的样式）
-  Widget _buildJsonConfigRow(BuildContext context, McpServer server) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-    
-    final jsonConfig = _generateJsonConfig(server);
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${localizations?.mcpJsonConfigLabel ?? 'JSON配置'}:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: shadTheme.colorScheme.muted,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: SelectableText(
-                  jsonConfig,
-                  style: shadTheme.textTheme.small.copyWith(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: shadTheme.colorScheme.foreground,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: localizations?.mcpCopyJson ?? '复制JSON配置',
-              child: ShadButton.ghost(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(6),
-                onPressed: () {
-                  ClipboardService().copyToClipboard(jsonConfig);
-                  final loc = AppLocalizations.of(context);
-                  showKcToast(context, loc?.mcpJsonCopied ?? 'JSON配置已复制', kind: KcToastKind.success);
-                },
-                child: Icon(
-                  Icons.copy_outlined,
-                  size: 18,
-                  color: shadTheme.colorScheme.mutedForeground,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// 构建时间行（参照 mcp_config_screen.dart 的样式）
-  Widget _buildTimeRow(
-    BuildContext context,
-    String createdLabel,
-    String createdValue,
-    String updatedLabel,
-    String updatedValue,
-  ) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$createdLabel / $updatedLabel:',
-          style: shadTheme.textTheme.small.copyWith(
-            fontWeight: FontWeight.w500,
-            color: shadTheme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '$createdValue / $updatedValue',
-          style: shadTheme.textTheme.small.copyWith(
-            color: shadTheme.colorScheme.foreground,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 格式化日期时间
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-  }
-
-  /// 生成JSON配置
-  String _generateJsonConfig(McpServer server) {
-    final config = server.toToolConfigFormat();
-    final jsonWithId = <String, dynamic>{
-      server.serverId: config,
-    };
-    return const JsonEncoder.withIndent('  ').convert(jsonWithId);
   }
 
   @override
   Widget build(BuildContext context) {
-    final shadTheme = ShadTheme.of(context);
-    final localizations = AppLocalizations.of(context);
-
+    final cs = ShadTheme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
+    final tools = _getEnabledTools(context);
     return CallbackShortcuts(
-      // Esc = 点右上角关闭（含未保存变更确认）
+      // Esc = 关闭（含未保存变更确认）
       bindings: {const SingleActivator(LogicalKeyboardKey.escape): _requestClose},
-      child: Focus(autofocus: true, child: Scaffold(
-      backgroundColor: shadTheme.colorScheme.background,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        toolbarHeight: 0,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        left: false,
-        right: false,
-        child: Column(
-          children: [
-            // macOS 26 风格：沉浸式标题栏
-            _buildImmersiveTitleBar(context),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, 0),
-              child: Align(alignment: Alignment.centerLeft, child: _buildToolSwitcher(context, shadTheme)),
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: cs.background,
+          body: Column(children: [
+            KcWindowHeader(
+              title: l?.tr('mcp_sync_title', 'MCP 同步') ?? 'MCP 同步',
+              onClose: _requestClose,
             ),
-            // 分割线（与上方切换滑块之间添加边距）
-            Container(
-              padding: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                color: shadTheme.colorScheme.background,
-                border: Border(
-                  bottom: BorderSide(
-                    color: shadTheme.colorScheme.border,
-                    width: 1,
-                  ),
-                ),
-              ),
-            ),
-            // 内容区域：左右分栏
+            Divider(height: 1, thickness: 1, color: cs.border),
             Expanded(
-              child: _isLoading
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        color: shadTheme.colorScheme.primary,
-                      ),
-                    )
-                  : _hasRead
-                      ? Row(
-                          children: [
-                            // 左侧：本应用中的MCP服务
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    right: BorderSide(
-                                      color: shadTheme.colorScheme.border,
-                                      width: 1,
-                                    ),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SizedBox(
-                                      height: 40,
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: Text(
-                                          localizations?.mcpLocalServers ?? '本应用中的 MCP 服务',
-                                          style: shadTheme.textTheme.small.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            color: shadTheme.colorScheme.foreground,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Expanded(
-                                      child: Consumer<McpViewModel>(
-                                        builder: (context, viewModel, child) {
-                                          final sortedLocalServers = _comparisonResults
-                                              .where((r) => r.status == McpComparisonStatus.onlyInLocal ||
-                                                           r.status == McpComparisonStatus.identical ||
-                                                           r.status == McpComparisonStatus.different)
-                                              .map((r) => r.server)
-                                              .toList();
-                                          
-                                          if (sortedLocalServers.isEmpty) {
-                                            return Center(
-                                              child: Text(
-                                                localizations?.mcpNoServers ?? '暂无 MCP 服务',
-                                                style: shadTheme.textTheme.p.copyWith(
-                                                  color: shadTheme.colorScheme.mutedForeground,
-                                                ),
-                                              ),
-                                            );
-                                          }
-
-                                          return ListView.builder(
-                                            itemCount: sortedLocalServers.length,
-                                            itemBuilder: (context, index) {
-                                              final server = sortedLocalServers[index];
-                                              final result = _comparisonResults.firstWhere(
-                                                (r) => r.server.serverId == server.serverId,
-                                                orElse: () => McpComparisonResult(
-                                                  server: server,
-                                                  status: McpComparisonStatus.onlyInLocal,
-                                                ),
-                                              );
-                                              return _buildServerListItem(
-                                                server: server,
-                                                status: result.status,
-                                                isLeftSide: true,
-                                                shadTheme: shadTheme,
-                                              );
-                                            },
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            // 右侧：工具配置文件中的MCP服务
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SizedBox(
-                                      height: 40,
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              localizations?.mcpToolServers(_selectedTool?.displayName ?? '') ??
-                                                  '工具 ${_selectedTool?.displayName ?? ''} 中的 MCP 服务',
-                                              style: shadTheme.textTheme.small.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                                color: shadTheme.colorScheme.foreground,
-                                              ),
-                                            ),
-                                          ),
-                                          // ClaudeCode 配置范围选择
-                                          if (_selectedTool == AiToolType.claudecode) ...[
-                                            Tooltip(
-                                              message: localizations?.mcpClaudeCodeScopeHelp ?? 
-                                                  'ClaudeCode 支持全局配置和项目配置。项目配置优先级高于全局配置。\n\n'
-                                                  '全局配置：存储在 ~/.claude.json 的 mcpServers 字段\n'
-                                                  '项目配置：存储在 ~/.claude.json 的 projects[项目路径].mcpServers 字段',
-                                              waitDuration: const Duration(milliseconds: 500),
-                                              preferBelow: false,
-                                              child: Icon(
-                                                Icons.help_outline,
-                                                size: 16,
-                                                color: shadTheme.colorScheme.mutedForeground,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            SizedBox(
-                                              width: 140,
-                                              child: ShadSelect<String>(
-                                                initialValue: _selectedScope,
-                                                placeholder: Text(
-                                                  localizations?.mcpGlobalConfig ?? '全局配置',
-                                                  style: shadTheme.textTheme.small.copyWith(
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                                options: _availableScopes.map((scope) {
-                                                  final displayName = scope == 'global' 
-                                                      ? (localizations?.mcpGlobalConfig ?? '全局配置')
-                                                      : scope;
-                                                  return ShadOption<String>(
-                                                    value: scope,
-                                                    child: Text(
-                                                      displayName,
-                                                      style: shadTheme.textTheme.small.copyWith(
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                  );
-                                                }).toList(),
-                                                selectedOptionBuilder: (context, value) {
-                                                  final displayName = value == 'global' 
-                                                      ? (localizations?.mcpGlobalConfig ?? '全局配置')
-                                                      : value;
-                                                  return Text(
-                                                    displayName,
-                                                    style: shadTheme.textTheme.small.copyWith(
-                                                      fontSize: 12,
-                                                    ),
-                                                  );
-                                                },
-                                                onChanged: (String? newScope) async {
-                                                  if (newScope != null && newScope != _selectedScope) {
-                                                    final oldScope = _selectedScope;
-                                                    
-                                                    if (_hasUnsavedChanges()) {
-                                                      final shouldSwitch = await _showUnsavedChangesDialog(isClosing: false);
-                                                      if (shouldSwitch == null) {
-                                                        setState(() {
-                                                          _selectedScope = oldScope;
-                                                        });
-                                                        return;
-                                                      } else if (shouldSwitch == true) {
-                                                        final success = await _saveChanges(closeAfterSave: false);
-                                                        if (!mounted || !success) {
-                                                          setState(() {
-                                                            _selectedScope = oldScope;
-                                                          });
-                                                          return;
-                                                        }
-                                                        setState(() {
-                                                          _selectedScope = newScope;
-                                                          _hasRead = false;
-                                                        });
-                                                        await _readFromTool();
-                                                        return;
-                                                      }
-                                                      if (shouldSwitch == false) {
-                                                        setState(() {
-                                                          _pendingExportServers.clear();
-                                                          _pendingImportServers.clear();
-                                                          _pendingDeleteServerIds.clear();
-                                                        });
-                                                      }
-                                                    }
-                                                    
-                                                    setState(() {
-                                                      _selectedScope = newScope;
-                                                      _hasRead = false;
-                                                    });
-                                                    _readFromTool();
-                                                  }
-                                                },
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Expanded(
-                                      child: Builder(
-                                        builder: (context) {
-                                          if (_selectedTool == AiToolType.claudecode && 
-                                              _selectedScope != null && 
-                                              _selectedScope != 'global' && 
-                                              !_hasProjectConfig && 
-                                              _toolServers.isEmpty) {
-                                            return Center(
-                                              child: Column(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Icon(
-                                                    Icons.info_outline,
-                                                    size: 48,
-                                                    color: shadTheme.colorScheme.mutedForeground,
-                                                  ),
-                                                  const SizedBox(height: 16),
-                                                  Text(
-                                                    localizations?.mcpProjectUsesGlobalConfig ?? 
-                                                        '该项目没有单独配置，将使用全局配置',
-                                                    style: shadTheme.textTheme.p.copyWith(
-                                                      color: shadTheme.colorScheme.mutedForeground,
-                                                    ),
-                                                    textAlign: TextAlign.center,
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }
-                                          
-                                          if (_toolServers.isEmpty) {
-                                            return Center(
-                                              child: Text(
-                                                localizations?.mcpNoConfigInTool(_selectedTool?.displayName ?? '') ??
-                                                    '工具 ${_selectedTool?.displayName ?? ''} 中没有找到 MCP 配置',
-                                                style: shadTheme.textTheme.p.copyWith(
-                                                  color: shadTheme.colorScheme.mutedForeground,
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                          
-                                          final sortedToolServers = _comparisonResults
-                                              .where((r) => r.status == McpComparisonStatus.onlyInTool ||
-                                                           r.status == McpComparisonStatus.identical ||
-                                                           r.status == McpComparisonStatus.different)
-                                              .map((r) {
-                                                if (r.status == McpComparisonStatus.identical || 
-                                                    r.status == McpComparisonStatus.different) {
-                                                  return r.toolServer ?? r.server;
-                                                }
-                                                return r.server;
-                                              })
-                                              .toList();
-                                          
-                                          if (sortedToolServers.isEmpty) {
-                                            return Center(
-                                              child: Text(
-                                                localizations?.mcpNoConfigInTool(_selectedTool?.displayName ?? '') ??
-                                                    '工具 ${_selectedTool?.displayName ?? ''} 中没有找到 MCP 配置',
-                                                style: shadTheme.textTheme.p.copyWith(
-                                                  color: shadTheme.colorScheme.mutedForeground,
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                          
-                                          return ListView.builder(
-                                            itemCount: sortedToolServers.length,
-                                            itemBuilder: (context, index) {
-                                              final server = sortedToolServers[index];
-                                              final result = _comparisonResults.firstWhere(
-                                                (r) => r.server.serverId == server.serverId ||
-                                                       (r.toolServer != null && r.toolServer!.serverId == server.serverId),
-                                                orElse: () => McpComparisonResult(
-                                                  server: server,
-                                                  status: McpComparisonStatus.onlyInTool,
-                                                ),
-                                              );
-                                              return _buildServerListItem(
-                                                server: server,
-                                                status: result.status,
-                                                isLeftSide: false,
-                                                shadTheme: shadTheme,
-                                              );
-                                            },
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
-                      : Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.cloud_download,
-                                size: 48,
-                                color: shadTheme.colorScheme.mutedForeground,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                localizations?.mcpClickRead ?? '请点击工具切换滑块或等待自动读取',
-                                style: shadTheme.textTheme.p.copyWith(
-                                  color: shadTheme.colorScheme.mutedForeground,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-            ),
-            // 错误信息
-            if (_errorMessage != null) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(
-                      color: shadTheme.colorScheme.border,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline, size: 20, color: Colors.red),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: shadTheme.textTheme.small.copyWith(
-                          color: Colors.red,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            // 底部按钮区域
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                color: shadTheme.colorScheme.background,
-                border: Border(
-                  top: BorderSide(
-                    color: shadTheme.colorScheme.border,
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    localizations?.mcpPendingChanges(
-                      _pendingExportServers.length,
-                      _pendingImportServers.length,
-                      _pendingDeleteServerIds.length,
-                    ) ??
-                        '待同步：导出 ${_pendingExportServers.length} 个，导入 ${_pendingImportServers.length} 个，删除 ${_pendingDeleteServerIds.length} 个',
-                    style: shadTheme.textTheme.small.copyWith(
-                      color: shadTheme.colorScheme.mutedForeground,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  ShadButton.outline(
-                    onPressed: () async {
-                      if (_hasUnsavedChanges()) {
-                        final shouldClose = await _showUnsavedChangesDialog(isClosing: true);
-                        if (shouldClose == null) {
-                          return;
-                        } else if (shouldClose == true) {
-                          await _saveChanges(closeAfterSave: true);
-                          return;
+              child: tools.isEmpty
+                  ? Center(child: Text(l?.mcpNoEnabledTools ?? '没有已启用的工具', style: KcType.body.copyWith(color: cs.mutedForeground)))
+                  : McpSyncBoard(
+                      tools: [for (final t in tools) _summaries[t] ?? McpToolSummary(tool: t, loading: true)],
+                      selectedTool: _selectedTool,
+                      onSelectTool: _selectTool,
+                      results: _comparisonResults,
+                      pending: _pending,
+                      onSetAction: _setAction,
+                      onApply: _apply,
+                      onDiscard: () => setState(() {
+                        _pendingExportServers.clear();
+                        _pendingImportServers.clear();
+                        _pendingDeleteServerIds.clear();
+                      }),
+                      configPath: _configPath,
+                      scopeSelector: _scopeSelector(),
+                      loading: _isLoading,
+                      error: _errorMessage,
+                      onRefresh: () async {
+                        if (_hasUnsavedChanges()) {
+                          final r = await _showUnsavedChangesDialog();
+                          if (r == null) return;
+                          if (r == true && !await _saveChanges()) return;
                         }
-                      }
-                      if (mounted) {
-                        Navigator.of(context).popUntil((route) => route.isFirst);
-                      }
-                    },
-                    child: Text(localizations?.cancel ?? '取消'),
-                  ),
-                  const SizedBox(width: 12),
-                  ShadButton(
-                    onPressed: _isLoading ||
-                            !_hasRead ||
-                            (_pendingExportServers.isEmpty &&
-                                _pendingImportServers.isEmpty &&
-                                _pendingDeleteServerIds.isEmpty)
-                        ? null
-                        : () => _saveChanges(closeAfterSave: false),
-                    leading: _isLoading
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.save, size: 18),
-                    child: Text(localizations?.save ?? '保存'),
-                  ),
-                ],
-              ),
+                        await _readFromTool();
+                        _loadSummaries();
+                      },
+                    ),
             ),
-          ],
+          ]),
         ),
       ),
-    )),
     );
   }
 }
-

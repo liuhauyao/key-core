@@ -10,6 +10,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../theme/kc_tokens.dart';
 import '../../utils/app_localizations.dart';
+import 'kc_menu.dart';
 
 /// 底部悬浮栏的高度 + 边距；网格底部需要预留这么多 padding，避免最后一行被遮住。
 const double kcFloatingBarReserve = 72;
@@ -338,22 +339,12 @@ class KcFilterMenuButton<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = ShadTheme.of(context).colorScheme;
     final kc = context.kc;
-    return PopupMenuButton<T>(
-      tooltip: '',
-      position: PopupMenuPosition.under,
+    return KcMenuButton<T>(
+      selected: selected,
+      hasSelection: true,
       onSelected: onSelected,
-      itemBuilder: (_) => [
-        for (final (v, text, n) in items)
-          PopupMenuItem<T>(
-            value: v,
-            height: 34,
-            child: Row(children: [
-              SizedBox(width: 18, child: v == selected ? Icon(Icons.check, size: 15, color: cs.primary) : null),
-              const SizedBox(width: 6),
-              Expanded(child: Text(text, style: KcType.body)),
-              if (n != null) Text('$n', style: KcType.caption.copyWith(color: kc.text2)),
-            ]),
-          ),
+      entries: () => [
+        for (final (v, text, n) in items) KcMenuItem<T>(value: v, label: text, trailing: n?.toString()),
       ],
       child: Container(
         height: KcSize.control,

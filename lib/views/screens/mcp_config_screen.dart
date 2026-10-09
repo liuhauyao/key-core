@@ -9,6 +9,7 @@ import '../../models/mcp_server.dart';
 import '../widgets/kc_manage_scaffold.dart';
 import '../widgets/kc_logo.dart';
 import '../widgets/kc_drawer.dart';
+import '../widgets/kc_menu.dart';
 import '../widgets/kc_segmented.dart';
 import '../../theme/kc_tokens.dart';
 import '../widgets/mcp_card.dart';
@@ -122,34 +123,34 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
             onPressed: () => _isEditMode ? _exitManage() : setState(() => _isEditMode = true)),
         icon(context, key: const ValueKey('mcp.diff'), icon: Icons.compare_arrows, tip: l?.mcpSync ?? '对比与同步', onPressed: () => _showSyncDialog(context)),
         // iconButton 自带左间距 8，这里不再额外加
-        PopupMenuButton<String>(
-            key: const ValueKey('mcp.moreMenu'),
-            tooltip: t('more', '更多'),
-            position: PopupMenuPosition.under,
-            onSelected: (v) {
-              switch (v) {
-                case 'import':
-                  _importFromEnabledTools(context, viewModel);
-                case 'sync':
-                  _syncAllEnabled(context, viewModel);
-                case 'diff':
-                  _showSyncDialog(context);
-                case 'refresh':
-                  viewModel.refresh();
-              }
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(enabled: false, height: 28, child: Text(t('menu_group_sync', '同步'), style: KcType.caption)),
-              PopupMenuItem(value: 'diff', child: Text(t('mcp_menu_diff', '对比与同步…'))),
-              PopupMenuItem(value: 'sync', child: Text(t('mcp_menu_rewrite', '重新写入全部已启用的服务'))),
-              const PopupMenuDivider(),
-              PopupMenuItem(enabled: false, height: 28, child: Text(t('menu_group_import', '导入'), style: KcType.caption)),
-              PopupMenuItem(value: 'import', child: Text(t('mcp_menu_import', '从已启用的工具导入'))),
-              const PopupMenuDivider(),
-              PopupMenuItem(value: 'refresh', child: Text(l?.refreshKeyList ?? '刷新')),
-            ],
-            child: IgnorePointer(child: icon(context, icon: Icons.more_horiz, tip: '', onPressed: () {})),
-          ),
+        KcMenuButton<String>(
+          key: const ValueKey('mcp.moreMenu'),
+          tooltip: t('more', '更多'),
+          alignRight: true,
+          onSelected: (v) {
+            switch (v) {
+              case 'import':
+                _importFromEnabledTools(context, viewModel);
+              case 'sync':
+                _syncAllEnabled(context, viewModel);
+              case 'diff':
+                _showSyncDialog(context);
+              case 'refresh':
+                viewModel.refresh();
+            }
+          },
+          entries: () => [
+            KcMenuHeader(t('menu_group_sync', '同步')),
+            KcMenuItem(value: 'diff', icon: Icons.compare_arrows, label: t('mcp_menu_diff', '对比与同步…')),
+            KcMenuItem(value: 'sync', icon: Icons.sync, label: t('mcp_menu_rewrite', '重新写入全部已启用的服务')),
+            const KcMenuDivider(),
+            KcMenuHeader(t('menu_group_import', '导入')),
+            KcMenuItem(value: 'import', icon: Icons.download_outlined, label: t('mcp_menu_import', '从已启用的工具导入')),
+            const KcMenuDivider(),
+            KcMenuItem(value: 'refresh', icon: Icons.refresh, label: l?.refreshKeyList ?? '刷新'),
+          ],
+          child: icon(context, icon: Icons.more_horiz, tip: '', onPressed: () {}),
+        ),
       ],
       primary: _isEditMode
           ? ShadButton(
@@ -160,10 +161,10 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
               onPressed: _exitManage,
               child: Text(t('done', '完成')),
             )
-          : PopupMenuButton<String>(
+          : KcMenuButton<String>(
               key: const ValueKey('mcp.addMenu'),
-              tooltip: '',
-              position: PopupMenuPosition.under,
+              alignRight: true,
+              minWidth: 240,
               onSelected: (v) {
                 if (v == 'blank') {
                   _showAddMcpPage(context);
@@ -173,17 +174,18 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                   _showAddMcpPage(context, category: McpServerPresets.allCategories.firstWhere((c) => c.name == v));
                 }
               },
-              itemBuilder: (_) => [
-                PopupMenuItem(value: 'blank', child: Row(children: [const Icon(Icons.add, size: 16), const SizedBox(width: 8), Text(t('mcp_add_blank', '手动添加（粘贴 JSON）'))])),
-                const PopupMenuDivider(),
-                PopupMenuItem(enabled: false, height: 28, child: Text(t('mcp_from_template', '从模板'), style: KcType.caption)),
+              entries: () => [
+                KcMenuItem(value: 'blank', icon: Icons.add, label: t('mcp_add_blank', '手动添加（粘贴 JSON）')),
+                const KcMenuDivider(),
+                KcMenuHeader(t('mcp_from_template', '从模板')),
                 for (final c in McpServerPresets.allCategories)
-                  PopupMenuItem(value: c.name, height: 36, child: Padding(padding: const EdgeInsets.only(left: 24), child: Text(c.getValue(context)))),
-                const PopupMenuDivider(),
-                PopupMenuItem(value: 'import', child: Row(children: [const Icon(Icons.download_outlined, size: 16), const SizedBox(width: 8), Text(t('mcp_menu_import', '从已启用的工具导入'))])),
+                  KcMenuItem(value: c.name, icon: Icons.auto_awesome_mosaic_outlined, label: c.getValue(context),
+                      trailing: '${McpServerPresets.getTemplatesByCategory(c).length}'),
+                const KcMenuDivider(),
+                KcMenuItem(value: 'import', icon: Icons.download_outlined, label: t('mcp_menu_import', '从已启用的工具导入')),
               ],
-              child: IgnorePointer(
-                child: ShadButton(
+              child: (
+                ShadButton(
                   key: const ValueKey('mcp.add'),
                   height: KcSize.control,
                   width: 112,
@@ -191,7 +193,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                   trailing: const Icon(Icons.expand_more, size: 14),
                   onPressed: () {},
                   child: Text(t('add', '添加')),
-                ),
+                )
               ),
             ),
     );
