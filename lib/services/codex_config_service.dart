@@ -45,6 +45,9 @@ class CodexProviderConfig {
 /// Codex 配置服务
 /// 管理 ~/.codex/config.toml 和 ~/.codex/auth.json 的读写
 class CodexConfigService {
+  /// 最近一次 switchProvider / switchToOfficial 失败的原因（成功时清空），供 UI 显示失败原因。
+  Object? lastSwitchError;
+
   static const String _configFileName = 'config.toml';
   static const String _authFileName = 'auth.json';
 
@@ -552,8 +555,10 @@ class CodexConfigService {
   /// 写入配置（切换使用的密钥）
   /// 只更新我们添加的配置项，保留用户的其他配置
   Future<bool> switchProvider(AIKey key) async {
+    lastSwitchError = null;
     try {
       if (await _isChinaRestrictedKey(key)) {
+        lastSwitchError = '已开启地区限制，该供应商在当前地区不可用';
         return false;
       }
 
@@ -603,6 +608,7 @@ class CodexConfigService {
 
       return true;
     } catch (e) {
+      lastSwitchError = e;
       print('CodexConfigService: 切换配置失败: $e');
       return false;
     }
@@ -1151,10 +1157,12 @@ class CodexConfigService {
   /// 删除我们添加的配置项，并写入本地存储的官方 API Key（如果有）
   /// 保留用户的其他配置
   Future<bool> switchToOfficial() async {
+    lastSwitchError = null;
     try {
       final isChinaFilterEnabled =
           await RegionFilterService.isChinaRegionFilterEnabled();
       if (isChinaFilterEnabled) {
+        lastSwitchError = '已开启地区限制，无法切换到 Codex 官方配置';
         return false;
       }
 
@@ -1193,6 +1201,7 @@ class CodexConfigService {
 
       return true;
     } catch (e) {
+      lastSwitchError = e;
       print('CodexConfigService: 切换到官方配置失败: $e');
       return false;
     }

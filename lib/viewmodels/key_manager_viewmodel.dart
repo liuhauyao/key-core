@@ -786,6 +786,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
           // 切换配置
           final success = await _claudeConfigService.switchProvider(key);
+          if (!success) throw ToolSwitchException(_claudeConfigService.lastSwitchError);
           if (success) {
             _currentClaudeCodeKeyId = keyId;
             notifyListeners();
@@ -823,6 +824,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
           // 切换配置
           final success = await _codexConfigService.switchProvider(key);
+          if (!success) throw ToolSwitchException(_codexConfigService.lastSwitchError);
           if (success) {
             _currentCodexKeyId = keyId;
             notifyListeners();
@@ -883,6 +885,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
           // 切换配置
           final success = await _claudeConfigService.switchToOfficial();
+          if (!success) throw ToolSwitchException(_claudeConfigService.lastSwitchError);
           if (success) {
             _currentClaudeCodeKeyId = null; // 官方配置没有对应的密钥ID
             notifyListeners();
@@ -998,6 +1001,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
           // 切换配置
           final success = await _codexConfigService.switchToOfficial();
+          if (!success) throw ToolSwitchException(_codexConfigService.lastSwitchError);
           if (success) {
             _currentCodexKeyId = null; // 官方配置没有对应的密钥ID
             notifyListeners();
@@ -1103,6 +1107,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
           // 切换配置
           final success = await _geminiConfigService.switchProvider(key);
+          if (!success) throw ToolSwitchException(_geminiConfigService.lastSwitchError);
           if (success) {
             _currentGeminiKeyId = keyId;
             notifyListeners();
@@ -1178,6 +1183,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
           // 切换配置
           final success = await _geminiConfigService.switchToOfficial();
+          if (!success) throw ToolSwitchException(_geminiConfigService.lastSwitchError);
           if (success) {
             _currentGeminiKeyId = null;
             notifyListeners();
@@ -1372,6 +1378,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
           // 切换配置
           final success = await _claudeDesktopConfigService.switchProvider(key);
+          if (!success) throw ToolSwitchException(_claudeDesktopConfigService.lastSwitchError);
           if (success) {
             _currentClaudeDesktopKeyId = keyId;
             notifyListeners();
@@ -1427,6 +1434,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
           // 切换配置
           final success = await _claudeDesktopConfigService.switchToOfficial();
+          if (!success) throw ToolSwitchException(_claudeDesktopConfigService.lastSwitchError);
           if (success) {
             _currentClaudeDesktopKeyId = null;
             notifyListeners();
@@ -1470,5 +1478,17 @@ class KeyManagerViewModel extends BaseViewModel {
         // 静默忽略错误，避免影响主流程
       }
     }
+  }
+}
+
+/// 切换失败：携带配置服务给出的原因（文件、行号等），由 executeAsync 写入 errorMessage。
+class ToolSwitchException implements Exception {
+  final Object? cause;
+  ToolSwitchException(this.cause);
+
+  @override
+  String toString() {
+    final c = cause?.toString().trim() ?? '';
+    return c.startsWith('Exception: ') ? c.substring(11) : c;
   }
 }

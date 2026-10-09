@@ -308,7 +308,8 @@ class KeyCoreApp extends StatelessWidget {
                 data: Theme.of(context).brightness == Brightness.dark
                     ? shadDarkTheme
                     : shadLightTheme,
-                child: child ?? const SizedBox.shrink(),
+                // 统一 toast（lib/views/widgets/kc_toast.dart）
+                child: ShadToaster(child: child ?? const SizedBox.shrink()),
               ),
               home: const MainScreen(),
               debugShowCheckedModeBanner: false,

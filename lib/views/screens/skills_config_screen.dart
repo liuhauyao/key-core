@@ -226,14 +226,14 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
               padding: const EdgeInsets.only(top: 6),
               child: Row(
                 children: [
-                  _statusChip('${syncSummary.total} total', shadTheme.colorScheme.mutedForeground, shadTheme),
+                  _statusChip(AppLocalizations.of(context)?.skillsStatTotal(syncSummary.total) ?? '共 ${syncSummary.total} 个', shadTheme.colorScheme.mutedForeground, shadTheme),
                   const SizedBox(width: 8),
-                  _statusChip('${syncSummary.synced} synced', Colors.green, shadTheme),
+                  _statusChip(AppLocalizations.of(context)?.skillsStatSynced(syncSummary.synced) ?? '${syncSummary.synced} 个已同步', Colors.green, shadTheme),
                   const SizedBox(width: 8),
-                  _statusChip('${syncSummary.pending} pending', Colors.orange, shadTheme),
+                  _statusChip(AppLocalizations.of(context)?.skillsStatPending(syncSummary.pending) ?? '${syncSummary.pending} 个待同步', Colors.orange, shadTheme),
                   if (syncSummary.conflicts > 0) ...[
                     const SizedBox(width: 8),
-                    _statusChip('${syncSummary.conflicts} conflicts', shadTheme.colorScheme.destructive, shadTheme),
+                    _statusChip(AppLocalizations.of(context)?.skillsStatConflicts(syncSummary.conflicts) ?? '${syncSummary.conflicts} 个冲突', shadTheme.colorScheme.destructive, shadTheme),
                   ],
                 ],
               ),

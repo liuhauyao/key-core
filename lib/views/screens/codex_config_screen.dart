@@ -15,6 +15,7 @@ import '../../services/settings_service.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../models/platform_type.dart';
 import 'key_form_page.dart';
+import '../widgets/kc_toast.dart';
 
 /// Codex 配置管理页面
 class CodexConfigScreen extends StatefulWidget {
@@ -256,81 +257,30 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
           // 生成环境变量命令（永久设置）
           final envCommand = await codexConfigService.generateEnvVarCommand(key, permanent: true);
           if (envCommand != null) {
-            // 显示带复制按钮的 toast
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${localizations?.keySwitched ?? '已切换'} ${key.name}。需要设置环境变量',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '（永久设置，添加到配置文件）',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        await ClipboardService().copyToClipboard(envCommand);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(localizations?.keyCopied ?? '已复制'),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      },
-                      child: const Text(
-                        '复制命令',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-                duration: const Duration(seconds: 5),
-                backgroundColor: Colors.orange,
-              ),
+            // 切换成功，但该供应商还需要环境变量：带「复制命令」的提示
+            showKcToast(
+              context,
+              localizations?.codexEnvVarRequired ?? '还需要设置环境变量（永久设置，写入 shell 配置文件）才能生效。',
+              kind: KcToastKind.warning,
+              title: localizations?.switchedToTarget(key.name) ?? '已切换到 ${key.name}',
+              actionLabel: localizations?.copyCommand ?? '复制命令',
+              onAction: () async {
+                await ClipboardService().copyToClipboard(envCommand);
+                if (mounted) {
+                  showKcToast(context, localizations?.keyCopied ?? '已复制');
+                }
+              },
             );
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${localizations?.keySwitched ?? '已切换'} ${key.name}'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            showSwitchResult(context, success: true, targetName: key.name);
           }
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${localizations?.keySwitched ?? '已切换'} ${key.name}'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          showSwitchResult(context, success: true, targetName: key.name);
         }
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchFailed ?? '切换失败'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: false, targetName: key.name, error: viewModel.errorMessage, onRetry: () => _switchProvider(key));
       }
     }
   }
@@ -364,22 +314,11 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
           _isOfficial = true;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchedToOfficial ?? '已切换 官方配置'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: true, targetName: (localizations?.officialConfig ?? '官方配置'));
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchFailed ?? '切换失败'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: false, targetName: (localizations?.officialConfig ?? '官方配置'), error: viewModel.errorMessage, onRetry: _switchToOfficial);
       }
     }
   }

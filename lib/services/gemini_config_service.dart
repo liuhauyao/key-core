@@ -15,6 +15,9 @@ import 'live_config/live_config_writer.dart';
 /// Gemini 配置服务
 /// 管理 ~/.gemini/settings.json 和 ~/.gemini/.env 的读写
 class GeminiConfigService {
+  /// 最近一次 switchProvider / switchToOfficial 失败的原因（成功时清空），供 UI 显示失败原因。
+  Object? lastSwitchError;
+
   static const String _settingsFileName = 'settings.json';
   static const String _envFileName = '.env';
   
@@ -256,6 +259,7 @@ class GeminiConfigService {
   /// 写入配置（切换使用的密钥）
   /// 优先使用 .env 文件存储 API 密钥
   Future<bool> switchProvider(AIKey key) async {
+    lastSwitchError = null;
     try {
       // 解密密钥值
       String apiKey = key.keyValue;
@@ -289,6 +293,7 @@ class GeminiConfigService {
       _clearOfficialConfigCache();
       return true;
     } catch (e) {
+      lastSwitchError = e;
       print('GeminiConfigService: 切换配置失败: $e');
       return false;
     }
@@ -406,6 +411,7 @@ class GeminiConfigService {
   /// 清除第三方密钥的配置
   /// 如果本地存储有官方API Key，则写入；没有则清空
   Future<bool> switchToOfficial() async {
+    lastSwitchError = null;
     try {
       // 确保 SettingsService 已初始化（官方 API Key 存于系统钥匙串）
       await _settingsService.init();
@@ -435,6 +441,7 @@ class GeminiConfigService {
 
       return true;
     } catch (e) {
+      lastSwitchError = e;
       print('GeminiConfigService: 切换官方配置失败: $e');
       return false;
     }

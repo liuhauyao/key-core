@@ -7,6 +7,7 @@ import '../widgets/key_card.dart';
 import '../widgets/key_details_dialog.dart';
 import '../widgets/app_switcher.dart';
 import '../widgets/confirm_dialog.dart';
+import '../widgets/kc_toast.dart';
 import 'key_form_page.dart';
 import 'claude_config_screen.dart';
 import 'codex_config_screen.dart';
@@ -949,7 +950,7 @@ class _MainScreenState extends State<MainScreen> {
             onCopyApiEndpoint: () {
               if (key.apiEndpoint != null) {
                 ClipboardService().copyToClipboard(key.apiEndpoint!);
-                _showSnackBar(context, 'API地址已复制');
+                _showSnackBar(context, AppLocalizations.of(context)?.apiEndpointCopied ?? '请求地址已复制');
               }
             },
             onCopyApiKey: () {
@@ -1072,7 +1073,8 @@ class _MainScreenState extends State<MainScreen> {
         },
         onCopyText: (text) {
           ClipboardService().copyToClipboard(text);
-          _showSnackBar(context, '已复制: ${text.length > 30 ? '${text.substring(0, 30)}...' : text}');
+          final shown = text.length > 30 ? '${text.substring(0, 30)}...' : text;
+          _showSnackBar(context, AppLocalizations.of(context)?.copiedText(shown) ?? '已复制：$shown');
         },
         onCopyKey: () {
           viewModel.copyKeyToClipboard(decryptedKey.id!);
@@ -1190,13 +1192,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _showSnackBar(BuildContext context, String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : null,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showKcToast(context, message, kind: isError ? KcToastKind.error : KcToastKind.success);
   }
 
   /// 检查边缘滚动

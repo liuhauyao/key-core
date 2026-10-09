@@ -14,6 +14,9 @@ import 'live_config/live_config_writer.dart';
 /// Claude 配置服务
 /// 管理 ~/.claude/config.json 的读写
 class ClaudeConfigService {
+  /// 最近一次 switchProvider / switchToOfficial 失败的原因（成功时清空），供 UI 显示失败原因。
+  Object? lastSwitchError;
+
   static const String _configFileName = 'config.json';
   static const String _settingsFileName = 'settings.json';
   
@@ -215,6 +218,7 @@ class ClaudeConfigService {
   /// - 任一文件解析失败则中止，不会以空对象覆盖用户配置；
   /// - 原子写入、自动备份，文件权限 0600。
   Future<bool> switchProvider(AIKey key) async {
+    lastSwitchError = null;
     try {
       // 解密密钥值
       String apiKey = key.keyValue;
@@ -250,6 +254,7 @@ class ClaudeConfigService {
 
       return true;
     } catch (e) {
+      lastSwitchError = e;
       print('ClaudeConfigService: 切换配置失败: $e');
       return false;
     }
@@ -397,6 +402,7 @@ class ClaudeConfigService {
   /// 清除第三方密钥的模型配置、密钥配置、URL配置
   /// 如果本地存储有官方API Key，则写入；没有则清空
   Future<bool> switchToOfficial() async {
+    lastSwitchError = null;
     try {
       // 确保 SettingsService 已初始化（官方 API Key 存于系统钥匙串）
       await _settingsService.init();
@@ -429,6 +435,7 @@ class ClaudeConfigService {
 
       return true;
     } catch (e) {
+      lastSwitchError = e;
       print('ClaudeConfigService: 切换官方配置失败: $e');
       return false;
     }

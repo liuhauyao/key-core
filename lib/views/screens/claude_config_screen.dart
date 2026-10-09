@@ -15,6 +15,7 @@ import '../../services/settings_service.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../models/platform_type.dart';
 import 'key_form_page.dart';
+import '../widgets/kc_toast.dart';
 
 /// 环境变量项
 class _EnvVarItem {
@@ -312,22 +313,11 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
       });
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${localizations?.keySwitched ?? '已切换'} ${key.name}'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: true, targetName: key.name);
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchFailed ?? '切换失败'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: false, targetName: key.name, error: viewModel.errorMessage, onRetry: () => _switchProvider(key));
       }
     }
   }
@@ -361,22 +351,11 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
       });
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchedToOfficial ?? '已切换 官方配置'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: true, targetName: (localizations?.officialConfig ?? '官方配置'));
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchFailed ?? '切换失败'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: false, targetName: (localizations?.officialConfig ?? '官方配置'), error: viewModel.errorMessage, onRetry: _switchToOfficial);
       }
     }
   }
@@ -954,21 +933,11 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
         _isDesktopOfficial = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已切换到: ${key.name}'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        showSwitchResult(context, success: true, targetName: key.name);
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(viewModel.errorMessage ?? '切换失败'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showSwitchResult(context, success: false, targetName: key.name, error: viewModel.errorMessage, onRetry: () => _switchDesktopProvider(key));
       }
     }
   }
@@ -985,21 +954,11 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
         _isDesktopOfficial = true;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchedToOfficial ?? '已切换到官方配置'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        showSwitchResult(context, success: true, targetName: (localizations?.officialConfig ?? '官方配置'));
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(viewModel.errorMessage ?? '切换失败'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showSwitchResult(context, success: false, targetName: (localizations?.officialConfig ?? '官方配置'), error: viewModel.errorMessage, onRetry: _switchToDesktopOfficial);
       }
     }
   }
