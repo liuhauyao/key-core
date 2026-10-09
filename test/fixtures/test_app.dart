@@ -65,6 +65,7 @@ Widget buildTestApp({
           GlobalCupertinoLocalizations.delegate,
         ],
         theme: KcTheme.material(brightness),
+        builder: (context, child) => ShadToaster(child: child ?? const SizedBox.shrink()),
         home: home,
       ),
     ),

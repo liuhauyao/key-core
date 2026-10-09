@@ -15,6 +15,7 @@ import '../../services/settings_service.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../models/platform_type.dart';
 import 'key_form_page.dart';
+import '../widgets/kc_toast.dart';
 
 /// Gemini 配置管理页面
 class GeminiConfigScreen extends StatefulWidget {
@@ -238,22 +239,11 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
         
         // Gemini 使用 .env 文件，不需要额外的环境变量命令
         // 密钥已经自动写入到 .env 文件中
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${localizations?.keySwitched ?? '已切换'} ${key.name}'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            showSwitchResult(context, success: true, targetName: key.name);
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchFailed ?? '切换失败'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: false, targetName: key.name, error: viewModel.errorMessage, onRetry: () => _switchProvider(key));
       }
     }
   }
@@ -287,22 +277,11 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
           _isOfficial = true;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchedToOfficial ?? '已切换 官方配置'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: true, targetName: (localizations?.officialConfig ?? '官方配置'));
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localizations?.switchFailed ?? '切换失败'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showSwitchResult(context, success: false, targetName: (localizations?.officialConfig ?? '官方配置'), error: viewModel.errorMessage, onRetry: _switchToOfficial);
       }
     }
   }

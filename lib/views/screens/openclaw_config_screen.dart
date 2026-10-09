@@ -10,6 +10,8 @@ import '../../viewmodels/key_manager_viewmodel.dart';
 import '../widgets/key_card.dart';
 import '../widgets/key_details_dialog.dart';
 import 'key_form_page.dart';
+import '../widgets/kc_toast.dart';
+import '../../utils/app_localizations.dart';
 
 /// 某个钥匙包密钥与 OpenClaw 供应商的关联信息
 class _CompatibleKey {
@@ -148,6 +150,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
   Future<void> _toggleKey(_CompatibleKey item) async {
     final vm = _viewModel;
     if (vm == null) return;
+    final l = AppLocalizations.of(context);
 
     if (item.isEnabled) {
       // 已启用 → 关闭
@@ -160,82 +163,77 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
       item.isEnabled = false;
       if (mounted) {
         setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已从 OpenClaw 配置中移除 ${item.aiKey.name}'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showKcToast(context, l?.openclawRemoved(item.aiKey.name) ?? '已从 OpenClaw 配置中移除 ${item.aiKey.name}');
       }
-    } else {
-      // 未启用 → 写入
-      final decrypted = await vm.decryptKeyValue(item.aiKey.keyValue);
-      if (decrypted == null || decrypted.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('密钥解密失败'),
-              duration: Duration(seconds: 2),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
+      return;
+    }
 
-      // 同一 envKey 下先关闭其他密钥
-      final itemEnvKey = item.providerInfo?.envKey;
-      if (itemEnvKey != null) {
-        for (final other in _compatibleKeys) {
-          if (other != item &&
-              other.providerInfo?.envKey == itemEnvKey &&
-              other.isEnabled) {
-            other.isEnabled = false;
-          }
-        }
-      }
+    // 未启用 → 写入
+    // 平台不在 OpenClaw 映射里时 applyProviderKey 什么都不写，过去这里仍提示「已写入」并把开关拨到开，
+    // 属于假成功。现在如实告知，开关保持关闭。
+    if (item.providerInfo == null) {
+      showKcToast(
+        context,
+        l?.openclawPlatformUnsupported(item.aiKey.platform) ??
+            'OpenClaw 暂不支持 ${item.aiKey.platform}，没有写入任何配置。',
+        kind: KcToastKind.warning,
+      );
+      if (mounted) setState(() {});
+      return;
+    }
 
-      final OpenClawApplyResult result;
-      try {
-        result = await _service.applyProviderKey(
-          keyId: item.aiKey.id!,
-          decryptedKey: decrypted,
-          platformId: item.platformId,
-          openclawBaseUrl: item.aiKey.openclawBaseUrl,
-          openclawModel: item.aiKey.openclawModel,
-        );
-      } catch (e) {
-        // 例如 openclaw.json 无法解析：已中止写入，原文件未被修改
-        _showWriteError(e);
-        return;
-      }
-      item.isEnabled = true;
-
+    final decrypted = await vm.decryptKeyValue(item.aiKey.keyValue);
+    if (decrypted == null || decrypted.isEmpty) {
       if (mounted) {
-        setState(() {});
-        final modelRef = result.modelRef;
-        final message = modelRef != null
-            ? '已将 ${item.aiKey.name} 写入 OpenClaw，并设置默认模型为 $modelRef'
-            : '已将 ${item.aiKey.name} 写入 OpenClaw 配置';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            duration: const Duration(seconds: 3),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
+        showKcToast(context, l?.keyDecryptFailed ?? '密钥解密失败', kind: KcToastKind.error);
       }
+      return;
+    }
+
+    final OpenClawApplyResult result;
+    try {
+      result = await _service.applyProviderKey(
+        keyId: item.aiKey.id!,
+        decryptedKey: decrypted,
+        platformId: item.platformId,
+        openclawBaseUrl: item.aiKey.openclawBaseUrl,
+        openclawModel: item.aiKey.openclawModel,
+      );
+    } catch (e) {
+      // 例如 openclaw.json 无法解析：已中止写入，原文件未被修改；其他开关保持原状
+      _showWriteError(e);
+      return;
+    }
+
+    // 写入成功后，同一 envKey 下的其他密钥才视为被替换（过去在写入前就先关掉，失败时状态会错）
+    final itemEnvKey = item.providerInfo?.envKey;
+    if (itemEnvKey != null) {
+      for (final other in _compatibleKeys) {
+        if (other != item && other.providerInfo?.envKey == itemEnvKey && other.isEnabled) {
+          other.isEnabled = false;
+        }
+      }
+    }
+    item.isEnabled = true;
+
+    if (mounted) {
+      setState(() {});
+      final modelRef = result.modelRef;
+      final message = modelRef != null
+          ? (l?.openclawWrittenWithModel(item.aiKey.name, modelRef) ??
+              '已将 ${item.aiKey.name} 写入 OpenClaw，并设置默认模型为 $modelRef')
+          : (l?.openclawWritten(item.aiKey.name) ?? '已将 ${item.aiKey.name} 写入 OpenClaw 配置');
+      showKcToast(context, message);
     }
   }
 
   void _showWriteError(Object error) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('写入 OpenClaw 配置失败：$error'),
-        duration: const Duration(seconds: 4),
-        backgroundColor: Colors.red,
-      ),
+    final reason = humanizeError(error);
+    showKcToast(
+      context,
+      AppLocalizations.of(context)?.openclawWriteFailed(reason) ?? '写入 OpenClaw 配置失败：$reason',
+      kind: KcToastKind.error,
     );
   }
 

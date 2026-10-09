@@ -23,6 +23,9 @@ import 'live_config/live_config_writer.dart';
 ///
 /// 参考：cc-switch (farion1231/cc-switch) 的 Claude Desktop 3-Profile 实现
 class ClaudeDesktopConfigService {
+  /// 最近一次 switchProvider / switchToOfficial 失败的原因（成功时清空），供 UI 显示失败原因。
+  Object? lastSwitchError;
+
   static const String _configFileName = 'claude_desktop_config.json';
   static const String _profileId = PlatformConfigPathService.claudeDesktopProfileId;
 
@@ -153,6 +156,7 @@ class ClaudeDesktopConfigService {
   ///   2. 写入 Profile → inferenceGatewayBaseUrl + inferenceGatewayApiKey + inferenceModels
   ///   3. 更新 meta.json → 标记当前激活的 Profile
   Future<bool> switchProvider(AIKey key) async {
+    lastSwitchError = null;
     try {
       // 解密密钥值
       String apiKey = key.keyValue;
@@ -223,6 +227,7 @@ class ClaudeDesktopConfigService {
       print('ClaudeDesktopConfigService: 切换成功 - Profile=$_profileId, BaseUrl=$baseUrl');
       return true;
     } catch (e) {
+      lastSwitchError = e;
       print('ClaudeDesktopConfigService: 切换配置失败: $e');
       return false;
     }
@@ -326,6 +331,7 @@ class ClaudeDesktopConfigService {
   ///   2. 删除 Profile 文件
   ///   3. 更新 meta.json 移除 Profile 条目
   Future<bool> switchToOfficial() async {
+    lastSwitchError = null;
     try {
       final configPath = await _getConfigFilePath();
       final libraryDir = await PlatformConfigPathService.getClaudeDesktop3pConfigLibraryDir();
@@ -372,6 +378,7 @@ class ClaudeDesktopConfigService {
       print('ClaudeDesktopConfigService: 已切换回官方配置');
       return true;
     } catch (e) {
+      lastSwitchError = e;
       print('ClaudeDesktopConfigService: 切换官方配置失败: $e');
       return false;
     }

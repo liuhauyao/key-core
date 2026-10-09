@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import '../services/language_pack_service.dart';
 
 /// 应用本地化
@@ -482,6 +485,34 @@ class AppLocalizations {
       'mcp_status_identical': '一致',
       'mcp_status_only_local': '仅本地',
       'mcp_status_only_tool': '仅工具',
+      // UI-2：反馈与文案
+      'request_address': '请求地址',
+      'move_to_top': '置顶',
+      'moved_to_top': '已置顶',
+      'category_official': '官方',
+      'category_cn_official': '国内官方',
+      'category_third_party': '第三方',
+      'category_aggregator': '聚合平台',
+      'undo': '撤销',
+      'retry': '重试',
+      'switched_to_target': '已切换到 {name}。新开的会话会读取新配置。',
+      'switched_to_target_tool': '{tool} 已切换到 {name}。新开的会话会读取新配置。',
+      'switch_failed_with_reason': '没能切换到 {name}：{reason}',
+      'switch_failed_unknown_reason': '写入配置文件失败，详见日志',
+      'copy_command': '复制命令',
+      'codex_env_var_required': '还需要设置环境变量（永久设置，写入 shell 配置文件）才能生效。',
+      'skills_stat_total': '共 {n} 个',
+      'skills_stat_synced': '{n} 个已同步',
+      'skills_stat_pending': '{n} 个待同步',
+      'skills_stat_conflicts': '{n} 个冲突',
+      'openclaw_platform_unsupported': 'OpenClaw 暂不支持 {platform}，没有写入任何配置。',
+      'openclaw_write_failed': '写入 OpenClaw 配置失败：{error}',
+      'openclaw_removed': '已从 OpenClaw 配置中移除 {name}',
+      'openclaw_written': '已将 {name} 写入 OpenClaw 配置',
+      'openclaw_written_with_model': '已将 {name} 写入 OpenClaw，并设置默认模型为 {model}',
+      'key_decrypt_failed': '密钥解密失败',
+      'api_endpoint_copied': '请求地址已复制',
+      'copied_text': '已复制: {text}',
     },
     'en': {
       'app_name': 'Key Core',
@@ -918,6 +949,34 @@ class AppLocalizations {
       'mcp_status_identical': 'Identical',
       'mcp_status_only_local': 'Local Only',
       'mcp_status_only_tool': 'Tool Only',
+      // UI-2：反馈与文案
+      'request_address': 'Request URL',
+      'move_to_top': 'Move to top',
+      'moved_to_top': 'Moved to top',
+      'category_official': 'Official',
+      'category_cn_official': 'China official',
+      'category_third_party': 'Third-party',
+      'category_aggregator': 'Aggregator',
+      'undo': 'Undo',
+      'retry': 'Retry',
+      'switched_to_target': 'Switched to {name}. New sessions will pick up the new config.',
+      'switched_to_target_tool': '{tool} switched to {name}. New sessions will pick up the new config.',
+      'switch_failed_with_reason': 'Couldn\'t switch to {name}: {reason}',
+      'switch_failed_unknown_reason': 'Failed to write the config file; see logs for details',
+      'copy_command': 'Copy command',
+      'codex_env_var_required': 'An environment variable is also required (permanent, added to your shell profile).',
+      'skills_stat_total': '{n} total',
+      'skills_stat_synced': '{n} synced',
+      'skills_stat_pending': '{n} pending',
+      'skills_stat_conflicts': '{n} conflicts',
+      'openclaw_platform_unsupported': 'OpenClaw doesn\'t support {platform} yet. Nothing was written.',
+      'openclaw_write_failed': 'Failed to write OpenClaw config: {error}',
+      'openclaw_removed': 'Removed {name} from the OpenClaw config',
+      'openclaw_written': 'Wrote {name} to the OpenClaw config',
+      'openclaw_written_with_model': 'Wrote {name} to OpenClaw and set the default model to {model}',
+      'key_decrypt_failed': 'Failed to decrypt the key',
+      'api_endpoint_copied': 'Request URL copied',
+      'copied_text': 'Copied: {text}',
     },
   };
 
@@ -926,9 +985,15 @@ class AppLocalizations {
     if (_jsonTranslations != null && _jsonTranslations!.containsKey(key)) {
       return _jsonTranslations![key]!;
     }
-    // 回退到硬编码的翻译
-    return _localizedValues[locale.languageCode]?[key] ?? key;
+    // 回退到硬编码的翻译；当前语言没有该条目时回退到英文（避免界面直接显示 key）
+    return _localizedValues[locale.languageCode]?[key] ??
+        _localizedValues['en']?[key] ??
+        _bundledEnglish?[key] ??
+        key;
   }
+
+  /// 打包的 en.json（启动时由 delegate 预加载），作为非中英文语言缺词时的最后回退。
+  static Map<String, String>? _bundledEnglish;
 
   String get appName => translate('app_name');
   String get settings => translate('settings');
@@ -1115,6 +1180,31 @@ class AppLocalizations {
   String get opusModel => translate('opus_model');
   String get modelName => translate('model_name');
   String get requestAddress => translate('request_address');
+  // ---- UI-2：反馈与文案 ----
+  String get undo => translate('undo');
+  String get retry => translate('retry');
+  String get copyCommand => translate('copy_command');
+  String get codexEnvVarRequired => translate('codex_env_var_required');
+  String get switchFailedUnknownReason => translate('switch_failed_unknown_reason');
+  String get keyDecryptFailed => translate('key_decrypt_failed');
+  String get apiEndpointCopied => translate('api_endpoint_copied');
+  String switchedToTarget(String name, [String? tool]) => (tool == null
+          ? translate('switched_to_target')
+          : translate('switched_to_target_tool').replaceAll('{tool}', tool))
+      .replaceAll('{name}', name);
+  String switchFailedWithReason(String name, String reason) =>
+      translate('switch_failed_with_reason').replaceAll('{name}', name).replaceAll('{reason}', reason);
+  String skillsStatTotal(int n) => translate('skills_stat_total').replaceAll('{n}', '$n');
+  String skillsStatSynced(int n) => translate('skills_stat_synced').replaceAll('{n}', '$n');
+  String skillsStatPending(int n) => translate('skills_stat_pending').replaceAll('{n}', '$n');
+  String skillsStatConflicts(int n) => translate('skills_stat_conflicts').replaceAll('{n}', '$n');
+  String openclawPlatformUnsupported(String platform) =>
+      translate('openclaw_platform_unsupported').replaceAll('{platform}', platform);
+  String openclawWriteFailed(String error) => translate('openclaw_write_failed').replaceAll('{error}', error);
+  String openclawRemoved(String name) => translate('openclaw_removed').replaceAll('{name}', name);
+  String openclawWritten(String name) => translate('openclaw_written').replaceAll('{name}', name);
+  String openclawWrittenWithModel(String name, String model) =>
+      translate('openclaw_written_with_model').replaceAll('{name}', name).replaceAll('{model}', model);
   String get mainModelHint => translate('main_model_hint');
   String get haikuModelHint => translate('haiku_model_hint');
   String get sonnetModelHint => translate('sonnet_model_hint');
@@ -1639,6 +1729,15 @@ class _AppLocalizationsDelegate
       print('AppLocalizations.load: ❌ 加载语言包失败: $fullLocaleCode');
     }
     
+    // 非中英文语言：预加载打包的 en.json 作为缺词回退
+    if (locale.languageCode != 'zh' && locale.languageCode != 'en' && AppLocalizations._bundledEnglish == null) {
+      try {
+        final raw = await rootBundle.loadString('assets/locales/en.json');
+        AppLocalizations._bundledEnglish = Map<String, String>.from(
+            (jsonDecode(raw) as Map<String, dynamic>).map((k, v) => MapEntry(k, v.toString())));
+      } catch (_) {}
+    }
+
     // 创建 AppLocalizations 实例，传入 JSON 翻译
     return AppLocalizations(locale, jsonTranslations);
   }
