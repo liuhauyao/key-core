@@ -4,6 +4,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'secure_storage_service.dart';
 
 /// 设置服务
 class SettingsService {
@@ -26,8 +28,105 @@ class SettingsService {
 
   SharedPreferences? _prefs;
 
+  /// 官方 API Key 在系统钥匙串（SecureStorage）中的键名，按旧的 SharedPreferences 键索引
+  static const Map<String, String> _officialKeySecureNames = {
+    _keyOfficialApiKey: 'official_api_key.claude',
+    _keyOfficialCodexApiKey: 'official_api_key.codex',
+    _keyOfficialGeminiApiKey: 'official_api_key.gemini',
+    _keyOfficialClaudeDesktopApiKey: 'official_api_key.claude_desktop',
+  };
+
+  /// 官方 API Key 的内存缓存（同步 getter 从这里读取）。null 表示尚未从钥匙串加载
+  static Map<String, String>? _officialKeyCache;
+  static Future<void>? _officialKeysLoading;
+
+  /// 测试用：替换钥匙串实现
+  @visibleForTesting
+  static SecureStorageService secureStorage = SecureStorageService();
+
+  /// 测试用：重置官方 Key 缓存，使下一次 [init] 重新加载/迁移
+  @visibleForTesting
+  static void debugResetOfficialKeyCache() {
+    _officialKeyCache = null;
+    _officialKeysLoading = null;
+  }
+
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    _officialKeysLoading ??= _loadOfficialKeys(_prefs!);
+    await _officialKeysLoading;
+  }
+
+  /// 从系统钥匙串加载官方 API Key，并把旧版本存放在 SharedPreferences 中的明文 Key 迁移过去。
+  ///
+  /// 迁移步骤：写入钥匙串 → 读回校验一致 → 删除 SharedPreferences 中的明文。
+  /// 任一步失败（例如未签名的开发构建无法访问钥匙串）都保留明文、不丢数据，下次启动再试。
+  static Future<void> _loadOfficialKeys(SharedPreferences prefs) async {
+    final cache = <String, String>{};
+    for (final entry in _officialKeySecureNames.entries) {
+      final prefsKey = entry.key;
+      final secureKey = entry.value;
+      final legacy = prefs.getString(prefsKey)?.trim();
+      try {
+        if (legacy != null && legacy.isNotEmpty) {
+          await secureStorage.writeSecret(secureKey, legacy);
+          final verified = await secureStorage.readSecret(secureKey);
+          if (verified == legacy) {
+            await prefs.remove(prefsKey);
+            cache[prefsKey] = legacy;
+            continue;
+          }
+          cache[prefsKey] = legacy;
+          continue;
+        }
+        final stored = await secureStorage.readSecret(secureKey);
+        if (stored != null && stored.isNotEmpty) cache[prefsKey] = stored;
+      } catch (e) {
+        print('SettingsService: 访问系统钥匙串失败，官方 API Key 暂存于本地设置: $e');
+        if (legacy != null && legacy.isNotEmpty) cache[prefsKey] = legacy;
+      }
+    }
+    _officialKeyCache = cache;
+  }
+
+  /// 读取官方 API Key（来自钥匙串缓存；尚未加载时回退到旧的本地设置）
+  String? _getOfficialKey(String prefsKey) {
+    final cache = _officialKeyCache;
+    if (cache != null) return cache[prefsKey];
+    return _prefs?.getString(prefsKey);
+  }
+
+  /// 保存官方 API Key 到系统钥匙串；钥匙串不可用时退回本地设置（与旧版本相同的存储方式）
+  Future<void> _setOfficialKey(String prefsKey, String? apiKey) async {
+    if (_prefs == null) {
+      await init();
+    }
+    final secureKey = _officialKeySecureNames[prefsKey]!;
+    final value = apiKey?.trim();
+    final cache = _officialKeyCache ??= <String, String>{};
+
+    if (value == null || value.isEmpty) {
+      try {
+        await secureStorage.deleteSecret(secureKey);
+      } catch (e) {
+        print('SettingsService: 从系统钥匙串删除官方 API Key 失败: $e');
+      }
+      await _prefs!.remove(prefsKey);
+      cache.remove(prefsKey);
+      return;
+    }
+
+    try {
+      await secureStorage.writeSecret(secureKey, value);
+      await _prefs!.remove(prefsKey);
+    } catch (e) {
+      print('SettingsService: 写入系统钥匙串失败，官方 API Key 暂存于本地设置: $e');
+      final result = await _prefs!.setString(prefsKey, value);
+      if (!result) {
+        throw Exception('Failed to save official API key');
+      }
+    }
+    cache[prefsKey] = value;
   }
 
   /// 获取当前语言
@@ -125,31 +224,11 @@ class SettingsService {
     await _prefs?.remove(key);
   }
 
-  /// 获取官方 Claude API Key（本地存储）
-  String? getOfficialClaudeApiKey() {
-    // 如果未初始化，返回null（不应该发生，但为了安全）
-    if (_prefs == null) {
-      return null;
-    }
-    return _prefs!.getString(_keyOfficialApiKey);
-  }
+  /// 获取官方 Claude API Key（存于系统钥匙串）
+  String? getOfficialClaudeApiKey() => _getOfficialKey(_keyOfficialApiKey);
 
-  /// 设置官方 Claude API Key（本地存储）
-  Future<void> setOfficialClaudeApiKey(String? apiKey) async {
-    // 确保已初始化
-    if (_prefs == null) {
-      await init();
-    }
-    
-    if (apiKey == null || apiKey.trim().isEmpty) {
-      await _prefs!.remove(_keyOfficialApiKey);
-    } else {
-      final result = await _prefs!.setString(_keyOfficialApiKey, apiKey.trim());
-      if (!result) {
-        throw Exception('Failed to save official API key to SharedPreferences');
-      }
-    }
-  }
+  /// 设置官方 Claude API Key（存于系统钥匙串）
+  Future<void> setOfficialClaudeApiKey(String? apiKey) => _setOfficialKey(_keyOfficialApiKey, apiKey);
 
   /// 获取官方配置的所有环境变量（本地存储）
   Map<String, String> getOfficialConfigEnv() {
@@ -176,31 +255,11 @@ class SettingsService {
     }
   }
 
-  /// 获取官方 Codex API Key（本地存储）
-  String? getOfficialCodexApiKey() {
-    // 如果未初始化，返回null（不应该发生，但为了安全）
-    if (_prefs == null) {
-      return null;
-    }
-    return _prefs!.getString(_keyOfficialCodexApiKey);
-  }
+  /// 获取官方 Codex API Key（存于系统钥匙串）
+  String? getOfficialCodexApiKey() => _getOfficialKey(_keyOfficialCodexApiKey);
 
-  /// 设置官方 Codex API Key（本地存储）
-  Future<void> setOfficialCodexApiKey(String? apiKey) async {
-    // 确保已初始化
-    if (_prefs == null) {
-      await init();
-    }
-    
-    if (apiKey == null || apiKey.trim().isEmpty) {
-      await _prefs!.remove(_keyOfficialCodexApiKey);
-    } else {
-      final result = await _prefs!.setString(_keyOfficialCodexApiKey, apiKey.trim());
-      if (!result) {
-        throw Exception('Failed to save official Codex API key to SharedPreferences');
-      }
-    }
-  }
+  /// 设置官方 Codex API Key（存于系统钥匙串）
+  Future<void> setOfficialCodexApiKey(String? apiKey) => _setOfficialKey(_keyOfficialCodexApiKey, apiKey);
 
   /// 获取 Gemini 配置目录（自定义路径或默认路径）
   String? getGeminiConfigDir() {
@@ -216,31 +275,11 @@ class SettingsService {
     }
   }
 
-  /// 获取官方 Gemini API Key（本地存储）
-  String? getOfficialGeminiApiKey() {
-    // 如果未初始化，返回null（不应该发生，但为了安全）
-    if (_prefs == null) {
-      return null;
-    }
-    return _prefs!.getString(_keyOfficialGeminiApiKey);
-  }
+  /// 获取官方 Gemini API Key（存于系统钥匙串）
+  String? getOfficialGeminiApiKey() => _getOfficialKey(_keyOfficialGeminiApiKey);
 
-  /// 设置官方 Gemini API Key（本地存储）
-  Future<void> setOfficialGeminiApiKey(String? apiKey) async {
-    // 确保已初始化
-    if (_prefs == null) {
-      await init();
-    }
-    
-    if (apiKey == null || apiKey.trim().isEmpty) {
-      await _prefs!.remove(_keyOfficialGeminiApiKey);
-    } else {
-      final result = await _prefs!.setString(_keyOfficialGeminiApiKey, apiKey.trim());
-      if (!result) {
-        throw Exception('Failed to save official Gemini API key to SharedPreferences');
-      }
-    }
-  }
+  /// 设置官方 Gemini API Key（存于系统钥匙串）
+  Future<void> setOfficialGeminiApiKey(String? apiKey) => _setOfficialKey(_keyOfficialGeminiApiKey, apiKey);
 
   /// 获取 Claude Desktop 配置目录（自定义路径或默认路径）
   String? getClaudeDesktopConfigDir() {
@@ -256,42 +295,37 @@ class SettingsService {
     }
   }
 
-  /// 获取官方 Claude Desktop API Key（本地存储）
-  String? getOfficialClaudeDesktopApiKey() {
-    if (_prefs == null) {
-      return null;
-    }
-    return _prefs!.getString(_keyOfficialClaudeDesktopApiKey);
-  }
+  /// 获取官方 Claude Desktop API Key（存于系统钥匙串）
+  String? getOfficialClaudeDesktopApiKey() => _getOfficialKey(_keyOfficialClaudeDesktopApiKey);
 
-  /// 设置官方 Claude Desktop API Key（本地存储）
-  Future<void> setOfficialClaudeDesktopApiKey(String? apiKey) async {
-    if (_prefs == null) {
-      await init();
-    }
-
-    if (apiKey == null || apiKey.trim().isEmpty) {
-      await _prefs!.remove(_keyOfficialClaudeDesktopApiKey);
-    } else {
-      final result = await _prefs!.setString(_keyOfficialClaudeDesktopApiKey, apiKey.trim());
-      if (!result) {
-        throw Exception('Failed to save official Claude Desktop API key to SharedPreferences');
-      }
-    }
-  }
+  /// 设置官方 Claude Desktop API Key（存于系统钥匙串）
+  Future<void> setOfficialClaudeDesktopApiKey(String? apiKey) => _setOfficialKey(_keyOfficialClaudeDesktopApiKey, apiKey);
 
   /// 清除所有设置
   Future<void> clearAllSettings() async {
     await _prefs?.clear();
+    for (final secureKey in _officialKeySecureNames.values) {
+      try {
+        await secureStorage.deleteSecret(secureKey);
+      } catch (_) {}
+    }
+    _officialKeyCache = <String, String>{};
   }
 
   // 缓存用户主目录，避免重复获取
   static String? _cachedHomeDir;
 
+  /// 测试用：覆盖用户主目录
+  @visibleForTesting
+  static String? debugHomeDirOverride;
+
   /// 获取用户主目录路径（跨平台）
   /// 在沙盒环境中，优先使用命令获取真正的用户主目录
   /// 使用缓存机制避免重复获取
   static Future<String> getUserHomeDir() async {
+    final override = debugHomeDirOverride;
+    if (override != null) return override;
+
     // 如果已缓存，直接返回
     if (_cachedHomeDir != null) {
       return _cachedHomeDir!;

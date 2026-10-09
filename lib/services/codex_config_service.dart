@@ -12,6 +12,9 @@ import '../services/cloud_config_service.dart';
 import '../services/region_filter_service.dart';
 import '../models/cloud_config.dart' as cloud;
 import '../services/platform_config_path_service.dart';
+import '../models/mcp_server.dart' show AiToolType;
+import 'live_config/key_field_floor.dart';
+import 'live_config/live_config_writer.dart';
 
 /// Codex 供应商配置
 class CodexProviderConfig {
@@ -567,91 +570,33 @@ class CodexConfigService {
       // 获取供应商配置
       final providerConfig = await _getProviderConfig(key);
 
-      // 读取现有的 auth.json，保留用户的其他密钥
-      final authPath = await _getAuthFilePath();
-      final authFile = File(authPath);
-      Map<String, dynamic> auth = {};
+      // 生成新的 config.toml 片段（我们添加的配置）
+      final newConfigToml = await _generateConfigToml(key);
 
-      if (await authFile.exists()) {
-        try {
-          final existingContent = await authFile.readAsString();
-          auth = jsonDecode(existingContent) as Map<String, dynamic>;
-        } catch (e) {
-          print('CodexConfigService: 读取现有 auth.json 失败，将创建新文件: $e');
-          auth = {};
-        }
-      }
-
-      // 根据供应商类型处理 auth.json
-      if (providerConfig.supportsAuthJson &&
-          providerConfig.authJsonKey != null) {
-        // 支持 auth.json 的供应商：更新对应的 key
-        auth[providerConfig.authJsonKey!] = apiKey;
-      } else {
-        // 必须使用环境变量的供应商：清除之前可能存在的相关 key
-        // 清除常见的 API key 字段，避免冲突
-        final keysToRemove = [
-          'OPENAI_API_KEY',
-          'OPENROUTER_API_KEY',
-          'GLM_API_KEY',
-          'KIMI_API_KEY',
-          'AZURE_OPENAI_API_KEY',
-          'ANTHROPIC_API_KEY',
-          'GOOGLE_GEMINI_API_KEY',
-        ];
-        for (final keyToRemove in keysToRemove) {
-          auth.remove(keyToRemove);
-        }
+      if (!(providerConfig.supportsAuthJson && providerConfig.authJsonKey != null)) {
         print(
             'CodexConfigService: 提示：需要在系统环境变量中设置 ${providerConfig.envKeyName}');
       }
 
-      // 读取现有的 config.toml，保留用户的其他配置
+      final authPath = await _getAuthFilePath();
       final configPath = await _getConfigFilePath();
-      final configFile = File(configPath);
-      String existingConfig = '';
 
-      if (await configFile.exists()) {
-        try {
-          existingConfig = await configFile.readAsString();
-        } catch (e) {
-          print('CodexConfigService: 读取现有 config.toml 失败: $e');
-        }
-      }
-
-      // 生成新的 config.toml（我们添加的配置）
-      final newConfigToml = await _generateConfigToml(key);
-
-      // 合并配置：先删除我们之前添加的配置，然后添加新的配置
-      String mergedConfig = _removeOurConfig(existingConfig);
-
-      // 清理合并后配置末尾的空行
-      mergedConfig = mergedConfig.trimRight();
-
-      // 将新配置添加到文件开头（符合 TOML 规范：顶层配置应在文件开头）
-      // _generateConfigToml 已经在末尾包含了空行
-      if (mergedConfig.isNotEmpty) {
-        // 如果现有配置不为空，在新配置后添加一个换行符作为分隔符
-        mergedConfig = newConfigToml + '\n' + mergedConfig;
-      } else {
-        // 如果现有配置为空，直接使用新配置
-        mergedConfig = newConfigToml;
-      }
-
-      // 确保配置目录存在
-      final configDir = await _getConfigDir();
-      final dir = Directory(configDir);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-
-      // 写入 auth.json（保留用户的其他密钥）
-      await authFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(auth),
-      );
-
-      // 写入 config.toml（合并后的配置）
-      await configFile.writeAsString(mergedConfig);
+      // auth.json 与 config.toml 作为一次操作提交：任一文件读取/解析失败则都不写入
+      await LiveConfigWriter.instance.apply(AiToolType.codex, [
+        LiveEdit.json(
+          authPath,
+          (auth) => applyProviderToAuth(
+            auth,
+            apiKey: apiKey,
+            authJsonKey: providerConfig.supportsAuthJson ? providerConfig.authJsonKey : null,
+          ),
+          containsSecrets: true,
+        ),
+        LiveEdit.text(
+          configPath,
+          (existing) => mergeConfigToml(existing, newConfigToml),
+        ),
+      ]);
 
       // 清除官方配置缓存
       _clearOfficialConfigCache();
@@ -663,30 +608,38 @@ class CodexConfigService {
     }
   }
 
-  /// 备份当前配置
-  Future<bool> backupConfig() async {
-    try {
-      final configPath = await _getConfigFilePath();
-      final configFile = File(configPath);
-
-      if (await configFile.exists()) {
-        final backupPath = '$configPath.bak';
-        await configFile.copy(backupPath);
+  /// auth.json 中的密钥字段（纯函数，便于测试）
+  ///
+  /// - 供应商支持 auth.json：写入对应字段，其他键保持不变；
+  /// - 需要环境变量的供应商：清除 Key Core 可能写过的密钥字段，避免冲突。
+  static void applyProviderToAuth(
+    Map<String, dynamic> auth, {
+    required String apiKey,
+    required String? authJsonKey,
+  }) {
+    if (authJsonKey != null) {
+      auth[authJsonKey] = apiKey;
+    } else {
+      for (final k in KeyFieldFloor.codexAuthKeys) {
+        auth.remove(k);
       }
-
-      final authPath = await _getAuthFilePath();
-      final authFile = File(authPath);
-
-      if (await authFile.exists()) {
-        final authBackupPath = '$authPath.bak';
-        await authFile.copy(authBackupPath);
-      }
-
-      return true;
-    } catch (e) {
-      return false;
     }
   }
+
+  /// 删除 config.toml 中我们之前写入的配置，并把新的配置放到文件开头（纯函数）
+  ///
+  /// TOML 规定顶层键必须位于第一个表之前，因此新片段置顶；用户的其他配置逐行保留。
+  static String mergeConfigToml(String existing, String newConfigToml) {
+    final merged = _removeOurConfig(existing).trimRight();
+    if (merged.isEmpty) return newConfigToml;
+    return '$newConfigToml\n$merged';
+  }
+
+  /// 备份当前配置
+  ///
+  /// 保留该方法以兼容调用方。备份现在由 [LiveConfigWriter] 在每次写入前自动完成
+  /// （首写备份 + 滚动备份，位于 `~/.keycore/backups/live`）。
+  Future<bool> backupConfig() async => true;
 
   /// 获取当前使用的 API Key
   /// 优先从 auth.json 读取（支持多种 key）
@@ -971,7 +924,7 @@ class CodexConfigService {
   /// 移除我们添加的配置项
   /// 只删除我们生成的配置，保留用户的其他配置
   /// 同时清理配置块前后的空行，避免空行累积
-  String _removeOurConfig(String configContent) {
+  static String _removeOurConfig(String configContent) {
     if (configContent.trim().isEmpty) {
       return configContent;
     }
@@ -1180,7 +1133,7 @@ class CodexConfigService {
   }
 
   /// 获取行的缩进级别（空格数）
-  int _getIndentLevel(String line) {
+  static int _getIndentLevel(String line) {
     int indent = 0;
     for (int i = 0; i < line.length; i++) {
       if (line[i] == ' ') {
@@ -1207,86 +1160,33 @@ class CodexConfigService {
 
       print('CodexConfigService: 切换到官方配置');
 
-      // 备份当前配置
-      await backupConfig();
-
-      // 确保 SettingsService 已初始化
+      // 确保 SettingsService 已初始化（官方 API Key 存于系统钥匙串）
       await _settingsService.init();
-
-      // 读取本地存储的官方 API Key
       final officialApiKey = _settingsService.getOfficialCodexApiKey();
 
-      // 读取现有的 config.toml，只删除我们添加的配置项
       final configPath = await _getConfigFilePath();
-      final configFile = File(configPath);
-
-      if (await configFile.exists()) {
-        final currentContent = await configFile.readAsString();
-        final cleanedContent = _removeOurConfig(currentContent);
-
-        // 如果清理后内容为空或只有空白/注释，则清空文件
-        final trimmedCleaned = cleanedContent.trim();
-        if (trimmedCleaned.isEmpty ||
-            trimmedCleaned.split('\n').every(
-                (line) => line.trim().isEmpty || line.trim().startsWith('#'))) {
-          await configFile.writeAsString('');
-          print('CodexConfigService: 删除我们添加的配置后，config.toml 为空，已清空文件');
-        } else {
-          await configFile.writeAsString(cleanedContent);
-          print('CodexConfigService: 已删除我们添加的配置项，保留其他配置');
-        }
-      } else {
-        print('CodexConfigService: config.toml 不存在，无需处理');
-      }
-
-      // 处理 auth.json：清除我们添加的所有可能的 API key，然后写入官方 API Key
       final authPath = await _getAuthFilePath();
-      final authFile = File(authPath);
-      Map<String, dynamic> auth = {};
 
-      if (await authFile.exists()) {
-        try {
-          final existingContent = await authFile.readAsString();
-          auth = jsonDecode(existingContent) as Map<String, dynamic>;
-        } catch (e) {
-          print('CodexConfigService: 读取 auth.json 失败: $e');
-          auth = {};
-        }
-      }
-
-      // 移除我们可能添加的所有 API key（支持多种供应商）
-      final keysToRemove = [
-        'OPENAI_API_KEY',
-        'OPENROUTER_API_KEY',
-        'GLM_API_KEY',
-        'KIMI_API_KEY',
-        'AZURE_OPENAI_API_KEY',
-        'ANTHROPIC_API_KEY',
-        'GOOGLE_GEMINI_API_KEY',
-      ];
-      for (final keyToRemove in keysToRemove) {
-        auth.remove(keyToRemove);
-      }
-
-      // 根据本地存储的官方 API Key 设置或删除 OPENAI_API_KEY
-      if (officialApiKey != null && officialApiKey.isNotEmpty) {
-        // 如果本地有存储的官方 API Key，写入到 auth.json
-        auth['OPENAI_API_KEY'] = officialApiKey;
-      } else {
-        // 如果本地没有存储官方 API Key，确保清空（已经remove了）
-      }
-
-      // 写入 auth.json
-      if (auth.isEmpty) {
-        // 如果只有我们添加的密钥且没有官方 API Key，保留空对象
-        await authFile.writeAsString('{}');
-        print('CodexConfigService: auth.json 为空，写入空对象');
-      } else {
-        // 保留其他密钥或写入官方 API Key
-        await authFile.writeAsString(
-          const JsonEncoder.withIndent('  ').convert(auth),
-        );
-      }
+      await LiveConfigWriter.instance.apply(AiToolType.codex, [
+        // config.toml：只删除我们添加的配置项（文件不存在则不创建）
+        LiveEdit(configPath, (current) {
+          if (current == null) return null;
+          return cleanConfigTomlForOfficial(current);
+        }),
+        // auth.json：清除我们可能写入的密钥，有官方 Key 时写入 OPENAI_API_KEY
+        LiveEdit.json(
+          authPath,
+          (auth) {
+            for (final k in KeyFieldFloor.codexAuthKeys) {
+              auth.remove(k);
+            }
+            if (officialApiKey != null && officialApiKey.isNotEmpty) {
+              auth['OPENAI_API_KEY'] = officialApiKey;
+            }
+          },
+          containsSecrets: true,
+        ),
+      ]);
 
       // 清除官方配置缓存
       _clearOfficialConfigCache();
@@ -1296,6 +1196,18 @@ class CodexConfigService {
       print('CodexConfigService: 切换到官方配置失败: $e');
       return false;
     }
+  }
+
+  /// 切回官方时清理 config.toml（纯函数）：删除我们添加的配置；
+  /// 若剩余内容只有空白或注释则清空文件。
+  static String cleanConfigTomlForOfficial(String current) {
+    final cleaned = _removeOurConfig(current);
+    final trimmed = cleaned.trim();
+    if (trimmed.isEmpty ||
+        trimmed.split('\n').every((line) => line.trim().isEmpty || line.trim().startsWith('#'))) {
+      return '';
+    }
+    return cleaned;
   }
 
   Future<bool> _isChinaRestrictedKey(AIKey key) async {

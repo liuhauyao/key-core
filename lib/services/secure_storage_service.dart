@@ -73,6 +73,28 @@ class SecureStorageService {
     await _storage.delete(key: 'encryption_key');
   }
 
+  /// 写入任意机密值（如官方 API Key）
+  Future<void> writeSecret(String key, String value) async {
+    try {
+      await _storage.write(key: key, value: value);
+    } catch (e) {
+      if (Platform.isMacOS) {
+        throw Exception(_handleKeychainError(e));
+      }
+      rethrow;
+    }
+  }
+
+  /// 读取机密值
+  Future<String?> readSecret(String key) async {
+    return await _storage.read(key: key);
+  }
+
+  /// 删除机密值
+  Future<void> deleteSecret(String key) async {
+    await _storage.delete(key: key);
+  }
+
   Future<void> clearAll() async {
     await _storage.deleteAll();
   }

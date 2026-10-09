@@ -5,6 +5,7 @@ import '../models/mcp_server.dart';
 import 'mcp_database_service.dart';
 import 'ai_tool_config_service.dart';
 import 'settings_service.dart';
+import 'live_config/live_config_writer.dart';
 
 /// MCP 配置同步服务
 /// 负责将激活的 MCP 服务器同步到各 AI 工具的配置文件中
@@ -248,11 +249,7 @@ class McpSyncService {
 
       final configFile = File(expandedPath);
 
-      // 备份原文件
-      if (await configFile.exists()) {
-        final backupPath = '$expandedPath.backup';
-        await configFile.copy(backupPath);
-      }
+      // 备份由 LiveConfigWriter 在写入前自动完成（首写 + 滚动备份）
 
       // Codex 使用 TOML 格式，需要特殊处理
       if (tool == AiToolType.codex) {
@@ -264,37 +261,22 @@ class McpSyncService {
         return await _syncToGeminiJson(configFile, serversToSync);
       }
 
-      // 其他工具使用 JSON 格式
-      // 读取现有配置文件（如果存在）
-      Map<String, dynamic> config = {};
-      if (await configFile.exists()) {
-        try {
-          final content = await configFile.readAsString();
-          config = jsonDecode(content) as Map<String, dynamic>;
-        } catch (e) {
-          // 如果解析失败，使用空配置
-          config = {};
+      // 其他工具使用 JSON 格式。解析失败时中止，不会以空配置覆盖原文件
+      await LiveConfigWriter.instance.updateJson(tool, expandedPath, (config) {
+        // 获取现有的 mcpServers（如果不存在则创建）
+        Map<String, dynamic> mcpServers = {};
+        if (config['mcpServers'] != null) {
+          mcpServers = Map<String, dynamic>.from(config['mcpServers'] as Map);
         }
-      }
 
-      // 获取现有的 mcpServers（如果不存在则创建）
-      Map<String, dynamic> mcpServers = {};
-      if (config['mcpServers'] != null) {
-        mcpServers = Map<String, dynamic>.from(config['mcpServers'] as Map);
-      }
+        // 合并策略：完全覆盖同名（serverId）的 MCP 服务，保留其他 MCP 服务
+        for (final server in serversToSync) {
+          mcpServers[server.serverId] = server.toToolConfigFormat();
+        }
 
-      // 合并策略：完全覆盖同名（serverId）的 MCP 服务，保留其他 MCP 服务
-      for (final server in serversToSync) {
-        mcpServers[server.serverId] = server.toToolConfigFormat();
-      }
-
-      // 更新配置中的 mcpServers 字段
-      config['mcpServers'] = mcpServers;
-
-      // 写入配置文件
-      await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
+        // 更新配置中的 mcpServers 字段
+        config['mcpServers'] = mcpServers;
+      });
 
       return true;
     } catch (e) {
@@ -306,41 +288,27 @@ class McpSyncService {
   /// 同步 MCP 服务到 Gemini 配置文件（~/.gemini/settings.json）
   Future<bool> _syncToGeminiJson(File configFile, List<McpServer> serversToSync) async {
     try {
-      // 读取现有配置
-      Map<String, dynamic> config = {};
-      if (await configFile.exists()) {
-        try {
-          final content = await configFile.readAsString();
-          config = jsonDecode(content) as Map<String, dynamic>;
-        } catch (e) {
-          print('解析 Gemini 配置失败: $e');
-          config = {};
+      // 解析失败时中止，不会以空配置覆盖原文件（其中可能有用户的 apiKey 等）
+      await LiveConfigWriter.instance.updateJson(AiToolType.gemini, configFile.path, (config) {
+        // 确保 apiKey 字段存在（如果不存在则设置为空字符串）
+        if (!config.containsKey('apiKey')) {
+          config['apiKey'] = '';
         }
-      }
 
-      // 确保 apiKey 字段存在（如果不存在则设置为空字符串）
-      if (!config.containsKey('apiKey')) {
-        config['apiKey'] = '';
-      }
+        // 获取现有的 mcpServers（如果不存在则创建）
+        Map<String, dynamic> mcpServers = {};
+        if (config['mcpServers'] != null) {
+          mcpServers = Map<String, dynamic>.from(config['mcpServers'] as Map);
+        }
 
-      // 获取现有的 mcpServers（如果不存在则创建）
-      Map<String, dynamic> mcpServers = {};
-      if (config['mcpServers'] != null) {
-        mcpServers = Map<String, dynamic>.from(config['mcpServers'] as Map);
-      }
+        // 合并策略：完全覆盖同名（serverId）的 MCP 服务，保留其他 MCP 服务
+        for (final server in serversToSync) {
+          mcpServers[server.serverId] = server.toToolConfigFormat();
+        }
 
-      // 合并策略：完全覆盖同名（serverId）的 MCP 服务，保留其他 MCP 服务
-      for (final server in serversToSync) {
-        mcpServers[server.serverId] = server.toToolConfigFormat();
-      }
-
-      // 更新配置中的 mcpServers 字段，保留 apiKey
-      config['mcpServers'] = mcpServers;
-
-      // 写入配置文件
-      await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
+        // 更新配置中的 mcpServers 字段，保留 apiKey
+        config['mcpServers'] = mcpServers;
+      });
 
       return true;
     } catch (e) {
@@ -354,72 +322,52 @@ class McpSyncService {
     try {
       final homeDir = await SettingsService.getUserHomeDir();
       final configFilePath = path.join(homeDir, '.claude.json');
-      final configFile = File(configFilePath);
 
-      // 备份原文件
-      if (await configFile.exists()) {
-        final backupPath = '$configFilePath.backup';
-        await configFile.copy(backupPath);
-      }
+      // ~/.claude.json 还保存着 Claude Code 的全部全局状态：解析失败必须中止，
+      // 绝不能以空对象覆盖（以往的实现会清空该文件）
+      await LiveConfigWriter.instance.updateJson(AiToolType.claudecode, configFilePath, (config) {
+        // 准备要写入的 mcpServers 配置
+        final mcpServersToWrite = <String, dynamic>{};
+        for (final server in serversToSync) {
+          mcpServersToWrite[server.serverId] = server.toToolConfigFormat();
+        }
 
-      // 读取现有配置
-      Map<String, dynamic> config = {};
-      if (await configFile.exists()) {
-        try {
-          final content = await configFile.readAsString();
-          config = jsonDecode(content) as Map<String, dynamic>;
-        } catch (e) {
-          print('解析 ClaudeCode 配置失败: $e');
-          config = {};
-        }
-      }
-
-      // 准备要写入的 mcpServers 配置
-      final mcpServersToWrite = <String, dynamic>{};
-      for (final server in serversToSync) {
-        mcpServersToWrite[server.serverId] = server.toToolConfigFormat();
-      }
-
-      if (scope != null && scope != 'global') {
-        // 写入项目配置
-        if (config['projects'] == null) {
-          config['projects'] = <String, dynamic>{};
-        }
-        final projects = config['projects'] as Map<String, dynamic>;
-        if (projects[scope] == null) {
-          projects[scope] = <String, dynamic>{};
-        }
-        final projectConfig = projects[scope] as Map<String, dynamic>;
+        if (scope != null && scope != 'global') {
+          // 写入项目配置
+          if (config['projects'] == null) {
+            config['projects'] = <String, dynamic>{};
+          }
+          final projects = config['projects'] as Map<String, dynamic>;
+          if (projects[scope] == null) {
+            projects[scope] = <String, dynamic>{};
+          }
+          final projectConfig = projects[scope] as Map<String, dynamic>;
         
-        // 获取项目现有的 mcpServers
-        Map<String, dynamic> projectMcpServers = {};
-        if (projectConfig['mcpServers'] != null) {
-          projectMcpServers = Map<String, dynamic>.from(projectConfig['mcpServers'] as Map);
+          // 获取项目现有的 mcpServers
+          Map<String, dynamic> projectMcpServers = {};
+          if (projectConfig['mcpServers'] != null) {
+            projectMcpServers = Map<String, dynamic>.from(projectConfig['mcpServers'] as Map);
+          }
+        
+          // 合并新的配置
+          projectMcpServers.addAll(mcpServersToWrite);
+          projectConfig['mcpServers'] = projectMcpServers;
+        
+          print('写入 ClaudeCode 项目配置: $scope');
+        } else {
+          // 写入全局配置
+          Map<String, dynamic> globalMcpServers = {};
+          if (config['mcpServers'] != null) {
+            globalMcpServers = Map<String, dynamic>.from(config['mcpServers'] as Map);
+          }
+        
+          // 合并新的配置
+          globalMcpServers.addAll(mcpServersToWrite);
+          config['mcpServers'] = globalMcpServers;
+        
+          print('写入 ClaudeCode 全局配置');
         }
-        
-        // 合并新的配置
-        projectMcpServers.addAll(mcpServersToWrite);
-        projectConfig['mcpServers'] = projectMcpServers;
-        
-        print('写入 ClaudeCode 项目配置: $scope');
-      } else {
-        // 写入全局配置
-        Map<String, dynamic> globalMcpServers = {};
-        if (config['mcpServers'] != null) {
-          globalMcpServers = Map<String, dynamic>.from(config['mcpServers'] as Map);
-        }
-        
-        // 合并新的配置
-        globalMcpServers.addAll(mcpServersToWrite);
-        config['mcpServers'] = globalMcpServers;
-        
-        print('写入 ClaudeCode 全局配置');
-      }
-
-      // 写入配置文件
-      await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
+      });
 
       return true;
     } catch (e) {
@@ -748,8 +696,8 @@ class McpSyncService {
         }
       }
 
-      // 写入文件
-      await configFile.writeAsString(buffer.toString());
+      // 写入文件（以读取时的内容为底；期间被改动则中止）
+      await _publishTextBasedOn(AiToolType.codex, configFile.path, existingContent, buffer.toString());
       return true;
     } catch (e) {
       print('同步到 Codex TOML 配置失败: $e');
@@ -1047,12 +995,7 @@ class McpSyncService {
       final configFilePath = AiToolConfigService.getConfigFilePath(tool, customConfigDir: configDir);
       final expandedPath = AiToolConfigService.expandPath(configFilePath);
 
-      // 备份原文件
-      final configFile = File(expandedPath);
-      if (await configFile.exists()) {
-        final backupPath = '$expandedPath.backup';
-        await configFile.copy(backupPath);
-      }
+      // 备份由 LiveConfigWriter 在写入前自动完成（首写 + 滚动备份）
 
       // Codex 使用 TOML 格式，需要特殊处理
       if (tool == AiToolType.codex) {
@@ -1131,14 +1074,16 @@ class McpSyncService {
           buffer.writeln('');
         }
         
-        await configFile.writeAsString(buffer.toString());
+        await LiveConfigWriter.instance.apply(tool, [
+          LiveEdit(expandedPath, (_) => buffer.toString()),
+        ]);
         return true;
       }
 
-      // 其他工具使用 JSON 格式
-      await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
+      // 其他工具使用 JSON 格式（整体替换，原子写入）
+      await LiveConfigWriter.instance.apply(tool, [
+        LiveEdit(expandedPath, (current) => JsonPatch.encode(config, original: current)),
+      ]);
 
       return true;
     } catch (e) {
@@ -1389,9 +1334,7 @@ class McpSyncService {
         return false;
       }
 
-      // 备份原文件
-      final backupPath = '$expandedPath.backup';
-      await configFile.copy(backupPath);
+      // 备份由 LiveConfigWriter 在写入前自动完成（首写 + 滚动备份）
 
       // Codex 使用 TOML 格式，需要特殊处理
       if (tool == AiToolType.codex) {
@@ -1399,35 +1342,31 @@ class McpSyncService {
       }
 
       // Gemini 和其他工具使用 JSON 格式
-      final content = await configFile.readAsString();
-      final config = jsonDecode(content) as Map<String, dynamic>;
+      var hadMcpServers = false;
+      await LiveConfigWriter.instance.updateJson(tool, expandedPath, (config) {
+        // 获取现有的 mcpServers
+        if (config['mcpServers'] == null) {
+          return;
+        }
+        hadMcpServers = true;
 
-      // 获取现有的 mcpServers
-      if (config['mcpServers'] == null) {
-        return false;
-      }
+        final mcpServers = Map<String, dynamic>.from(config['mcpServers'] as Map);
 
-      final mcpServers = Map<String, dynamic>.from(config['mcpServers'] as Map);
+        // 删除指定的服务
+        for (final serverId in serverIds) {
+          mcpServers.remove(serverId);
+        }
 
-      // 删除指定的服务
-      for (final serverId in serverIds) {
-        mcpServers.remove(serverId);
-      }
+        // 更新配置中的 mcpServers 字段
+        config['mcpServers'] = mcpServers;
 
-      // 更新配置中的 mcpServers 字段
-      config['mcpServers'] = mcpServers;
+        // Gemini 需要保留 apiKey 字段
+        if (tool == AiToolType.gemini && !config.containsKey('apiKey')) {
+          config['apiKey'] = '';
+        }
+      }, createIfMissing: false);
 
-      // Gemini 需要保留 apiKey 字段
-      if (tool == AiToolType.gemini && !config.containsKey('apiKey')) {
-        config['apiKey'] = '';
-      }
-
-      // 写入配置文件
-      await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
-
-      return true;
+      return hadMcpServers;
     } catch (e) {
       print('从工具 ${tool.displayName} 删除 MCP 服务失败: $e');
       return false;
@@ -1445,44 +1384,33 @@ class McpSyncService {
         return false;
       }
 
-      // 备份原文件
-      final backupPath = '$configFilePath.backup';
-      await configFile.copy(backupPath);
-
-      // 读取现有配置
-      final content = await configFile.readAsString();
-      final config = jsonDecode(content) as Map<String, dynamic>;
-
-      if (scope != null && scope != 'global') {
-        // 从项目配置中删除
-        final projects = config['projects'] as Map<String, dynamic>?;
-        if (projects != null && projects.containsKey(scope)) {
-          final projectConfig = projects[scope] as Map<String, dynamic>?;
-          final projectMcpServers = projectConfig?['mcpServers'] as Map<String, dynamic>?;
-          if (projectMcpServers != null) {
-            for (final serverId in serverIds) {
-              projectMcpServers.remove(serverId);
+      await LiveConfigWriter.instance.updateJson(AiToolType.claudecode, configFilePath, (config) {
+        if (scope != null && scope != 'global') {
+          // 从项目配置中删除
+          final projects = config['projects'] as Map<String, dynamic>?;
+          if (projects != null && projects.containsKey(scope)) {
+            final projectConfig = projects[scope] as Map<String, dynamic>?;
+            final projectMcpServers = projectConfig?['mcpServers'] as Map<String, dynamic>?;
+            if (projectMcpServers != null) {
+              for (final serverId in serverIds) {
+                projectMcpServers.remove(serverId);
+              }
+              projectConfig!['mcpServers'] = projectMcpServers;
+              print('从 ClaudeCode 项目配置删除: $scope');
             }
-            projectConfig!['mcpServers'] = projectMcpServers;
-            print('从 ClaudeCode 项目配置删除: $scope');
+          }
+        } else {
+          // 从全局配置中删除
+          final globalMcpServers = config['mcpServers'] as Map<String, dynamic>?;
+          if (globalMcpServers != null) {
+            for (final serverId in serverIds) {
+              globalMcpServers.remove(serverId);
+            }
+            config['mcpServers'] = globalMcpServers;
+            print('从 ClaudeCode 全局配置删除');
           }
         }
-      } else {
-        // 从全局配置中删除
-        final globalMcpServers = config['mcpServers'] as Map<String, dynamic>?;
-        if (globalMcpServers != null) {
-          for (final serverId in serverIds) {
-            globalMcpServers.remove(serverId);
-          }
-          config['mcpServers'] = globalMcpServers;
-          print('从 ClaudeCode 全局配置删除');
-        }
-      }
-
-      // 写入配置文件
-      await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
+      }, createIfMissing: false);
 
       return true;
     } catch (e) {
@@ -1754,14 +1682,27 @@ class McpSyncService {
         }
       }
 
-      // 写入文件
-      await configFile.writeAsString(buffer.toString());
+      // 写入文件（以读取时的内容为底；期间被改动则中止）
+      await _publishTextBasedOn(AiToolType.codex, configFile.path, content, buffer.toString());
 
       return true;
     } catch (e) {
       print('从 Codex TOML 配置删除 MCP 服务失败: $e');
       return false;
     }
+  }
+
+  /// 以 [basedOn]（之前读到的内容）为底发布新内容。
+  ///
+  /// 经 [LiveConfigWriter] 原子写入并自动备份；若文件在读取之后被修改，抛出
+  /// [LiveConfigConflictException] 并放弃写入，避免覆盖其他程序刚写入的内容。
+  Future<void> _publishTextBasedOn(AiToolType tool, String filePath, String basedOn, String next) {
+    return LiveConfigWriter.instance.apply(tool, [
+      LiveEdit(filePath, (current) {
+        if ((current ?? '') != basedOn) throw LiveConfigConflictException(filePath);
+        return next;
+      }),
+    ]);
   }
 }
 

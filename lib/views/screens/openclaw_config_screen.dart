@@ -151,7 +151,12 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
 
     if (item.isEnabled) {
       // 已启用 → 关闭
-      await _service.removeProviderKey(platformId: item.platformId);
+      try {
+        await _service.removeProviderKey(platformId: item.platformId);
+      } catch (e) {
+        _showWriteError(e);
+        return;
+      }
       item.isEnabled = false;
       if (mounted) {
         setState(() {});
@@ -190,13 +195,20 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
         }
       }
 
-      final result = await _service.applyProviderKey(
-        keyId: item.aiKey.id!,
-        decryptedKey: decrypted,
-        platformId: item.platformId,
-        openclawBaseUrl: item.aiKey.openclawBaseUrl,
-        openclawModel: item.aiKey.openclawModel,
-      );
+      final OpenClawApplyResult result;
+      try {
+        result = await _service.applyProviderKey(
+          keyId: item.aiKey.id!,
+          decryptedKey: decrypted,
+          platformId: item.platformId,
+          openclawBaseUrl: item.aiKey.openclawBaseUrl,
+          openclawModel: item.aiKey.openclawModel,
+        );
+      } catch (e) {
+        // 例如 openclaw.json 无法解析：已中止写入，原文件未被修改
+        _showWriteError(e);
+        return;
+      }
       item.isEnabled = true;
 
       if (mounted) {
@@ -214,6 +226,17 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
         );
       }
     }
+  }
+
+  void _showWriteError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('写入 OpenClaw 配置失败：$error'),
+        duration: const Duration(seconds: 4),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 
   @override

@@ -7,6 +7,9 @@ import '../services/auth_service.dart';
 import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
 import '../services/platform_config_path_service.dart';
+import '../models/mcp_server.dart' show AiToolType;
+import 'live_config/key_field_floor.dart';
+import 'live_config/live_config_writer.dart';
 
 /// Claude 配置服务
 /// 管理 ~/.claude/config.json 的读写
@@ -206,6 +209,11 @@ class ClaudeConfigService {
   }
 
   /// 写入配置（切换使用的密钥）
+  ///
+  /// 经 [LiveConfigWriter] 一次性提交 settings.json 与 config.json：
+  /// - 只改关键字段（[KeyFieldFloor.claudeKeysClearedOnSwitch]），其余键与顺序保持不变；
+  /// - 任一文件解析失败则中止，不会以空对象覆盖用户配置；
+  /// - 原子写入、自动备份，文件权限 0600。
   Future<bool> switchProvider(AIKey key) async {
     try {
       // 解密密钥值
@@ -218,91 +226,28 @@ class ClaudeConfigService {
         }
       }
 
-      // 读取或创建 config.json
-      final config = await readConfig() ?? {};
-      
-      // 读取或创建 settings.json
-      final settings = await readSettings() ?? {};
-      
-      // 更新 settings.json 中的配置
-      if (!settings.containsKey('env')) {
-        settings['env'] = <String, dynamic>{};
-      }
-      
-      // 确保 env 是 Map 类型
-      final env = (settings['env'] as Map<String, dynamic>?) ?? <String, dynamic>{};
-      settings['env'] = env;
-      
-      // 设置 ANTHROPIC_AUTH_TOKEN
-      env['ANTHROPIC_AUTH_TOKEN'] = apiKey;
-      
-      // 设置 ANTHROPIC_BASE_URL（如果提供了）
-      if (key.claudeCodeBaseUrl != null && key.claudeCodeBaseUrl!.isNotEmpty) {
-        env['ANTHROPIC_BASE_URL'] = key.claudeCodeBaseUrl;
-      } else {
-        // 如果没有提供 Base URL，使用默认的官方地址
-        env.remove('ANTHROPIC_BASE_URL');
-        print('ClaudeConfigService: 移除 BASE_URL（使用官方地址）');
-      }
-      
-      // 设置 ANTHROPIC_MODEL（主模型，如果提供了）
-      if (key.claudeCodeModel != null && key.claudeCodeModel!.isNotEmpty) {
-        env['ANTHROPIC_MODEL'] = key.claudeCodeModel;
-      } else {
-        env.remove('ANTHROPIC_MODEL');
-      }
-      
-      // 设置 ANTHROPIC_DEFAULT_HAIKU_MODEL（Haiku 模型，如果提供了）
-      if (key.claudeCodeHaikuModel != null && key.claudeCodeHaikuModel!.isNotEmpty) {
-        env['ANTHROPIC_DEFAULT_HAIKU_MODEL'] = key.claudeCodeHaikuModel;
-        print('ClaudeConfigService: 设置 HAIKU_MODEL = ${key.claudeCodeHaikuModel}');
-      } else {
-        env.remove('ANTHROPIC_DEFAULT_HAIKU_MODEL');
-      }
-      
-      // 设置 ANTHROPIC_DEFAULT_SONNET_MODEL（Sonnet 模型，如果提供了）
-      if (key.claudeCodeSonnetModel != null && key.claudeCodeSonnetModel!.isNotEmpty) {
-        env['ANTHROPIC_DEFAULT_SONNET_MODEL'] = key.claudeCodeSonnetModel;
-        print('ClaudeConfigService: 设置 SONNET_MODEL = ${key.claudeCodeSonnetModel}');
-      } else {
-        env.remove('ANTHROPIC_DEFAULT_SONNET_MODEL');
-      }
-      
-      // 设置 ANTHROPIC_DEFAULT_OPUS_MODEL（Opus 模型，如果提供了）
-      if (key.claudeCodeOpusModel != null && key.claudeCodeOpusModel!.isNotEmpty) {
-        env['ANTHROPIC_DEFAULT_OPUS_MODEL'] = key.claudeCodeOpusModel;
-        print('ClaudeConfigService: 设置 OPUS_MODEL = ${key.claudeCodeOpusModel}');
-      } else {
-        env.remove('ANTHROPIC_DEFAULT_OPUS_MODEL');
-      }
-      
-      // 设置 primaryApiKey（用于插件联动）
-      config['primaryApiKey'] = apiKey;
-      
-      // 确保配置目录存在
-      final configDir = await _getConfigDir();
-      final dir = Directory(configDir);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      
-      // 写入 config.json
-      final configPath = await _getConfigFilePath();
-      final configFile = File(configPath);
-      await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
-      
-      // 写入 settings.json
       final settingsPath = await _getSettingsFilePath();
-      final settingsFile = File(settingsPath);
-      await settingsFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(settings),
-      );
-      
+      final configPath = await _getConfigFilePath();
+
+      await LiveConfigWriter.instance.apply(AiToolType.claudecode, [
+        LiveEdit.json(
+          settingsPath,
+          (settings) => applyProviderToSettings(settings, key, apiKey),
+          containsSecrets: true,
+        ),
+        // primaryApiKey 用于 VS Code 插件联动
+        LiveEdit.json(
+          configPath,
+          (config) {
+            config['primaryApiKey'] = apiKey;
+          },
+          containsSecrets: true,
+        ),
+      ]);
+
       // 清除官方配置缓存
       _clearOfficialConfigCache();
-      
+
       return true;
     } catch (e) {
       print('ClaudeConfigService: 切换配置失败: $e');
@@ -310,32 +255,46 @@ class ClaudeConfigService {
     }
   }
 
-  /// 备份当前配置
-  Future<bool> backupConfig() async {
-    try {
-      final configPath = await _getConfigFilePath();
-      final configFile = File(configPath);
-      
-      if (!await configFile.exists()) {
-        return true; // 没有配置文件，不需要备份
-      }
-      
-      final backupPath = '$configPath.bak';
-      await configFile.copy(backupPath);
-      
-      final settingsPath = await _getSettingsFilePath();
-      final settingsFile = File(settingsPath);
-      
-      if (await settingsFile.exists()) {
-        final settingsBackupPath = '$settingsPath.bak';
-        await settingsFile.copy(settingsBackupPath);
-      }
-      
-      return true;
-    } catch (e) {
-      return false;
+  /// 把密钥的关键字段写入 settings.json 文档（纯函数，便于测试）。
+  ///
+  /// 先清空 Key Core 拥有的关键字段，再写入该密钥的值；`env` 中的其他变量与
+  /// 顶层其他键保持不变。
+  static void applyProviderToSettings(Map<String, dynamic> settings, AIKey key, String apiKey) {
+    final env = _ensureEnv(settings);
+
+    for (final k in KeyFieldFloor.claudeKeysClearedOnSwitch) {
+      if (k != KeyFieldFloor.claudeAuthToken) env.remove(k);
     }
+
+    env[KeyFieldFloor.claudeAuthToken] = apiKey;
+
+    final values = <String, String?>{
+      KeyFieldFloor.claudeBaseUrl: key.claudeCodeBaseUrl,
+      'ANTHROPIC_MODEL': key.claudeCodeModel,
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL': key.claudeCodeHaikuModel,
+      'ANTHROPIC_DEFAULT_SONNET_MODEL': key.claudeCodeSonnetModel,
+      'ANTHROPIC_DEFAULT_OPUS_MODEL': key.claudeCodeOpusModel,
+    };
+    values.forEach((name, value) {
+      if (value != null && value.isNotEmpty) env[name] = value;
+    });
   }
+
+  /// 取得 settings.json 中的 env 对象（不存在或类型不对时新建）
+  static Map<String, dynamic> _ensureEnv(Map<String, dynamic> settings) {
+    final raw = settings['env'];
+    if (raw is Map<String, dynamic>) return raw;
+    final env = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    settings['env'] = env;
+    return env;
+  }
+
+  /// 备份当前配置
+  ///
+  /// 保留该方法以兼容调用方。备份现在由 [LiveConfigWriter] 在每次写入前自动完成
+  /// （首写备份 + 带时间戳的滚动备份，位于 `~/.keycore/backups/live`），
+  /// 不再生成会被反复覆盖的单份 `.bak` 文件。
+  Future<bool> backupConfig() async => true;
 
   /// 获取当前使用的 API Key
   /// 优先从 settings.json 的 env.ANTHROPIC_AUTH_TOKEN 读取
@@ -439,86 +398,35 @@ class ClaudeConfigService {
   /// 如果本地存储有官方API Key，则写入；没有则清空
   Future<bool> switchToOfficial() async {
     try {
-      // 备份当前配置
-      await backupConfig();
-
-      // 读取或创建 settings.json
-      final settings = await readSettings() ?? {};
-      
-      // 更新 settings.json 中的配置
-      if (!settings.containsKey('env')) {
-        settings['env'] = <String, dynamic>{};
-      }
-      
-      final env = settings['env'] as Map<String, dynamic>;
-      
-      // 清除第三方密钥的配置
-      // 1. 清除 URL 配置
-      env.remove('ANTHROPIC_BASE_URL');
-      
-      // 2. 清除模型配置
-      const modelKeys = [
-        'ANTHROPIC_MODEL',
-        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-        'ANTHROPIC_DEFAULT_SONNET_MODEL',
-        'ANTHROPIC_DEFAULT_OPUS_MODEL',
-      ];
-      for (final key in modelKeys) {
-        env.remove(key);
-      }
-      
-      // 3. 清除第三方密钥配置，然后设置官方API Key
-      env.remove('ANTHROPIC_AUTH_TOKEN');
-      
-      // 确保 SettingsService 已初始化
+      // 确保 SettingsService 已初始化（官方 API Key 存于系统钥匙串）
       await _settingsService.init();
-      
-      // 读取本地存储的官方API Key
       final officialApiKey = _settingsService.getOfficialClaudeApiKey();
-      
-      // 根据本地存储的官方API Key设置或删除 ANTHROPIC_AUTH_TOKEN
-      if (officialApiKey != null && officialApiKey.isNotEmpty) {
-        // 如果本地有存储的官方API Key，写入到settings.json
-        env['ANTHROPIC_AUTH_TOKEN'] = officialApiKey;
-      } else {
-        // 如果本地没有存储官方API Key，确保清空（已经remove了）
-      }
-      
-      // 读取或创建 config.json
-      final config = await readConfig() ?? {};
-      
-      // 如果存在 ANTHROPIC_AUTH_TOKEN，更新 primaryApiKey
-      if (env['ANTHROPIC_AUTH_TOKEN'] != null && 
-          (env['ANTHROPIC_AUTH_TOKEN'] as String).isNotEmpty) {
-        config['primaryApiKey'] = env['ANTHROPIC_AUTH_TOKEN'];
-      } else {
-        config.remove('primaryApiKey');
-      }
-      
-      // 确保配置目录存在
-      final configDir = await _getConfigDir();
-      final dir = Directory(configDir);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      
-      // 写入 config.json
-      final configPath = await _getConfigFilePath();
-      final configFile = File(configPath);
-      await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
-      
-      // 写入 settings.json
+
       final settingsPath = await _getSettingsFilePath();
-      final settingsFile = File(settingsPath);
-      await settingsFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(settings),
-      );
-      
+      final configPath = await _getConfigFilePath();
+
+      await LiveConfigWriter.instance.apply(AiToolType.claudecode, [
+        LiveEdit.json(
+          settingsPath,
+          (settings) => applyOfficialToSettings(settings, officialApiKey),
+          containsSecrets: true,
+        ),
+        LiveEdit.json(
+          configPath,
+          (config) {
+            if (officialApiKey != null && officialApiKey.isNotEmpty) {
+              config['primaryApiKey'] = officialApiKey;
+            } else {
+              config.remove('primaryApiKey');
+            }
+          },
+          containsSecrets: true,
+        ),
+      ]);
+
       // 清除官方配置缓存
       _clearOfficialConfigCache();
-      
+
       return true;
     } catch (e) {
       print('ClaudeConfigService: 切换官方配置失败: $e');
@@ -526,134 +434,75 @@ class ClaudeConfigService {
     }
   }
 
+  /// 官方模式下 settings.json 的关键字段（纯函数，便于测试）
+  ///
+  /// 与以往行为一致：移除地址、模型与第三方密钥，有官方 Key 时写入 ANTHROPIC_AUTH_TOKEN；
+  /// 用户在官方配置中自定义的其他 env 变量保持不变。
+  static void applyOfficialToSettings(Map<String, dynamic> settings, String? officialApiKey) {
+    final env = _ensureEnv(settings);
+    for (final k in KeyFieldFloor.claudeOfficialManagedKeys) {
+      env.remove(k);
+    }
+    if (officialApiKey != null && officialApiKey.isNotEmpty) {
+      env[KeyFieldFloor.claudeAuthToken] = officialApiKey;
+    }
+  }
+
   /// 更新官方配置的 env 环境变量
   /// [envVars] 要更新的环境变量映射，如果值为空字符串则删除该变量
-  /// API Key保存到本地存储，env配置直接写入到settings.json（不管当前是否是官方配置）
+  /// API Key保存到系统钥匙串，env配置直接写入到settings.json（不管当前是否是官方配置）
   /// 只修改env配置，不修改密钥、URL、模型配置，不执行切换操作
   Future<bool> updateOfficialConfigEnv(Map<String, String> envVars) async {
     try {
       // 确保 SettingsService 已初始化
       await _settingsService.init();
-      
-      // 1. 保存API Key到本地存储
-      if (envVars.containsKey('ANTHROPIC_AUTH_TOKEN')) {
-        final apiKey = envVars['ANTHROPIC_AUTH_TOKEN']!.trim();
-        if (apiKey.isEmpty) {
-          await _settingsService.setOfficialClaudeApiKey(null);
-        } else {
-          await _settingsService.setOfficialClaudeApiKey(apiKey);
-        }
+
+      // 1. 保存API Key到系统钥匙串
+      if (envVars.containsKey(KeyFieldFloor.claudeAuthToken)) {
+        final apiKey = envVars[KeyFieldFloor.claudeAuthToken]!.trim();
+        await _settingsService.setOfficialClaudeApiKey(apiKey.isEmpty ? null : apiKey);
         // 从envVars中移除，避免写入到settings.json（API Key只在切换时写入）
-        envVars.remove('ANTHROPIC_AUTH_TOKEN');
+        envVars.remove(KeyFieldFloor.claudeAuthToken);
       }
-      
-      // 模型配置字段列表（不保存，直接忽略）
-      const modelKeys = [
-        'ANTHROPIC_MODEL',
-        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-        'ANTHROPIC_DEFAULT_SONNET_MODEL',
-        'ANTHROPIC_DEFAULT_OPUS_MODEL',
-      ];
-      
-      // 移除模型配置，不保存
-      for (final key in modelKeys) {
-        envVars.remove(key);
-      }
-      
-      // 直接写入env配置到settings.json（不管当前是否是官方配置）
-      final settings = await readSettings() ?? {};
-      
-      if (!settings.containsKey('env')) {
-        settings['env'] = <String, dynamic>{};
-      }
-      
-      final env = settings['env'] as Map<String, dynamic>;
-      
-      // 保存当前的关键配置，避免被覆盖
-      final currentAuthToken = env['ANTHROPIC_AUTH_TOKEN'];
-      final currentBaseUrl = env['ANTHROPIC_BASE_URL'];
-      final currentModelKeys = <String, dynamic>{};
-      for (final key in modelKeys) {
-        if (env.containsKey(key)) {
-          currentModelKeys[key] = env[key];
-        }
-      }
-      
-      // 记录所有应该保留的自定义env变量（从envVars中获取）
-      final customEnvKeysToKeep = <String>{};
-      
-      // 更新其他环境变量到settings.json（只更新自定义env变量）
-      envVars.forEach((key, value) {
-        // 跳过关键配置
-        if (key == 'ANTHROPIC_AUTH_TOKEN' || 
-            key == 'ANTHROPIC_BASE_URL' || 
-            modelKeys.contains(key)) {
-          return;
-        }
-        
-        if (value.isEmpty) {
-          // 如果值为空，删除该环境变量
-          env.remove(key);
-        } else {
-          // 否则更新或添加该环境变量
-          env[key] = value;
-          customEnvKeysToKeep.add(key);
-        }
-      });
-      
-      // 删除那些不在envVars中的自定义env变量（用户从表单中删除的）
-      final keysToRemove = <String>[];
-      env.forEach((key, value) {
-        // 跳过关键配置
-        if (key == 'ANTHROPIC_AUTH_TOKEN' || 
-            key == 'ANTHROPIC_BASE_URL' || 
-            modelKeys.contains(key)) {
-          return;
-        }
-        
-        // 如果这个key不在要保留的列表中，标记为删除
-        if (!customEnvKeysToKeep.contains(key)) {
-          keysToRemove.add(key);
-        }
-      });
-      
-      // 执行删除
-      for (final key in keysToRemove) {
-        env.remove(key);
-      }
-      
-      // 恢复关键配置（确保不被修改）
-      if (currentAuthToken != null) {
-        env['ANTHROPIC_AUTH_TOKEN'] = currentAuthToken;
-      }
-      if (currentBaseUrl != null) {
-        env['ANTHROPIC_BASE_URL'] = currentBaseUrl;
-      }
-      currentModelKeys.forEach((key, value) {
-        env[key] = value;
-      });
-      
-      // 2. 写入env配置到settings.json
-      final configDir = await _getConfigDir();
-      final dir = Directory(configDir);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      
+
       final settingsPath = await _getSettingsFilePath();
-      final settingsFile = File(settingsPath);
-      await settingsFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(settings),
+      await LiveConfigWriter.instance.updateJson(
+        AiToolType.claudecode,
+        settingsPath,
+        (settings) => applyOfficialEnvEdits(settings, envVars),
+        containsSecrets: true,
       );
-      
+
       // 清除官方配置缓存
       _clearOfficialConfigCache();
-      
+
       return true;
     } catch (e) {
       print('ClaudeConfigService: 更新官方配置失败: $e');
       return false;
     }
+  }
+
+  /// 用表单中的自定义 env 变量替换 settings.json 中的自定义变量（纯函数，便于测试）。
+  ///
+  /// 关键字段（密钥、地址、模型）保持原值不动；表单里没有的自定义变量被删除；
+  /// 值为空字符串的变量被删除。
+  static void applyOfficialEnvEdits(Map<String, dynamic> settings, Map<String, String> envVars) {
+    final env = _ensureEnv(settings);
+    bool isManaged(String key) => KeyFieldFloor.claudeOfficialManagedKeys.contains(key);
+
+    final keep = <String>{};
+    envVars.forEach((key, value) {
+      if (isManaged(key)) return;
+      if (value.isEmpty) {
+        env.remove(key);
+      } else {
+        env[key] = value;
+        keep.add(key);
+      }
+    });
+
+    env.removeWhere((key, _) => !isManaged(key) && !keep.contains(key));
   }
 }
 

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:key_core/models/mcp_server.dart';
 import 'package:key_core/services/ai_tool_config_service.dart';
 import 'package:key_core/services/openclaw_config_service.dart';
+import 'package:key_core/services/live_config/live_config_writer.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,7 @@ void main() {
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('openclaw_test_');
+    LiveConfigWriter.debugBackupRootOverride = '${tempDir.path}/.backups';
     SharedPreferences.setMockInitialValues({});
     toolConfigService = AiToolConfigService();
     await toolConfigService.setConfigDir(AiToolType.openclaw, tempDir.path);
@@ -24,6 +26,7 @@ void main() {
   });
 
   tearDown(() async {
+    LiveConfigWriter.debugBackupRootOverride = null;
     if (await tempDir.exists()) {
       await tempDir.delete(recursive: true);
     }
@@ -50,6 +53,54 @@ void main() {
         config['agents']?['defaults']?['model']?['primary'],
         'deepseek/deepseek-chat',
       );
+    });
+  });
+
+  group('LiveConfigWriter 安全写入', () {
+    test('openclaw.json 无法解析时中止，openclaw.json 与 .env 都不被修改', () async {
+      final configFile = File('${tempDir.path}/openclaw.json');
+      final envFile = File('${tempDir.path}/.env');
+      const broken = '{\n  // gateway\n  "gateway": { "port": 18789 \n';
+      await configFile.writeAsString(broken);
+      await envFile.writeAsString('# mine\nOTHER=1\n');
+
+      await expectLater(
+        service.applyProviderKey(
+          keyId: 9,
+          decryptedKey: 'sk-should-not-be-written',
+          platformId: 'deepSeek',
+        ),
+        throwsA(isA<LiveConfigParseException>()),
+      );
+      expect(await configFile.readAsString(), broken);
+      expect(await envFile.readAsString(), '# mine\nOTHER=1\n');
+    });
+
+    test('写入后 .env 为 0600，并保留注释与其他变量', () async {
+      final envFile = File('${tempDir.path}/.env');
+      await envFile.writeAsString('# mine\nOTHER=1\n');
+      await service.applyProviderKey(keyId: 1, decryptedKey: 'sk-1', platformId: 'deepSeek');
+      expect(await envFile.readAsString(), '# mine\nOTHER=1\nDEEPSEEK_API_KEY=sk-1\n');
+      if (!Platform.isWindows) {
+        expect((await envFile.stat()).mode & 0x1FF, 0x180);
+      }
+    });
+
+    test('JSON5 配置被修改时保留未知字段（注释由首写备份保存）', () async {
+      final configFile = File('${tempDir.path}/openclaw.json');
+      const original = '{\n  // keep me\n  "gateway": { "port": 18789 },\n  "custom": [1, 2,],\n}\n';
+      await configFile.writeAsString(original);
+      await service.removeCustomProvider('nothing');
+      // 无实际改动 → 不写盘
+      expect(await configFile.readAsString(), original);
+
+      await service.applyProviderKey(keyId: 1, decryptedKey: 'sk-1', platformId: 'deepSeek');
+      final config = jsonDecode(await configFile.readAsString()) as Map<String, dynamic>;
+      expect(config['gateway'], {'port': 18789});
+      expect(config['custom'], [1, 2]);
+      final first = await LiveConfigWriter.instance
+          .firstWriteBackupPath(AiToolType.openclaw, configFile.path);
+      expect(await File(first).readAsString(), original);
     });
   });
 
