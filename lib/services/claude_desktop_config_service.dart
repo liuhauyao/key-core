@@ -6,6 +6,8 @@ import '../services/auth_service.dart';
 import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
 import '../services/platform_config_path_service.dart';
+import '../models/mcp_server.dart' show AiToolType;
+import 'live_config/live_config_writer.dart';
 
 /// Claude Desktop 配置服务
 ///
@@ -139,24 +141,10 @@ class ClaudeDesktopConfigService {
   }
 
   /// 备份当前配置
-  Future<bool> backupConfig() async {
-    try {
-      final configPath = await _getConfigFilePath();
-      final configFile = File(configPath);
-      if (await configFile.exists()) {
-        await configFile.copy('$configPath.bak');
-      }
-      final profilePath = await _getProfilePath();
-      final profileFile = File(profilePath);
-      if (await profileFile.exists()) {
-        await profileFile.copy('$profilePath.bak');
-      }
-      return true;
-    } catch (e) {
-      print('ClaudeDesktopConfigService: 备份配置失败: $e');
-      return false;
-    }
-  }
+  ///
+  /// 保留该方法以兼容调用方。备份现在由 [LiveConfigWriter] 在每次写入前自动完成
+  /// （首写备份 + 滚动备份，位于 `~/.keycore/backups/live`）。
+  Future<bool> backupConfig() async => true;
 
   /// 切换 Claude Desktop 使用的密钥
   ///
@@ -176,63 +164,13 @@ class ClaudeDesktopConfigService {
         }
       }
 
-      // 1. 读取/创建 claude_desktop_config.json
-      final config = await readConfig() ?? <String, dynamic>{};
-      config['deploymentMode'] = '3p';
-      config['configLibraryReference'] = {
-        'id': _profileId,
-        'name': 'Key Core',
-      };
-
-      // 清理旧的 key-core-env MCP 条目（如果有）
-      if (config.containsKey('mcpServers')) {
-        final mcpServers = config['mcpServers'] as Map<String, dynamic>;
-        mcpServers.remove('key-core-env');
-        if (mcpServers.isEmpty) {
-          config.remove('mcpServers');
-        }
-      }
-
-      // 2. 构建 Profile
+      // 1. Profile（Key Core 专用文件，整份由我们生成）
       final baseUrl = key.claudeDesktopBaseUrl?.isNotEmpty == true
           ? key.claudeDesktopBaseUrl!
           : 'https://api.anthropic.com';
+      final profile = buildProfile(key, apiKey: apiKey, baseUrl: baseUrl);
 
-      // 使用用户为每个路由配置的模型映射做 labelOverride
-      // 未配置时使用 claudeDesktopModel 作为 sonnet 的兜底
-      final sonnetLabel = key.claudeDesktopSonnetModel?.isNotEmpty == true
-          ? key.claudeDesktopSonnetModel
-          : (key.claudeDesktopModel?.isNotEmpty == true ? key.claudeDesktopModel : null);
-      final haikuLabel = key.claudeDesktopHaikuModel?.isNotEmpty == true
-          ? key.claudeDesktopHaikuModel
-          : null;
-      final opusLabel = key.claudeDesktopOpusModel?.isNotEmpty == true
-          ? key.claudeDesktopOpusModel
-          : null;
-
-      final models = <dynamic>[
-        sonnetLabel != null
-            ? {'name': 'claude-sonnet-4-6', 'labelOverride': sonnetLabel, 'supports1m': true}
-            : 'claude-sonnet-4-6',
-        opusLabel != null
-            ? {'name': 'claude-opus-4-8', 'labelOverride': opusLabel, 'supports1m': true}
-            : {'name': 'claude-opus-4-8', 'supports1m': true},
-        haikuLabel != null
-            ? {'name': 'claude-haiku-4-5', 'labelOverride': haikuLabel, 'supports1m': true}
-            : {'name': 'claude-haiku-4-5', 'supports1m': true},
-      ];
-
-      final profile = <String, dynamic>{
-        'coworkEgressAllowedHosts': ['*'],
-        'disableDeploymentModeChooser': true,
-        'inferenceGatewayApiKey': apiKey,
-        'inferenceGatewayAuthScheme': 'bearer',
-        'inferenceGatewayBaseUrl': baseUrl,
-        'inferenceProvider': 'gateway',
-        'inferenceModels': models,
-      };
-
-      // 3. 构建 meta.json
+      // 2. meta.json（跟踪当前激活的 Profile）
       final meta = <String, dynamic>{
         'appliedId': _profileId,
         'entries': [
@@ -244,62 +182,42 @@ class ClaudeDesktopConfigService {
         ],
       };
 
-      // 4. 确保目录存在并原子写入
-      final configDir = await _getConfigDir();
-      await Directory(configDir).create(recursive: true);
-
-      final libraryDir = await PlatformConfigPathService.getClaudeDesktop3pConfigLibraryDir();
-      await Directory(libraryDir).create(recursive: true);
-
-      // 写 claude_desktop_config.json（主配置文件）
       final configPath = await _getConfigFilePath();
-      final tempConfigPath = '$configPath.tmp';
-      await File(tempConfigPath).writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
-      await File(tempConfigPath).rename(configPath);
-
-      // 写 Claude-3p/configLibrary/claude_desktop_config.json（3p 专用配置文件）
+      final libraryDir = await PlatformConfigPathService.getClaudeDesktop3pConfigLibraryDir();
       final threepConfigPath = path.join(libraryDir, 'claude_desktop_config.json');
-      final tempThreepPath = '$threepConfigPath.tmp';
-      await File(tempThreepPath).writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
-      await File(tempThreepPath).rename(threepConfigPath);
-
-      // 写 Profile
       final profilePath = await _getProfilePath();
-      final tempProfilePath = '$profilePath.tmp';
-      await File(tempProfilePath).writeAsString(
-        const JsonEncoder.withIndent('  ').convert(profile),
-      );
-      await File(tempProfilePath).rename(profilePath);
-
-      // 写 meta.json
       final metaPath = await _getMetaPath();
-      final tempMetaPath = '$metaPath.tmp';
-      await File(tempMetaPath).writeAsString(
-        const JsonEncoder.withIndent('  ').convert(meta),
-      );
-      await File(tempMetaPath).rename(metaPath);
 
-      // 覆盖其他工具残留的 _meta.json 和 profile（如存在），防止干扰
-      final staleMetaPath = path.join(libraryDir, '_meta.json');
-      final staleMetaFile = File(staleMetaPath);
-      if (await staleMetaFile.exists()) {
-        try {
-          await staleMetaFile.writeAsString(
-            const JsonEncoder.withIndent('  ').convert({'appliedId': _profileId, 'entries': []}),
-          );
-        } catch (_) {}
-      }
-      final staleProfilePath = path.join(libraryDir, 'd808fcc1-9179-4599-aa44-003947430bdd.json');
-      final staleProfileFile = File(staleProfilePath);
-      if (await staleProfileFile.exists()) {
-        try {
-          await staleProfileFile.writeAsString('{}');
-        } catch (_) {}
-      }
+      // 主配置写完后的内容会原样写入 3p 专用配置文件
+      Map<String, dynamic>? appliedConfig;
+
+      await LiveConfigWriter.instance.apply(AiToolType.claudeDesktop, [
+        // claude_desktop_config.json：deploymentMode=3p + configLibraryReference，其他键保留
+        LiveEdit.json(configPath, (config) {
+          applyThirdPartyMode(config);
+          appliedConfig = config;
+        }),
+        // Claude-3p/configLibrary/claude_desktop_config.json（3p 专用配置文件）
+        LiveEdit(threepConfigPath, (current) => JsonPatch.encode(appliedConfig!, original: current)),
+        LiveEdit(
+          profilePath,
+          (current) => JsonPatch.encode(profile, original: current),
+          containsSecrets: true,
+        ),
+        LiveEdit(metaPath, (current) => JsonPatch.encode(meta, original: current)),
+        // 保持既有行为：覆盖其他工具残留的 _meta.json 和 profile（如存在）。
+        // 是否应改为在 _meta.json 中登记条目，需在真机上确认（见 PR 说明“待确认事项”）。
+        LiveEdit(
+          path.join(libraryDir, '_meta.json'),
+          (current) => current == null
+              ? null
+              : JsonPatch.encode({'appliedId': _profileId, 'entries': []}, original: current),
+        ),
+        LiveEdit(
+          path.join(libraryDir, '$_staleProfileId.json'),
+          (current) => current == null ? null : '{}',
+        ),
+      ]);
 
       _cachedIsOfficial = null;
       print('ClaudeDesktopConfigService: 切换成功 - Profile=$_profileId, BaseUrl=$baseUrl');
@@ -308,6 +226,58 @@ class ClaudeDesktopConfigService {
       print('ClaudeDesktopConfigService: 切换配置失败: $e');
       return false;
     }
+  }
+
+  /// 其他工具遗留的 Profile 文件 ID（沿用既有行为）
+  static const String _staleProfileId = 'd808fcc1-9179-4599-aa44-003947430bdd';
+
+  /// 设置 3p 模式（纯函数，便于测试）
+  static void applyThirdPartyMode(Map<String, dynamic> config) {
+    config['deploymentMode'] = '3p';
+    config['configLibraryReference'] = {
+      'id': _profileId,
+      'name': 'Key Core',
+    };
+    // 清理旧的 key-core-env MCP 条目（如果有）
+    final mcpServers = config['mcpServers'];
+    if (mcpServers is Map) {
+      mcpServers.remove('key-core-env');
+      if (mcpServers.isEmpty) config.remove('mcpServers');
+    }
+  }
+
+  /// 构建 Profile（纯函数，便于测试）
+  ///
+  /// 使用用户为每个路由配置的模型映射做 labelOverride；
+  /// 未配置时使用 claudeDesktopModel 作为 sonnet 的兜底。
+  static Map<String, dynamic> buildProfile(AIKey key, {required String apiKey, required String baseUrl}) {
+    final sonnetLabel = key.claudeDesktopSonnetModel?.isNotEmpty == true
+        ? key.claudeDesktopSonnetModel
+        : (key.claudeDesktopModel?.isNotEmpty == true ? key.claudeDesktopModel : null);
+    final haikuLabel = key.claudeDesktopHaikuModel?.isNotEmpty == true ? key.claudeDesktopHaikuModel : null;
+    final opusLabel = key.claudeDesktopOpusModel?.isNotEmpty == true ? key.claudeDesktopOpusModel : null;
+
+    final models = <dynamic>[
+      sonnetLabel != null
+          ? {'name': 'claude-sonnet-4-6', 'labelOverride': sonnetLabel, 'supports1m': true}
+          : 'claude-sonnet-4-6',
+      opusLabel != null
+          ? {'name': 'claude-opus-4-8', 'labelOverride': opusLabel, 'supports1m': true}
+          : {'name': 'claude-opus-4-8', 'supports1m': true},
+      haikuLabel != null
+          ? {'name': 'claude-haiku-4-5', 'labelOverride': haikuLabel, 'supports1m': true}
+          : {'name': 'claude-haiku-4-5', 'supports1m': true},
+    ];
+
+    return <String, dynamic>{
+      'coworkEgressAllowedHosts': ['*'],
+      'disableDeploymentModeChooser': true,
+      'inferenceGatewayApiKey': apiKey,
+      'inferenceGatewayAuthScheme': 'bearer',
+      'inferenceGatewayBaseUrl': baseUrl,
+      'inferenceProvider': 'gateway',
+      'inferenceModels': models,
+    };
   }
 
   /// 获取当前使用的 API Key（从 Profile 中读取）
@@ -357,81 +327,46 @@ class ClaudeDesktopConfigService {
   ///   3. 更新 meta.json 移除 Profile 条目
   Future<bool> switchToOfficial() async {
     try {
-      await backupConfig();
-
-      // 1. 读取/创建 claude_desktop_config.json
-      final config = await readConfig() ?? <String, dynamic>{};
-      config['deploymentMode'] = '1p';
-      config.remove('configLibraryReference');
-
-      // 清理旧的 key-core-env MCP 条目
-      if (config.containsKey('mcpServers')) {
-        final mcpServers = config['mcpServers'] as Map<String, dynamic>;
-        mcpServers.remove('key-core-env');
-      }
-
-      // 2. 删除 Profile 文件
-      final profilePath = await _getProfilePath();
-      final profileFile = File(profilePath);
-      if (await profileFile.exists()) {
-        await profileFile.delete();
-      }
-
-      // 删除 3p configLibrary/claude_desktop_config.json
-      final libraryDir = await PlatformConfigPathService.getClaudeDesktop3pConfigLibraryDir();
-      final threepConfigPath = path.join(libraryDir, 'claude_desktop_config.json');
-      final threepConfigFile = File(threepConfigPath);
-      if (await threepConfigFile.exists()) {
-        await threepConfigFile.delete();
-      }
-
-      // 覆盖其他工具残留的 _meta.json 和 profile，防止干扰官方配置
-      final staleMetaPath = path.join(libraryDir, '_meta.json');
-      final staleMetaFile = File(staleMetaPath);
-      if (await staleMetaFile.exists()) {
-        try {
-          await staleMetaFile.writeAsString('{}');
-        } catch (_) {}
-      }
-      final staleProfilePath = path.join(libraryDir, 'd808fcc1-9179-4599-aa44-003947430bdd.json');
-      final staleProfileFile = File(staleProfilePath);
-      if (await staleProfileFile.exists()) {
-        try {
-          await staleProfileFile.writeAsString('{}');
-        } catch (_) {}
-      }
-
-      // 3. 更新 meta.json 移除条目
-      final metaPath = await _getMetaPath();
-      final metaFile = File(metaPath);
-      if (await metaFile.exists()) {
-        try {
-          final content = await metaFile.readAsString();
-          final meta = jsonDecode(content);
-          if (meta is Map) {
-            meta.remove('appliedId');
-            final entries = meta['entries'];
-            if (entries is List) {
-              entries.removeWhere((e) =>
-                  (e is Map && e['id'] == _profileId));
-              if (entries.isEmpty) {
-                meta.remove('entries');
-              }
-            }
-            await metaFile.writeAsString(
-              const JsonEncoder.withIndent('  ').convert(meta),
-            );
-          }
-        } catch (e) {
-          // meta.json 损坏或不存在的处理 — 可以忽略
-        }
-      }
-
       final configPath = await _getConfigFilePath();
-      final configFile = File(configPath);
-      await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config),
-      );
+      final libraryDir = await PlatformConfigPathService.getClaudeDesktop3pConfigLibraryDir();
+      final profilePath = await _getProfilePath();
+      final metaPath = await _getMetaPath();
+
+      await LiveConfigWriter.instance.apply(AiToolType.claudeDesktop, [
+        // 1. claude_desktop_config.json → deploymentMode: "1p"
+        LiveEdit.json(configPath, (config) {
+          config['deploymentMode'] = '1p';
+          config.remove('configLibraryReference');
+          final mcpServers = config['mcpServers'];
+          if (mcpServers is Map) mcpServers.remove('key-core-env');
+        }),
+        // 2. 删除 Profile 与 3p 专用配置文件（删除前自动备份）
+        LiveEdit.delete(profilePath),
+        LiveEdit.delete(path.join(libraryDir, 'claude_desktop_config.json')),
+        // 保持既有行为：覆盖其他工具残留的 _meta.json 和 profile（待真机确认）
+        LiveEdit(path.join(libraryDir, '_meta.json'), (current) => current == null ? null : '{}'),
+        LiveEdit(
+          path.join(libraryDir, '$_staleProfileId.json'),
+          (current) => current == null ? null : '{}',
+        ),
+        // 3. meta.json 移除我们的条目；解析失败时保持原样（与既有行为一致）
+        LiveEdit(metaPath, (current) {
+          if (current == null) return null;
+          final Map<String, dynamic> meta;
+          try {
+            meta = JsonPatch.parseObject(metaPath, current);
+          } on LiveConfigParseException {
+            return current;
+          }
+          meta.remove('appliedId');
+          final entries = meta['entries'];
+          if (entries is List) {
+            entries.removeWhere((e) => e is Map && e['id'] == _profileId);
+            if (entries.isEmpty) meta.remove('entries');
+          }
+          return JsonPatch.encode(meta, original: current);
+        }),
+      ]);
 
       _cachedIsOfficial = null;
       print('ClaudeDesktopConfigService: 已切换回官方配置');

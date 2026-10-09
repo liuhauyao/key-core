@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/mcp_server.dart';
 import 'ai_tool_config_service.dart';
+import 'live_config/live_config_writer.dart';
 
 /// OpenClaw 模型定义（写入 openclaw.json 的 models.providers[id].models 数组）
 class OpenClawModelDef {
@@ -669,70 +670,72 @@ class OpenClawConfigService {
       return const OpenClawApplyResult();
     }
 
-    // 1. 写入 .env
-    await writeEnvKeys({info.envKey: decryptedKey});
-
-    final config = await readConfig();
     final providerId = info.openclawProviderId;
     final resolvedModelId = _resolveModelId(info, openclawModel);
-
-    // 2. 写入 auth.profiles
-    final authRoot = Map<String, dynamic>.from(
-        (config['auth'] as Map<String, dynamic>?) ?? {});
-    final profiles = Map<String, dynamic>.from(
-        (authRoot['profiles'] as Map<String, dynamic>?) ?? {});
-    profiles['$providerId:default'] = {
-      'provider': providerId,
-      'mode': 'api_key',
-    };
-    authRoot['profiles'] = profiles;
-    config['auth'] = authRoot;
-
-    // 3. 写入 models.providers（含完整模型定义）
-    final rawBaseUrl = (openclawBaseUrl != null && openclawBaseUrl.isNotEmpty)
-        ? openclawBaseUrl
-        : info.baseUrl;
-    final effectiveBaseUrl = _normalizeBaseUrl(rawBaseUrl, info.apiType);
-
-    if (effectiveBaseUrl != null) {
-      final modelsRoot = Map<String, dynamic>.from(
-          (config['models'] as Map<String, dynamic>?) ?? {});
-      // 确保 models.mode = "merge"
-      modelsRoot['mode'] ??= 'merge';
-
-      final providersMap = Map<String, dynamic>.from(
-          (modelsRoot['providers'] as Map<String, dynamic>?) ?? {});
-
-      // 构建模型定义列表
-      final List<Map<String, dynamic>> modelDefs = _buildModelDefs(
-        info: info,
-        selectedModelId: openclawModel,
-      );
-
-      providersMap[providerId] = {
-        'baseUrl': effectiveBaseUrl,
-        'api': info.apiType,
-        if (modelDefs.isNotEmpty) 'models': modelDefs,
-      };
-      modelsRoot['providers'] = providersMap;
-      config['models'] = modelsRoot;
-    }
-
-    // 5/6. 合并 allowlist，并设置默认模型
     var allowlistUpdated = false;
     var primaryModelSet = false;
     String? modelRef;
-    if (resolvedModelId != null && resolvedModelId.isNotEmpty) {
-      modelRef = '$providerId/$resolvedModelId';
-      allowlistUpdated = _mergeAgentModelAllowlist(
-        config,
-        modelRef: modelRef,
-        alias: info.displayName,
-      );
-      primaryModelSet = _setPrimaryModel(config, modelRef);
-    }
 
-    await writeConfig(config);
+    // 先改 openclaw.json：解析失败会中止，此时 .env 也不会被写入
+    await updateConfig((config) {
+
+      // 2. 写入 auth.profiles
+      final authRoot = Map<String, dynamic>.from(
+          (config['auth'] as Map<String, dynamic>?) ?? {});
+      final profiles = Map<String, dynamic>.from(
+          (authRoot['profiles'] as Map<String, dynamic>?) ?? {});
+      profiles['$providerId:default'] = {
+        'provider': providerId,
+        'mode': 'api_key',
+      };
+      authRoot['profiles'] = profiles;
+      config['auth'] = authRoot;
+
+      // 3. 写入 models.providers（含完整模型定义）
+      final rawBaseUrl = (openclawBaseUrl != null && openclawBaseUrl.isNotEmpty)
+          ? openclawBaseUrl
+          : info.baseUrl;
+      final effectiveBaseUrl = _normalizeBaseUrl(rawBaseUrl, info.apiType);
+
+      if (effectiveBaseUrl != null) {
+        final modelsRoot = Map<String, dynamic>.from(
+            (config['models'] as Map<String, dynamic>?) ?? {});
+        // 确保 models.mode = "merge"
+        modelsRoot['mode'] ??= 'merge';
+
+        final providersMap = Map<String, dynamic>.from(
+            (modelsRoot['providers'] as Map<String, dynamic>?) ?? {});
+
+        // 构建模型定义列表
+        final List<Map<String, dynamic>> modelDefs = _buildModelDefs(
+          info: info,
+          selectedModelId: openclawModel,
+        );
+
+        providersMap[providerId] = {
+          'baseUrl': effectiveBaseUrl,
+          'api': info.apiType,
+          if (modelDefs.isNotEmpty) 'models': modelDefs,
+        };
+        modelsRoot['providers'] = providersMap;
+        config['models'] = modelsRoot;
+      }
+
+      // 5/6. 合并 allowlist，并设置默认模型
+      if (resolvedModelId != null && resolvedModelId.isNotEmpty) {
+        final ref = '$providerId/$resolvedModelId';
+        modelRef = ref;
+        allowlistUpdated = _mergeAgentModelAllowlist(
+          config,
+          modelRef: ref,
+          alias: info.displayName,
+        );
+        primaryModelSet = _setPrimaryModel(config, ref);
+      }
+    });
+
+    // 7. 最后写入 .env
+    await writeEnvKeys({info.envKey: decryptedKey});
     await _setAppliedKeyId(info.envKey, keyId);
 
     return OpenClawApplyResult(
@@ -849,26 +852,26 @@ class OpenClawConfigService {
     final info = platformMapping[platformId];
     if (info == null) return;
 
-    await writeEnvKeys({info.envKey: ''});
-
-    final config = await readConfig();
     final providerId = info.openclawProviderId;
+    // 先改 openclaw.json：解析失败会中止，此时 .env 也不会被改动
+    await updateConfig((config) {
 
-    // 移除 auth.profiles 条目
-    final authRoot = config['auth'] as Map<String, dynamic>?;
-    if (authRoot != null) {
-      final profiles = authRoot['profiles'] as Map<String, dynamic>?;
-      profiles?.remove('$providerId:default');
-    }
+      // 移除 auth.profiles 条目
+      final authRoot = config['auth'] as Map<String, dynamic>?;
+      if (authRoot != null) {
+        final profiles = authRoot['profiles'] as Map<String, dynamic>?;
+        profiles?.remove('$providerId:default');
+      }
 
-    // 移除 models.providers 条目
-    final modelsRoot = config['models'] as Map<String, dynamic>?;
-    if (modelsRoot != null) {
-      final providersMap = modelsRoot['providers'] as Map<String, dynamic>?;
-      providersMap?.remove(providerId);
-    }
+      // 移除 models.providers 条目
+      final modelsRoot = config['models'] as Map<String, dynamic>?;
+      if (modelsRoot != null) {
+        final providersMap = modelsRoot['providers'] as Map<String, dynamic>?;
+        providersMap?.remove(providerId);
+      }
+    });
 
-    await writeConfig(config);
+    await writeEnvKeys({info.envKey: ''});
     await _setAppliedKeyId(info.envKey, null);
   }
 
@@ -962,17 +965,29 @@ class OpenClawConfigService {
     }
   }
 
-  /// 写入 openclaw.json，使用 merge 策略：仅修改目标节点，保留其他字段
+  /// 以现有 openclaw.json 为底修改配置。
+  ///
+  /// 经 [LiveConfigWriter]：JSON5（注释、尾逗号）预处理后严格解析，**解析失败则中止写入**
+  /// （不会再以空对象覆盖用户配置）；原子写入并自动备份。
+  /// 注意：写回为标准 JSON，原文件中的注释不会保留（与以往一致），原文件可从备份恢复。
+  Future<void> updateConfig(void Function(Map<String, dynamic> config) mutate) async {
+    final configPath = await _getConfigFilePath();
+    await LiveConfigWriter.instance.updateJson(
+      AiToolType.openclaw,
+      configPath,
+      mutate,
+      preprocess: _preprocessJson5,
+    );
+  }
+
+  /// 用 [config] 整体替换 openclaw.json（原子写入并自动备份）。
+  ///
+  /// 读-改-写请使用 [updateConfig]，它在解析失败时会中止，更安全。
   Future<void> writeConfig(Map<String, dynamic> config) async {
     final configPath = await _getConfigFilePath();
-    final configDir = await _getConfigDir();
-    final dir = Directory(configDir);
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-    await File(configPath).writeAsString(
-      const JsonEncoder.withIndent('  ').convert(config),
-    );
+    await LiveConfigWriter.instance.apply(AiToolType.openclaw, [
+      LiveEdit(configPath, (current) => JsonPatch.encode(config, original: current)),
+    ]);
   }
 
   /// 读取 .env 文件，返回 Map<envKey, value>
@@ -1004,19 +1019,23 @@ class OpenClawConfigService {
   }
 
   /// 写入 .env 文件（仅更新指定的 key，保留其他行）
+  ///
+  /// 值为空字符串时把该行注释掉（`# KEY=`，与以往一致）。经 [LiveConfigWriter]
+  /// 原子写入、自动备份，文件权限 0600。
   Future<void> writeEnvKeys(Map<String, String> updates) async {
     final envPath = await _getEnvFilePath();
-    final configDir = await _getConfigDir();
-    final dir = Directory(configDir);
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
+    await LiveConfigWriter.instance.apply(AiToolType.openclaw, [
+      LiveEdit(
+        envPath,
+        (current) => patchEnvLines(current, updates),
+        containsSecrets: true,
+      ),
+    ]);
+  }
 
-    final file = File(envPath);
-    List<String> lines = [];
-    if (await file.exists()) {
-      lines = await file.readAsLines();
-    }
+  /// `.env` 行级补丁（纯函数，便于测试）
+  static String patchEnvLines(String? current, Map<String, String> updates) {
+    final lines = current == null || current.isEmpty ? <String>[] : const LineSplitter().convert(current);
 
     final updatedKeys = <String>{};
     final newLines = lines.map((line) {
@@ -1041,7 +1060,7 @@ class OpenClawConfigService {
       }
     }
 
-    await file.writeAsString(newLines.join('\n') + '\n');
+    return '${newLines.join('\n')}\n';
   }
 
   /// 读取当前模型配置
@@ -1095,63 +1114,62 @@ class OpenClawConfigService {
 
   /// 保存模型配置（merge 策略，不破坏其他字段）
   Future<void> saveModelConfig(OpenClawModelConfig modelConfig) async {
-    final config = await readConfig();
+    await updateConfig((config) {
 
-    // agents.defaults.model
-    final agents = (config['agents'] as Map<String, dynamic>?) ?? {};
-    final defaults = (agents['defaults'] as Map<String, dynamic>?) ?? {};
+      // agents.defaults.model
+      final agents = (config['agents'] as Map<String, dynamic>?) ?? {};
+      final defaults = (agents['defaults'] as Map<String, dynamic>?) ?? {};
 
-    if (modelConfig.primaryModel.isNotEmpty) {
-      defaults['model'] = {
-        'primary': modelConfig.primaryModel,
-        if (modelConfig.fallbackModels.isNotEmpty) 'fallbacks': modelConfig.fallbackModels,
-      };
-    }
-
-    // agents.defaults.models（别名）
-    if (modelConfig.modelAliases.isNotEmpty) {
-      final modelsMap = <String, dynamic>{};
-      for (final alias in modelConfig.modelAliases) {
-        modelsMap[alias.modelId] = {'alias': alias.alias};
+      if (modelConfig.primaryModel.isNotEmpty) {
+        defaults['model'] = {
+          'primary': modelConfig.primaryModel,
+          if (modelConfig.fallbackModels.isNotEmpty) 'fallbacks': modelConfig.fallbackModels,
+        };
       }
-      defaults['models'] = modelsMap;
-    }
 
-    agents['defaults'] = defaults;
-    config['agents'] = agents;
-
-    // models.providers（自定义 Provider）
-    if (modelConfig.customProviders.isNotEmpty) {
-      final modelsRoot = (config['models'] as Map<String, dynamic>?) ?? {};
-      final providersMap = (modelsRoot['providers'] as Map<String, dynamic>?) ?? {};
-      for (final cp in modelConfig.customProviders) {
-        providersMap[cp.id] = cp.toJson();
+      // agents.defaults.models（别名）
+      if (modelConfig.modelAliases.isNotEmpty) {
+        final modelsMap = <String, dynamic>{};
+        for (final alias in modelConfig.modelAliases) {
+          modelsMap[alias.modelId] = {'alias': alias.alias};
+        }
+        defaults['models'] = modelsMap;
       }
-      modelsRoot['providers'] = providersMap;
-      config['models'] = modelsRoot;
-    }
 
-    // gateway.port
-    if (modelConfig.gatewayPort != 18789) {
-      final gateway = (config['gateway'] as Map<String, dynamic>?) ?? {};
-      gateway['port'] = modelConfig.gatewayPort;
-      config['gateway'] = gateway;
-    }
+      agents['defaults'] = defaults;
+      config['agents'] = agents;
 
-    await writeConfig(config);
+      // models.providers（自定义 Provider）
+      if (modelConfig.customProviders.isNotEmpty) {
+        final modelsRoot = (config['models'] as Map<String, dynamic>?) ?? {};
+        final providersMap = (modelsRoot['providers'] as Map<String, dynamic>?) ?? {};
+        for (final cp in modelConfig.customProviders) {
+          providersMap[cp.id] = cp.toJson();
+        }
+        modelsRoot['providers'] = providersMap;
+        config['models'] = modelsRoot;
+      }
+
+      // gateway.port
+      if (modelConfig.gatewayPort != 18789) {
+        final gateway = (config['gateway'] as Map<String, dynamic>?) ?? {};
+        gateway['port'] = modelConfig.gatewayPort;
+        config['gateway'] = gateway;
+      }
+    });
   }
 
   /// 删除自定义 Provider
   Future<void> removeCustomProvider(String providerId) async {
-    final config = await readConfig();
-    final modelsRoot = config['models'] as Map<String, dynamic>?;
-    if (modelsRoot == null) return;
-    final providersMap = modelsRoot['providers'] as Map<String, dynamic>?;
-    if (providersMap == null) return;
-    providersMap.remove(providerId);
-    modelsRoot['providers'] = providersMap;
-    config['models'] = modelsRoot;
-    await writeConfig(config);
+    await updateConfig((config) {
+      final modelsRoot = config['models'] as Map<String, dynamic>?;
+      if (modelsRoot == null) return;
+      final providersMap = modelsRoot['providers'] as Map<String, dynamic>?;
+      if (providersMap == null) return;
+      providersMap.remove(providerId);
+      modelsRoot['providers'] = providersMap;
+      config['models'] = modelsRoot;
+    });
   }
 
   /// 读取内置供应商的 API Key（从 .env 文件）

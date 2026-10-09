@@ -8,6 +8,9 @@ import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
 import '../services/platform_config_path_service.dart';
 import 'ai_tool_config_service.dart';
+import '../models/mcp_server.dart' show AiToolType;
+import 'live_config/key_field_floor.dart';
+import 'live_config/live_config_writer.dart';
 
 /// Gemini 配置服务
 /// 管理 ~/.gemini/settings.json 和 ~/.gemini/.env 的读写
@@ -201,22 +204,6 @@ class GeminiConfigService {
     return map;
   }
 
-  /// 将键值对序列化为 .env 格式
-  String _serializeEnvFile(Map<String, String> map) {
-    final lines = <String>[];
-
-    // 按键排序以保证输出稳定
-    final keys = map.keys.toList()..sort();
-
-    for (final key in keys) {
-      if (map[key] != null) {
-        lines.add('$key=${map[key]}');
-      }
-    }
-
-    return lines.join('\n');
-  }
-
   /// 读取 .env 文件
   Future<Map<String, String>> readEnv() async {
     try {
@@ -235,36 +222,33 @@ class GeminiConfigService {
     }
   }
 
-  /// 写入 .env 文件（原子操作）
+  /// 写入 .env 文件，使 [envMap] 成为文件中的全部变量。
+  ///
+  /// 经 [LiveConfigWriter] 按行修改：注释、空行与变量顺序保留，原子写入，权限 0600。
   Future<bool> writeEnv(Map<String, String> envMap) async {
     try {
       final envPath = await _getEnvFilePath();
-      
-      // 确保目录存在
-      final configDir = await _getConfigDir();
-      final dir = Directory(configDir);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      
-      final content = _serializeEnvFile(envMap);
-      final file = File(envPath);
-      await file.writeAsString(content);
-      
-      // 设置文件权限为 600（仅所有者可读写）
-      if (Platform.isMacOS || Platform.isLinux) {
-        try {
-          await Process.run('chmod', ['600', envPath]);
-        } catch (e) {
-          print('GeminiConfigService: 设置 .env 文件权限失败: $e');
-        }
-      }
-      
+      await LiveConfigWriter.instance.apply(AiToolType.gemini, [
+        LiveEdit(
+          envPath,
+          (current) {
+            final existing = DotEnvPatch.parse(current).keys.toSet();
+            return DotEnvPatch.apply(
+              current,
+              set: envMap,
+              remove: existing.difference(envMap.keys.toSet()),
+            );
+          },
+          containsSecrets: true,
+        ),
+      ]);
+
       // 清除官方配置缓存
       _clearOfficialConfigCache();
-      
+
       return true;
     } catch (e) {
+      print('GeminiConfigService: 写入 .env 失败: $e');
       return false;
     }
   }
@@ -283,45 +267,26 @@ class GeminiConfigService {
         }
       }
 
-      // 读取或创建 settings.json
-      final settings = await readSettings() ?? {};
-      
-      // 确保 mcpServers 字段存在
-      if (!settings.containsKey('mcpServers')) {
-        settings['mcpServers'] = <String, dynamic>{};
-      }
-      
-      // 清除 settings.json 中的 apiKey（优先使用 .env 文件）
-      settings['apiKey'] = '';
-      
-      // 读取或创建 .env 文件
-      final env = await readEnv();
-      
-      // 设置 GEMINI_API_KEY（Gemini 只支持官方 API，只写入 API Key）
-      env['GEMINI_API_KEY'] = apiKey;
-      
-      // 清除可能存在的第三方配置字段（确保使用官方配置）
-      env.remove('GEMINI_BASE_URL');
-      env.remove('GEMINI_MODEL');
-      
-      
-      // 确保配置目录存在
-      final configDir = await _getConfigDir();
-      final dir = Directory(configDir);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      
-      // 写入 settings.json
       final settingsPath = await _getSettingsFilePath();
-      final settingsFile = File(settingsPath);
-      await settingsFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(settings),
-      );
-      
-      // 写入 .env 文件
-      await writeEnv(env);
-      
+      final envPath = await _getEnvFilePath();
+
+      await LiveConfigWriter.instance.apply(AiToolType.gemini, [
+        LiveEdit.json(settingsPath, (settings) {
+          // 确保 mcpServers 字段存在
+          settings.putIfAbsent('mcpServers', () => <String, dynamic>{});
+          // 清除 settings.json 中的 apiKey（优先使用 .env 文件）
+          settings['apiKey'] = '';
+        }),
+        // 设置 GEMINI_API_KEY（Gemini 只支持官方 API，只写入 API Key），
+        // 并清除可能存在的第三方配置字段
+        LiveEdit.dotenv(
+          envPath,
+          set: {KeyFieldFloor.geminiApiKey: apiKey},
+          remove: KeyFieldFloor.geminiClearedOnSwitch.toSet(),
+        ),
+      ]);
+
+      _clearOfficialConfigCache();
       return true;
     } catch (e) {
       print('GeminiConfigService: 切换配置失败: $e');
@@ -330,29 +295,10 @@ class GeminiConfigService {
   }
 
   /// 备份当前配置
-  Future<bool> backupConfig() async {
-    try {
-      final settingsPath = await _getSettingsFilePath();
-      final settingsFile = File(settingsPath);
-      
-      if (await settingsFile.exists()) {
-        final backupPath = '$settingsPath.bak';
-        await settingsFile.copy(backupPath);
-      }
-      
-      final envPath = await _getEnvFilePath();
-      final envFile = File(envPath);
-      
-      if (await envFile.exists()) {
-        final envBackupPath = '$envPath.bak';
-        await envFile.copy(envBackupPath);
-      }
-      
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
+  ///
+  /// 保留该方法以兼容调用方。备份现在由 [LiveConfigWriter] 在每次写入前自动完成
+  /// （首写备份 + 滚动备份，位于 `~/.keycore/backups/live`）。
+  Future<bool> backupConfig() async => true;
 
   /// 获取当前使用的 API Key
   /// 优先从 .env 文件读取 GEMINI_API_KEY
@@ -461,62 +407,32 @@ class GeminiConfigService {
   /// 如果本地存储有官方API Key，则写入；没有则清空
   Future<bool> switchToOfficial() async {
     try {
-      // 备份当前配置
-      await backupConfig();
-
-      // 读取或创建 .env 文件
-      final env = await readEnv();
-      
-      // 清除第三方密钥的配置
-      // 1. 清除 URL 配置
-      env.remove('GEMINI_BASE_URL');
-      
-      // 2. 清除模型配置
-      env.remove('GEMINI_MODEL');
-      
-      // 3. 清除第三方密钥配置
-      env.remove('GEMINI_API_KEY');
-      
-      // 确保 SettingsService 已初始化
+      // 确保 SettingsService 已初始化（官方 API Key 存于系统钥匙串）
       await _settingsService.init();
-      
-      // 读取本地存储的官方API Key
       final officialApiKey = _settingsService.getOfficialGeminiApiKey();
-      
-      // 根据本地存储的官方API Key设置或删除 GEMINI_API_KEY
-      if (officialApiKey != null && officialApiKey.isNotEmpty) {
-        // 如果本地有存储的官方API Key，写入到 .env 文件
-        env['GEMINI_API_KEY'] = officialApiKey;
-      } else {
-        // 如果本地没有存储官方API Key，确保清空（已经remove了）
-      }
-      
-      // 读取或创建 settings.json
-      final settings = await readSettings() ?? {};
-      
-      // 清除 settings.json 中的 apiKey（优先使用 .env 文件）
-      settings['apiKey'] = '';
-      
-      // 确保配置目录存在
-      final configDir = await _getConfigDir();
-      final dir = Directory(configDir);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      
-      // 写入 settings.json
+
       final settingsPath = await _getSettingsFilePath();
-      final settingsFile = File(settingsPath);
-      await settingsFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(settings),
-      );
-      
-      // 写入 .env 文件
-      await writeEnv(env);
-      
+      final envPath = await _getEnvFilePath();
+      final hasOfficial = officialApiKey != null && officialApiKey.isNotEmpty;
+
+      await LiveConfigWriter.instance.apply(AiToolType.gemini, [
+        LiveEdit.json(settingsPath, (settings) {
+          // 清除 settings.json 中的 apiKey（优先使用 .env 文件）
+          settings['apiKey'] = '';
+        }),
+        LiveEdit.dotenv(
+          envPath,
+          set: hasOfficial ? {KeyFieldFloor.geminiApiKey: officialApiKey} : const {},
+          remove: {
+            ...KeyFieldFloor.geminiClearedOnSwitch,
+            if (!hasOfficial) KeyFieldFloor.geminiApiKey,
+          },
+        ),
+      ]);
+
       // 清除官方配置缓存
       _clearOfficialConfigCache();
-      
+
       return true;
     } catch (e) {
       print('GeminiConfigService: 切换官方配置失败: $e');
