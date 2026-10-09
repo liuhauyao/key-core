@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import '../../models/mcp_server.dart';
 import '../../utils/app_localizations.dart';
-import '../../utils/mcp_server_presets.dart';
-import 'mcp_tool_list_dialog.dart';
 
 /// MCP 服务器卡片组件
 class McpCard extends StatefulWidget {

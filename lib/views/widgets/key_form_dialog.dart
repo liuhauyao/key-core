@@ -6,7 +6,6 @@ import '../../constants/app_constants.dart';
 import '../../utils/platform_presets.dart';
 import '../../utils/macos_input_decoration.dart';
 import '../../utils/platform_icon_service.dart';
-import '../../utils/ime_friendly_formatter.dart';
 import 'platform_category_tabs.dart';
 import 'ime_safe_text_field.dart';
 
@@ -435,19 +434,19 @@ class _KeyFormDialogState extends State<KeyFormDialog> {
     // 手动验证长度（替代 maxLength 以避免 IME 冲突）
     if (_nameController.text.trim().length > AppConstants.maxNameLength) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('密钥名称不能超过 ${AppConstants.maxNameLength} 个字符')),
+        const SnackBar(content: Text('密钥名称不能超过 ${AppConstants.maxNameLength} 个字符')),
       );
       return;
     }
     if (_keyValueController.text.trim().length > AppConstants.maxKeyValueLength) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('密钥值不能超过 ${AppConstants.maxKeyValueLength} 个字符')),
+        const SnackBar(content: Text('密钥值不能超过 ${AppConstants.maxKeyValueLength} 个字符')),
       );
       return;
     }
     if (_notesController.text.trim().length > AppConstants.maxNotesLength) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('备注不能超过 ${AppConstants.maxNotesLength} 个字符')),
+        const SnackBar(content: Text('备注不能超过 ${AppConstants.maxNotesLength} 个字符')),
       );
       return;
     }

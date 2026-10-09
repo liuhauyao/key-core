@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:convert';
 import 'dart:async' show Future;
 import 'dart:io';
@@ -58,7 +57,7 @@ class _IconPickerState extends State<IconPicker> {
           _availableIcons = configIcons;
           print('成功从配置文件加载 ${configIcons.length} 个图标文件');
         } else {
-          print('配置文件图标数量(${configIcons.length})与实际文件数量(${actualIconCount})不匹配，重新生成配置');
+          print('配置文件图标数量(${configIcons.length})与实际文件数量($actualIconCount)不匹配，重新生成配置');
           await _regenerateConfigInDevelopment();
           // 重新加载配置
           final updatedConfigIcons = await _loadIconsFromConfig();

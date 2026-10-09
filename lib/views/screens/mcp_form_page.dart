@@ -6,10 +6,8 @@ import '../../models/mcp_server.dart';
 import '../../models/mcp_server_category.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/mcp_server_presets.dart';
-import '../../utils/ime_friendly_formatter.dart';
 import '../widgets/icon_picker.dart';
 import '../widgets/ime_safe_text_field.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 /// JSON 输入格式化器，自动去除 mcpServers 包装
 class _JsonConfigFormatter extends TextInputFormatter {

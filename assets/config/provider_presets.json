@@ -1,0 +1,316 @@
+{
+  "version": "1.0.0",
+  "providers": [
+    {
+      "id": "openai-official",
+      "name": "OpenAI Official",
+      "nameZh": "OpenAI 官方",
+      "providerType": "official",
+      "apiEndpoint": "https://api.openai.com/v1",
+      "websiteUrl": "https://platform.openai.com",
+      "apiKeyUrl": "https://platform.openai.com/api-keys",
+      "supportedTools": ["claude_code", "codex", "openclaw", "opencode", "grok_build", "hermes", "pi", "minimax_code"],
+      "models": [
+        {
+          "id": "gpt-5-pro",
+          "displayName": "GPT-5 Pro",
+          "contextWindow": 200000,
+          "maxOutputTokens": 100000,
+          "reasoningLevels": ["high"],
+          "supportsImages": true,
+          "supportsThinking": true
+        },
+        {
+          "id": "gpt-5.5-pro",
+          "displayName": "GPT-5.5 Pro",
+          "contextWindow": 200000,
+          "maxOutputTokens": 100000,
+          "reasoningLevels": ["medium", "high", "xhigh"],
+          "supportsImages": true,
+          "supportsThinking": true
+        }
+      ],
+      "iconUrl": "platforms/openai.svg",
+      "region": "global",
+      "isSponsored": false
+    },
+    {
+      "id": "anthropic-official",
+      "name": "Anthropic Official",
+      "nameZh": "Anthropic 官方",
+      "providerType": "official",
+      "apiEndpoint": "https://api.anthropic.com",
+      "websiteUrl": "https://console.anthropic.com",
+      "apiKeyUrl": "https://console.anthropic.com/settings/keys",
+      "supportedTools": ["claude_code", "codex", "openclaw", "opencode", "hermes", "pi", "minimax_code"],
+      "models": [
+        {
+          "id": "claude-opus-5-5",
+          "displayName": "Claude Opus 5.5",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 16000,
+          "reasoningLevels": ["adaptive"],
+          "supportsImages": true,
+          "supportsThinking": true
+        },
+        {
+          "id": "claude-sonnet-5-5",
+          "displayName": "Claude Sonnet 5.5",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 16000,
+          "reasoningLevels": ["adaptive"],
+          "supportsImages": true,
+          "supportsThinking": true
+        },
+        {
+          "id": "claude-haiku-5-0",
+          "displayName": "Claude Haiku 5.0",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 16000,
+          "supportsImages": true,
+          "supportsThinking": false
+        }
+      ],
+      "iconUrl": "platforms/anthropic.svg",
+      "region": "global",
+      "isSponsored": false
+    },
+    {
+      "id": "google-official",
+      "name": "Google AI",
+      "nameZh": "谷歌 AI",
+      "providerType": "official",
+      "apiEndpoint": "https://generativelanguage.googleapis.com",
+      "websiteUrl": "https://ai.google.dev",
+      "apiKeyUrl": "https://aistudio.google.com/app/apikey",
+      "supportedTools": ["gemini_cli", "openclaw", "opencode", "hermes", "pi", "minimax_code"],
+      "models": [
+        {
+          "id": "gemini-4.0-pro",
+          "displayName": "Gemini 4.0 Pro",
+          "contextWindow": 2000000,
+          "maxOutputTokens": 100000,
+          "reasoningLevels": ["low", "medium", "high"],
+          "supportsImages": true,
+          "supportsThinking": true
+        },
+        {
+          "id": "gemini-4.0-flash",
+          "displayName": "Gemini 4.0 Flash",
+          "contextWindow": 2000000,
+          "maxOutputTokens": 100000,
+          "supportsImages": true,
+          "supportsThinking": false
+        }
+      ],
+      "iconUrl": "platforms/google.svg",
+      "region": "global",
+      "isSponsored": false
+    },
+    {
+      "id": "deepseek-official",
+      "name": "DeepSeek",
+      "nameZh": "深度求索",
+      "providerType": "official",
+      "apiEndpoint": "https://api.deepseek.com",
+      "websiteUrl": "https://platform.deepseek.com",
+      "apiKeyUrl": "https://platform.deepseek.com/api_keys",
+      "supportedTools": ["claude_code", "codex", "openclaw", "opencode", "grok_build", "hermes", "pi", "minimax_code"],
+      "models": [
+        {
+          "id": "deepseek-v4-pro",
+          "displayName": "DeepSeek V4 Pro",
+          "contextWindow": 256000,
+          "maxOutputTokens": 32000,
+          "reasoningLevels": ["low", "medium", "high"],
+          "supportsImages": false,
+          "supportsThinking": true
+        },
+        {
+          "id": "deepseek-v4-flash",
+          "displayName": "DeepSeek V4 Flash",
+          "contextWindow": 256000,
+          "maxOutputTokens": 16000,
+          "supportsImages": false,
+          "supportsThinking": false
+        }
+      ],
+      "iconUrl": "platforms/deepseek.svg",
+      "region": "cn",
+      "isSponsored": false
+    },
+    {
+      "id": "moonshot-official",
+      "name": "Moonshot AI",
+      "nameZh": "月之暗面",
+      "providerType": "official",
+      "apiEndpoint": "https://api.moonshot.cn/v1",
+      "websiteUrl": "https://platform.moonshot.cn",
+      "apiKeyUrl": "https://platform.moonshot.cn/console/api-keys",
+      "supportedTools": ["claude_code", "codex", "openclaw", "opencode", "hermes", "pi", "minimax_code"],
+      "models": [
+        {
+          "id": "kimi-k3",
+          "displayName": "Kimi K3",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 16000,
+          "reasoningLevels": ["low", "medium", "high"],
+          "supportsImages": true,
+          "supportsThinking": true
+        },
+        {
+          "id": "kimi-k2.7-code",
+          "displayName": "Kimi K2.7 Code",
+          "contextWindow": 256000,
+          "maxOutputTokens": 8000,
+          "supportsImages": false,
+          "supportsThinking": false
+        }
+      ],
+      "iconUrl": "platforms/moonshot.svg",
+      "region": "cn",
+      "isSponsored": true,
+      "description": "Kimi K3 是月之暗面最强大的模型，全球首个开源 3T 级别模型，拥有 28 亿参数、原生视觉能力和 100 万 token 上下文窗口。"
+    },
+    {
+      "id": "zhipu-official",
+      "name": "Zhipu AI",
+      "nameZh": "智谱 AI",
+      "providerType": "official",
+      "apiEndpoint": "https://open.bigmodel.cn/api/paas/v4",
+      "websiteUrl": "https://open.bigmodel.cn",
+      "apiKeyUrl": "https://open.bigmodel.cn/usercenter/apikeys",
+      "supportedTools": ["claude_code", "codex", "openclaw", "opencode", "hermes", "pi", "minimax_code"],
+      "models": [
+        {
+          "id": "glm-5-pro",
+          "displayName": "GLM-5 Pro",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 32000,
+          "supportsImages": true,
+          "supportsThinking": false
+        },
+        {
+          "id": "glm-5.2-flash",
+          "displayName": "GLM-5.2 Flash",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 16000,
+          "supportsImages": true,
+          "supportsThinking": false
+        }
+      ],
+      "iconUrl": "platforms/zhipu.svg",
+      "region": "cn",
+      "isSponsored": false
+    },
+    {
+      "id": "minimax-official",
+      "name": "MiniMax",
+      "nameZh": "海螺 AI",
+      "providerType": "official",
+      "apiEndpoint": "https://api.minimax.chat/v1",
+      "websiteUrl": "https://platform.minimaxi.com",
+      "apiKeyUrl": "https://platform.minimaxi.com/user-center/basic-information/interface-key",
+      "supportedTools": ["claude_code", "codex", "openclaw", "opencode", "hermes", "pi", "minimax_code"],
+      "models": [
+        {
+          "id": "abab7.5-chat",
+          "displayName": "ABAB 7.5 Chat",
+          "contextWindow": 256000,
+          "maxOutputTokens": 16000,
+          "supportsImages": false,
+          "supportsThinking": false
+        }
+      ],
+      "iconUrl": "platforms/minimax.svg",
+      "region": "cn",
+      "isSponsored": false
+    },
+    {
+      "id": "qwen-official",
+      "name": "Qwen (Alibaba)",
+      "nameZh": "通义千问",
+      "providerType": "official",
+      "apiEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "websiteUrl": "https://dashscope.aliyun.com",
+      "apiKeyUrl": "https://dashscope.console.aliyun.com/apiKey",
+      "supportedTools": ["claude_code", "codex", "openclaw", "opencode", "hermes", "pi", "minimax_code"],
+      "models": [
+        {
+          "id": "qwen-max",
+          "displayName": "Qwen Max",
+          "contextWindow": 256000,
+          "maxOutputTokens": 16000,
+          "supportsImages": true,
+          "supportsThinking": false
+        },
+        {
+          "id": "qwen-turbo",
+          "displayName": "Qwen Turbo",
+          "contextWindow": 128000,
+          "maxOutputTokens": 8000,
+          "supportsImages": false,
+          "supportsThinking": false
+        }
+      ],
+      "iconUrl": "platforms/qwen.svg",
+      "region": "cn",
+      "isSponsored": false
+    },
+    {
+      "id": "siliconflow",
+      "name": "SiliconFlow",
+      "nameZh": "硅基流动",
+      "providerType": "relay",
+      "apiEndpoint": "https://api.siliconflow.cn/v1",
+      "websiteUrl": "https://cloud.siliconflow.cn",
+      "apiKeyUrl": "https://cloud.siliconflow.cn/account/ak",
+      "supportedTools": ["claude_code", "codex", "openclaw", "opencode", "hermes", "pi", "minimax_code"],
+      "models": [
+        {
+          "id": "deepseek-v4-flash",
+          "displayName": "DeepSeek V4 Flash",
+          "contextWindow": 256000,
+          "maxOutputTokens": 16000,
+          "supportsImages": false,
+          "supportsThinking": false
+        },
+        {
+          "id": "glm-5.2-flash",
+          "displayName": "GLM-5.2 Flash",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 16000,
+          "supportsImages": true,
+          "supportsThinking": false
+        }
+      ],
+      "iconUrl": "platforms/siliconflow.svg",
+      "region": "cn",
+      "isSponsored": true,
+      "description": "SiliconFlow 是高性能 AI 基础设施和模型 API 平台，提供快速可靠的多模态模型访问。"
+    },
+    {
+      "id": "xai-official",
+      "name": "xAI",
+      "nameZh": "xAI",
+      "providerType": "official",
+      "apiEndpoint": "https://api.x.ai/v1",
+      "websiteUrl": "https://x.ai",
+      "apiKeyUrl": "https://console.x.ai",
+      "supportedTools": ["grok_build", "codex", "openclaw", "opencode", "hermes", "pi"],
+      "models": [
+        {
+          "id": "grok-3",
+          "displayName": "Grok 3",
+          "contextWindow": 256000,
+          "maxOutputTokens": 32000,
+          "supportsImages": true,
+          "supportsThinking": true
+        }
+      ],
+      "iconUrl": "platforms/xai.svg",
+      "region": "global",
+      "isSponsored": false
+    }
+  ]
+}

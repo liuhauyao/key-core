@@ -37,7 +37,7 @@ class AuthService {
 
   Future<AuthResult> verifyPassword(String password) async {
     if (_isLocked) {
-      return AuthResult(
+      return const AuthResult(
         success: false,
         message: '账户已锁定',
         isLocked: true,
@@ -46,7 +46,7 @@ class AuthService {
 
     final storedHash = await _storage.getMasterPasswordHash();
     if (storedHash == null) {
-      return AuthResult(
+      return const AuthResult(
         success: false,
         message: '未设置主密码',
       );
@@ -55,14 +55,14 @@ class AuthService {
     final isValid = await _crypt.verifyPassword(password, storedHash);
     if (isValid) {
       _failedAttempts = 0;
-      return AuthResult(success: true, message: '验证成功');
+      return const AuthResult(success: true, message: '验证成功');
     } else {
       _failedAttempts++;
       final remainingAttempts = _maxAttempts - _failedAttempts;
 
       if (_failedAttempts >= _maxAttempts) {
         _isLocked = true;
-        return AuthResult(
+        return const AuthResult(
           success: false,
           message: '验证失败次数过多',
           isLocked: true,

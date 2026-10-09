@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../models/mcp_server.dart';
 import '../../viewmodels/settings_viewmodel.dart';
@@ -67,10 +66,10 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
     final success = await widget.viewModel.setToolEnabled(widget.tool, enabled);
     if (!success && enabled && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('启用失败：配置文件不存在'),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
     }

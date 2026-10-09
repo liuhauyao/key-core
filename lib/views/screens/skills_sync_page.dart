@@ -232,10 +232,10 @@ class _SkillsSyncPageState extends State<SkillsSyncPage> {
       return Icon(Icons.warning_amber_rounded, color: shadTheme.colorScheme.destructive, size: 18);
     }
     if (skill.needsSync) {
-      return Icon(Icons.sync_problem, color: Colors.orange, size: 18);
+      return const Icon(Icons.sync_problem, color: Colors.orange, size: 18);
     }
     if (skill.syncStatus.values.any((s) => s == SkillSyncState.synced)) {
-      return Icon(Icons.check_circle_outline, color: Colors.green, size: 18);
+      return const Icon(Icons.check_circle_outline, color: Colors.green, size: 18);
     }
     return null;
   }

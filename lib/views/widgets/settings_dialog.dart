@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -797,7 +796,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.folder_open, size: 16),
+                    const Icon(Icons.folder_open, size: 16),
                     const SizedBox(width: 6),
                     Text(AppLocalizations.of(context)?.browse ?? '浏览'),
                   ],
@@ -807,7 +806,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 const SizedBox(width: 8),
                 ShadButton.ghost(
                   onPressed: onReset,
-                  child: Icon(Icons.undo, size: 16),
+                  child: const Icon(Icons.undo, size: 16),
                 ),
               ],
             ],

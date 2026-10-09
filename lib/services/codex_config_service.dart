@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:convert';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../models/ai_key.dart';
 import '../models/platform_type.dart';
@@ -10,7 +9,6 @@ import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
 import '../services/cloud_config_service.dart';
 import '../services/region_filter_service.dart';
-import '../models/cloud_config.dart' as cloud;
 import '../services/platform_config_path_service.dart';
 
 /// Codex 供应商配置
@@ -632,7 +630,7 @@ class CodexConfigService {
       // _generateConfigToml 已经在末尾包含了空行
       if (mergedConfig.isNotEmpty) {
         // 如果现有配置不为空，在新配置后添加一个换行符作为分隔符
-        mergedConfig = newConfigToml + '\n' + mergedConfig;
+        mergedConfig = '$newConfigToml\n$mergedConfig';
       } else {
         // 如果现有配置为空，直接使用新配置
         mergedConfig = newConfigToml;

@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'dart:ui';
 import '../../models/platform_type.dart';
 import '../../models/platform_category.dart';
-import '../../utils/platform_presets.dart';
-import '../../utils/liquid_glass_decoration.dart';
 import '../../utils/platform_icon_service.dart';
 import '../../utils/app_localizations.dart';
 

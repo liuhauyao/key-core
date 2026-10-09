@@ -174,10 +174,10 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
                 print('FirstLaunchDialog: 保存 Security-Scoped Bookmark 失败，可能需要重新授权');
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('保存权限失败，请重试'),
+                    const SnackBar(
+                      content: Text('保存权限失败，请重试'),
                       backgroundColor: Colors.orange,
-                      duration: const Duration(seconds: 2),
+                      duration: Duration(seconds: 2),
                     ),
                   );
                 }
@@ -617,7 +617,7 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
                             ShadButton(
                               onPressed: (_isSelecting || _isDetecting) ? null : _requestHomeDirectoryAccess,
                               child: (_isSelecting || _isDetecting)
-                                  ? SizedBox(
+                                  ? const SizedBox(
                                       width: 14,
                                       height: 14,
                                       child: CircularProgressIndicator(
@@ -654,7 +654,7 @@ class _FirstLaunchDialogState extends State<FirstLaunchDialog> {
                             ShadButton(
                               onPressed: _isEnablingTools ? null : _confirmToolSelection,
                               child: _isEnablingTools
-                                  ? SizedBox(
+                                  ? const SizedBox(
                                       width: 14,
                                       height: 14,
                                       child: CircularProgressIndicator(

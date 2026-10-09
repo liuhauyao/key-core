@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../models/platform_type.dart';
 import '../services/cloud_config_service.dart';
-import '../services/platform_registry.dart';
 
 /// 平台图标服务
 /// 从配置文件加载图标信息，完全依赖配置文件，无硬编码

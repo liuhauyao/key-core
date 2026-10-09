@@ -112,7 +112,7 @@ class ConfigurableValidator extends BaseValidator {
             final body = config.body != null
                 ? jsonEncode(replaceApiKeyInBody(config.body!, apiKey))
                 : '{}';
-            print('ConfigurableValidator: 发送 ${method} 请求');
+            print('ConfigurableValidator: 发送 $method 请求');
             if (method == 'POST') {
               response = await client
                   .post(url, headers: headers, body: body)

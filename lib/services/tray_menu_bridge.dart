@@ -151,7 +151,7 @@ class TrayMenuBridge {
     // Claude Code 密钥切换
     final claudeEnabled = await _isToolEnabled('claudecode');
     if (claudeEnabled) {
-      items.add(platform.TrayMenuItem(
+      items.add(const platform.TrayMenuItem(
         id: 'claude_header',
         label: '─── Claude ───',
         enabled: false,
@@ -159,7 +159,7 @@ class TrayMenuBridge {
 
       final claudeKeys = await _getClaudeCodeKeys();
       if (claudeKeys.isEmpty) {
-        items.add(platform.TrayMenuItem(
+        items.add(const platform.TrayMenuItem(
           id: 'claude_empty',
           label: '  (无密钥，请在主界面添加)',
           enabled: false,
@@ -177,7 +177,7 @@ class TrayMenuBridge {
         }
       }
 
-      items.add(platform.TrayMenuItem(
+      items.add(const platform.TrayMenuItem(
         id: 'separator_claude',
         label: '─────────',
         enabled: false,
@@ -187,7 +187,7 @@ class TrayMenuBridge {
     // Codex 密钥切换
     final codexEnabled = await _isToolEnabled('codex');
     if (codexEnabled) {
-      items.add(platform.TrayMenuItem(
+      items.add(const platform.TrayMenuItem(
         id: 'codex_header',
         label: '─── Codex ───',
         enabled: false,
@@ -195,7 +195,7 @@ class TrayMenuBridge {
 
       final codexKeys = await _getCodexKeys();
       if (codexKeys.isEmpty) {
-        items.add(platform.TrayMenuItem(
+        items.add(const platform.TrayMenuItem(
           id: 'codex_empty',
           label: '  (无密钥，请在主界面添加)',
           enabled: false,
@@ -213,7 +213,7 @@ class TrayMenuBridge {
         }
       }
 
-      items.add(platform.TrayMenuItem(
+      items.add(const platform.TrayMenuItem(
         id: 'separator_codex',
         label: '─────────',
         enabled: false,
@@ -223,7 +223,7 @@ class TrayMenuBridge {
     // Gemini 密钥切换
     final geminiEnabled = await _isToolEnabled('gemini');
     if (geminiEnabled) {
-      items.add(platform.TrayMenuItem(
+      items.add(const platform.TrayMenuItem(
         id: 'gemini_header',
         label: '─── Gemini ───',
         enabled: false,
@@ -231,7 +231,7 @@ class TrayMenuBridge {
 
       final geminiKeys = await _getGeminiKeys();
       if (geminiKeys.isEmpty) {
-        items.add(platform.TrayMenuItem(
+        items.add(const platform.TrayMenuItem(
           id: 'gemini_empty',
           label: '  (无密钥，请在主界面添加)',
           enabled: false,
@@ -249,7 +249,7 @@ class TrayMenuBridge {
         }
       }
 
-      items.add(platform.TrayMenuItem(
+      items.add(const platform.TrayMenuItem(
         id: 'separator_gemini',
         label: '─────────',
         enabled: false,

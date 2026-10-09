@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/ai_key.dart';
 import '../../services/openclaw_config_service.dart';
 import '../../services/url_launcher_service.dart';

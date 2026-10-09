@@ -231,7 +231,7 @@ class FirstLaunchService {
           return false; // 权限已恢复，不需要授权
         } else {
           // bookmark 存在但无法恢复，可能需要重新授权
-          print("FirstLaunchService: Security-Scoped Bookmark 存在但无法恢复，可能需要重新授权");
+          print('FirstLaunchService: Security-Scoped Bookmark 存在但无法恢复，可能需要重新授权');
         }
       }
     }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import '../../models/validation_result.dart';
 
 /// 校验按钮状态
 enum ValidationState {
