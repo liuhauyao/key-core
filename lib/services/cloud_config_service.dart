@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +13,8 @@ class CloudConfigService {
   static const String _keyConfigVersion = 'cloud_config_version';
   static const String _keyConfigUrl = 'cloud_config_url';
   static const String _keyLastUpdateCheck = 'cloud_config_last_update_check';
+  /// 缓存由能无损保存原始 JSON 的版本写入（旧版本写的缓存可能丢字段）
+  static const String _keyCacheLossless = 'cloud_config_cache_lossless';
   static const String _defaultVersion = '1.0.0';
   
   // 默认配置URL（GitHub API）- key-core 主仓库
@@ -29,6 +32,34 @@ class CloudConfigService {
   static const String _giteeConfigUrl = 
       'https://gitee.com/liuhauyao/key-core/raw/main/assets/config/app_config.json';
   
+  /// 当前版本能理解的最高 schemaVersion。
+  ///
+  /// 约定：只做“加字段”的兼容改动时不升 schemaVersion（旧版本会忽略未知字段）；
+  /// 只有删除/改名/改类型等破坏性改动才升。远端配置的 schemaVersion 高于此值时，
+  /// 旧版本应用会忽略这份远端配置，继续用自带 / 已缓存的配置，避免解析失败或误用。
+  static const int maxSupportedSchemaVersion = 3;
+
+  /// 是否能使用这份配置
+  static bool isSchemaSupported(CloudConfig config) =>
+      config.schemaVersion <= maxSupportedSchemaVersion;
+
+  /// 随应用打包的 assets/config/app_config.json 的 version / lastUpdated。
+  /// 修改该文件时必须同步更新（app_config_schema_test 会校验）。
+  static const String bundledConfigVersion = '1.2.0';
+  static const String bundledConfigLastUpdated = '2026-10-10T12:00:00.000000';
+
+  /// 缓存相对自带配置的新旧：>0 更新，0 相同，<0 更旧（先比 version，再比 lastUpdated）。
+  static int compareCacheWithBundled(CloudConfig cached,
+      {String bundledVersion = bundledConfigVersion, String bundledLastUpdated = bundledConfigLastUpdated}) {
+    final cmp = CloudConfigService().compareVersions(cached.version, bundledVersion);
+    if (cmp != 0) return cmp;
+    if (cached.lastUpdated == bundledLastUpdated) return 0;
+    final dc = DateTime.tryParse(cached.lastUpdated);
+    final db = DateTime.tryParse(bundledLastUpdated);
+    if (dc == null || db == null) return -1;
+    return dc.isAfter(db) ? 1 : -1;
+  }
+
   // 更新检查间隔（24小时）
   static const Duration _updateCheckInterval = Duration(hours: 24);
   
@@ -198,7 +229,7 @@ class CloudConfigService {
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         final config = CloudConfig.fromJson(jsonData);
-        return config;
+        return isSchemaSupported(config) ? config : null;
       } else if (response.statusCode == 304) {
         // 304 响应，强制重新请求
         return await _forceFetchFromUrl(uri);
@@ -244,7 +275,7 @@ class CloudConfigService {
           final jsonString = utf8.decode(decodedBytes);
           final configJson = jsonDecode(jsonString) as Map<String, dynamic>;
           final config = CloudConfig.fromJson(configJson);
-          return config;
+          return isSchemaSupported(config) ? config : null;
         }
         return null;
       }
@@ -286,7 +317,7 @@ class CloudConfigService {
           final jsonData = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
           final config = CloudConfig.fromJson(jsonData);
           print('CloudConfigService: 强制重试成功 - 版本: ${config.version}');
-          return config;
+          return isSchemaSupported(config) ? config : null;
         }
         
         // 等待一下再重试
@@ -325,7 +356,7 @@ class CloudConfigService {
       final jsonString = await configFile.readAsString();
       final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
       final config = CloudConfig.fromJson(jsonData);
-      return config;
+      return isSchemaSupported(config) ? config : null;
     } catch (e) {
       print('CloudConfigService: 加载本地缓存配置失败: $e');
       return null;
@@ -341,6 +372,7 @@ class CloudConfigService {
       
       final jsonString = const JsonEncoder.withIndent('  ').convert(config.toJson());
       await configFile.writeAsString(jsonString);
+      await _prefs?.setBool(_keyCacheLossless, config.rawJson != null);
       
       // 更新版本号
       await setLocalConfigVersion(config.version);
@@ -471,13 +503,24 @@ class CloudConfigService {
       return _cachedConfig;
     }
     
-    // 2. 尝试加载本地缓存
+    // 2. 尝试加载本地缓存。升级应用后，旧缓存（来自旧版本、或被旧版本 toJson
+    //    裁剪过字段）不能盖过新版自带配置：缓存不比自带配置新、且不是本版本无损写入的，
+    //    就改用自带配置。版本号用常量比较，常规启动不多读一次 asset。
     final cachedConfig = await loadLocalCachedConfig();
     if (cachedConfig != null) {
-      _cachedConfig = cachedConfig;
-      return cachedConfig;
+      final lossless = _prefs?.getBool(_keyCacheLossless) ?? false;
+      final cmp = compareCacheWithBundled(cachedConfig);
+      if (cmp > 0 || (cmp == 0 && lossless)) {
+        _cachedConfig = cachedConfig;
+        return cachedConfig;
+      }
+      final bundled = await loadLocalDefaultConfig();
+      final chosen = bundled ?? cachedConfig;
+      if (bundled != null) unawaited(saveConfigToCache(bundled));
+      _cachedConfig = chosen;
+      return chosen;
     }
-    
+
     // 3. 尝试从云端获取
     final cloudConfig = await fetchConfigFromCloud();
     if (cloudConfig != null) {
