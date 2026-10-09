@@ -59,6 +59,8 @@ analyzer:
     - "**/*.freezed.dart"
     - "**/*.config.dart"
     - "**/generated/**"
+    - build/**
+    - macos/**
   errors:
     invalid_annotation_target: ignore
 

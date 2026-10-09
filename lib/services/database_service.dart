@@ -5,9 +5,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../models/ai_key.dart';
 import '../constants/app_constants.dart';
-import '../services/platform_registry.dart';
-import '../services/cloud_config_service.dart';
-import '../models/platform_type.dart';
 
 /// 数据库服务
 /// 提供AI密钥的CRUD操作
@@ -45,7 +42,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 13,
+      version: 14,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -135,6 +132,39 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_mcp_servers_type ON mcp_servers(server_type)');
 
     await _createSkillsTable(db);
+    await _createProvidersTable(db);
+  }
+
+  /// 创建供应商表
+  Future<void> _createProvidersTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE providers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        name_zh TEXT,
+        provider_type TEXT NOT NULL,
+        api_endpoint TEXT,
+        api_key_encrypted TEXT,
+        api_key_nonce TEXT,
+        models TEXT,
+        supported_tools TEXT,
+        region TEXT,
+        plan_type TEXT,
+        icon_url TEXT,
+        website_url TEXT,
+        api_key_url TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        description TEXT,
+        is_sponsored INTEGER DEFAULT 0,
+        family TEXT
+      )
+    ''');
+
+    await db.execute('CREATE INDEX idx_providers_type ON providers(provider_type)');
+    await db.execute('CREATE INDEX idx_providers_active ON providers(is_active)');
+    await db.execute('CREATE INDEX idx_providers_region ON providers(region)');
   }
 
   Future<void> _createSkillsTable(Database db) async {
@@ -361,6 +391,11 @@ class DatabaseService {
 
     if (oldVersion < 13) {
       await _createSkillsTable(db);
+    }
+
+    if (oldVersion < 14) {
+      // 创建 providers 表
+      await _createProvidersTable(db);
     }
   }
 
@@ -664,6 +699,93 @@ class DatabaseService {
       await db.close();
       _database = null;
     }
+  }
+
+  // ============= Provider 相关方法 =============
+
+  /// 插入或更新供应商
+  Future<void> insertOrUpdateProvider(Map<String, dynamic> provider) async {
+    final db = await database;
+    await db.insert(
+      'providers',
+      provider,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// 获取所有供应商
+  Future<List<Map<String, dynamic>>> getAllProviders() async {
+    final db = await database;
+    return await db.query(
+      'providers',
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 获取活跃的供应商
+  Future<List<Map<String, dynamic>>> getActiveProviders() async {
+    final db = await database;
+    return await db.query(
+      'providers',
+      where: 'is_active = ?',
+      whereArgs: [1],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 根据 ID 获取供应商
+  Future<Map<String, dynamic>?> getProviderById(String id) async {
+    final db = await database;
+    final results = await db.query(
+      'providers',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return results.isEmpty ? null : results.first;
+  }
+
+  /// 根据工具类型获取供应商
+  Future<List<Map<String, dynamic>>> getProvidersByTool(String tool) async {
+    final db = await database;
+    final results = await db.query(
+      'providers',
+      where: "supported_tools LIKE ?",
+      whereArgs: ['%$tool%'],
+      orderBy: 'created_at DESC',
+    );
+    return results;
+  }
+
+  /// 更新供应商活跃状态
+  Future<int> updateProviderActive(String id, bool isActive) async {
+    final db = await database;
+    return await db.update(
+      'providers',
+      {'is_active': isActive ? 1 : 0, 'updated_at': DateTime.now().millisecondsSinceEpoch},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 删除供应商
+  Future<int> deleteProvider(String id) async {
+    final db = await database;
+    return await db.delete(
+      'providers',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 搜索供应商
+  Future<List<Map<String, dynamic>>> searchProviders(String keyword) async {
+    final db = await database;
+    return await db.query(
+      'providers',
+      where: 'name LIKE ? OR name_zh LIKE ? OR description LIKE ?',
+      whereArgs: ['%$keyword%', '%$keyword%', '%$keyword%'],
+      orderBy: 'created_at DESC',
+    );
   }
 
   /// 清除所有数据（删除数据库文件）
