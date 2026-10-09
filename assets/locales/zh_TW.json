@@ -590,5 +590,13 @@
   "tool_disabled_in_settings": "設定中未啟用",
   "enable_in_settings_hint": "在 設定 › 工具設定 中開啟",
   "status_candidate": "候選",
-  "use_in_tools": "用在哪些工具"
+  "use_in_tools": "用在哪些工具",
+  "tab_overview": "概覽",
+  "tab_models": "模型",
+  "models_empty": "尚無模型列表",
+  "models_empty_hint": "點擊「重新整理」從供應商取得一次，結果會快取在本機",
+  "models_search_hint": "搜尋模型 ID",
+  "refresh": "重新整理",
+  "models_count_hint": "共 {n} 個模型 · 點擊複製 ID",
+  "models_match_hint": "符合 {n} / {total}"
 }

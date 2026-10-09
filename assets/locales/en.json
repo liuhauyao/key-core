@@ -759,5 +759,13 @@
   "tool_disabled_in_settings": "Off in Settings",
   "enable_in_settings_hint": "Turn on in Settings › Tools",
   "status_candidate": "Candidate",
-  "use_in_tools": "Use in tools"
+  "use_in_tools": "Use in tools",
+  "tab_overview": "Overview",
+  "tab_models": "Models",
+  "models_empty": "No model list yet",
+  "models_empty_hint": "Click Refresh to fetch from the provider; results are cached locally",
+  "models_search_hint": "Search model ID",
+  "refresh": "Refresh",
+  "models_count_hint": "{n} models · click to copy ID",
+  "models_match_hint": "{n} / {total} match"
 }

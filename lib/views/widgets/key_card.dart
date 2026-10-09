@@ -36,6 +36,8 @@ class KeyCard extends StatefulWidget {
   final KeyCardMode cardMode; // 卡片模式
   final VoidCallback? onTap; // 主点击回调（根据 cardMode 决定行为）
   final VoidCallback? onView; // 查看详情回调（仅在 view 模式下使用）
+  /// 打开详情抽屉的「模型」页签（form_v3.md §5）；不传时退回旧的模型列表弹窗
+  final VoidCallback? onViewModels;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onOpenManagementUrl;
@@ -65,6 +67,7 @@ class KeyCard extends StatefulWidget {
     this.cardMode = KeyCardMode.view, // 默认为查看模式
     this.onTap,
     this.onView,
+    this.onViewModels,
     this.onEdit,
     this.onDelete,
     this.onOpenManagementUrl,
@@ -202,6 +205,10 @@ class _KeyCardState extends State<KeyCard> {
 
   /// 查看模型列表（从缓存读取）
   Future<void> _handleViewModels() async {
+    if (widget.onViewModels != null) {
+      widget.onViewModels!();
+      return;
+    }
     if (_cachedModels != null && _cachedModels!.isNotEmpty) {
       if (!mounted) return;
       final localizations = AppLocalizations.of(context);

@@ -8,7 +8,10 @@ import '../../models/mcp_server.dart' show AiToolType;
 import '../../theme/kc_tokens.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/key_manager_viewmodel.dart';
+import '../../models/model_info.dart';
 import 'kc_logo.dart';
+import 'kc_segmented.dart';
+import 'model_card.dart';
 import 'key_card.dart' show enabledToolsOf, toolConfigPathHint, toolModelOf;
 
 export 'key_card.dart' show toolModelOf;
@@ -114,6 +117,16 @@ class KeyDetailsDialog extends StatefulWidget {
   /// 底栏「复制为环境变量」
   final ValueChanged<String>? onCopyEnv;
 
+  /// 「模型」页签（form_v3.md §5，取代独立的模型列表弹窗）。
+  /// 读取缓存的模型列表；不传则不显示页签（各工具页沿用单页详情）。
+  final Future<List<ModelInfo>?> Function()? loadModels;
+
+  /// 「刷新」：在线拉取并写回缓存，返回新列表；失败返回 null（并由调用方提示错误）
+  final Future<List<ModelInfo>?> Function()? refreshModels;
+
+  /// 打开时默认显示的页签：0 概览 / 1 模型
+  final int initialTab;
+
   const KeyDetailsDialog({
     super.key,
     required this.aiKey,
@@ -126,6 +139,9 @@ class KeyDetailsDialog extends StatefulWidget {
     this.onToggleTool,
     this.onDelete,
     this.onCopyEnv,
+    this.loadModels,
+    this.refreshModels,
+    this.initialTab = 0,
   });
 
   @override
@@ -136,6 +152,44 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
   bool _showKeyValue = false;
   late AIKey _key = widget.aiKey;
   final Set<AiToolType> _busy = {};
+  late int _tab = widget.loadModels == null ? 0 : widget.initialTab;
+  List<ModelInfo>? _models;
+  bool _modelsLoading = false;
+  bool _modelsRefreshing = false;
+  final TextEditingController _modelQuery = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loadModels != null) _loadModels();
+  }
+
+  @override
+  void dispose() {
+    _modelQuery.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadModels() async {
+    setState(() => _modelsLoading = true);
+    final m = await widget.loadModels!();
+    if (!mounted) return;
+    setState(() {
+      _models = m;
+      _modelsLoading = false;
+    });
+  }
+
+  Future<void> _refreshModels() async {
+    if (widget.refreshModels == null || _modelsRefreshing) return;
+    setState(() => _modelsRefreshing = true);
+    final m = await widget.refreshModels!();
+    if (!mounted) return;
+    setState(() {
+      if (m != null) _models = m;
+      _modelsRefreshing = false;
+    });
+  }
 
   @override
   void didUpdateWidget(covariant KeyDetailsDialog oldWidget) {
@@ -177,7 +231,11 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _header(context, l),
+              if (widget.loadModels != null) _tabs(context, l),
               Divider(height: 1, thickness: 1, color: cs.border),
+              if (_tab == 1)
+                Expanded(child: _modelsTab(context, l))
+              else
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x5, KcSpace.page, KcSpace.x6),
@@ -256,6 +314,112 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
         ],
       ),
     );
+  }
+
+  Widget _tabs(BuildContext context, AppLocalizations? l) {
+    final n = _models?.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(KcSpace.page, 0, KcSpace.page, KcSpace.x3),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: KcSegmented<int>(
+          key: const ValueKey('keyDetails.tabs'),
+          value: _tab,
+          onChanged: (v) => setState(() => _tab = v),
+          items: [
+            (0, l?.tr('tab_overview', '概览') ?? '概览', null),
+            (1, l?.tr('tab_models', '模型') ?? '模型', n),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modelsTab(BuildContext context, AppLocalizations? l) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final q = _modelQuery.text.trim().toLowerCase();
+    final all = _models ?? const <ModelInfo>[];
+    final list = q.isEmpty
+        ? all
+        : all.where((m) => m.id.toLowerCase().contains(q) || m.name.toLowerCase().contains(q)).toList();
+    Widget body;
+    if (_modelsLoading) {
+      body = const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)));
+    } else if (all.isEmpty) {
+      body = Center(
+        key: const ValueKey('keyDetails.models.empty'),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.view_list_outlined, size: 32, color: kc.text2),
+          const SizedBox(height: KcSpace.x2),
+          Text(l?.tr('models_empty', '还没有模型列表') ?? '还没有模型列表', style: KcType.strong.copyWith(color: cs.foreground)),
+          const SizedBox(height: 4),
+          Text(l?.tr('models_empty_hint', '点击「刷新」从供应商拉取一次，结果会缓存在本机') ?? '点击「刷新」从供应商拉取一次，结果会缓存在本机',
+              style: KcType.caption.copyWith(color: kc.text2)),
+        ]),
+      );
+    } else {
+      body = ListView.separated(
+        key: const ValueKey('keyDetails.models.list'),
+        padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, KcSpace.x6),
+        itemCount: list.length,
+        separatorBuilder: (_, __) => const SizedBox(height: KcSpace.x2),
+        itemBuilder: (context, i) => ModelCard(model: list[i], onCopy: () => widget.onCopyText(list[i].id)),
+      );
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x3, KcSpace.page, 0),
+        child: Row(children: [
+          Expanded(
+            child: SizedBox(
+              height: KcSize.control,
+              child: TextField(
+                key: const ValueKey('keyDetails.models.search'),
+                controller: _modelQuery,
+                onChanged: (_) => setState(() {}),
+                style: KcType.body.copyWith(color: cs.foreground),
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: Icon(Icons.search, size: 16, color: kc.text2),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 32),
+                  hintText: l?.tr('models_search_hint', '搜索模型 ID') ?? '搜索模型 ID',
+                  hintStyle: KcType.body.copyWith(color: cs.mutedForeground),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(KcRadius.control), borderSide: BorderSide(color: cs.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(KcRadius.control), borderSide: BorderSide(color: cs.border)),
+                ),
+              ),
+            ),
+          ),
+          if (widget.refreshModels != null) ...[
+            const SizedBox(width: KcSpace.x2),
+            ShadButton.outline(
+              key: const ValueKey('keyDetails.models.refresh'),
+              height: KcSize.control,
+              onPressed: _modelsRefreshing ? null : _refreshModels,
+              leading: _modelsRefreshing
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh, size: 15),
+              child: Text(l?.tr('refresh', '刷新') ?? '刷新'),
+            ),
+          ],
+        ]),
+      ),
+      if (all.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(KcSpace.page, KcSpace.x2, KcSpace.page, 0),
+          child: Text(
+            q.isEmpty
+                ? (l?.tr('models_count_hint', '共 {n} 个模型 · 点击复制 ID') ?? '共 {n} 个模型 · 点击复制 ID').replaceAll('{n}', '${all.length}')
+                : (l?.tr('models_match_hint', '匹配 {n} / {total}') ?? '匹配 {n} / {total}')
+                    .replaceAll('{n}', '${list.length}')
+                    .replaceAll('{total}', '${all.length}'),
+            style: KcType.caption.copyWith(color: kc.text2),
+          ),
+        ),
+      Expanded(child: body),
+    ]);
   }
 
   Widget _label(BuildContext context, String text) => Padding(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/key_cache_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:reorderables/reorderables.dart';
@@ -832,6 +833,7 @@ class _MainScreenState extends State<MainScreen> {
             isEditMode: isEditMode,
             cardMode: KeyCardMode.view, // 密钥管理界面使用查看模式
             onView: () => _showKeyDetails(context, key),
+            onViewModels: () => _showKeyDetails(context, key, tab: 1),
             onEdit: () => _showEditKeyPage(context, key, viewModel),
             onDelete: () => _deleteKey(context, key, viewModel),
             onOpenManagementUrl: () {
@@ -953,7 +955,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _showKeyDetails(BuildContext context, AIKey key) async {
+  void _showKeyDetails(BuildContext context, AIKey key, {int tab = 0}) async {
     final viewModel = context.read<KeyManagerViewModel>();
     final localizations = AppLocalizations.of(context);
     final decryptedKey = await viewModel.getDecryptedKey(key.id!);
@@ -996,6 +998,19 @@ class _MainScreenState extends State<MainScreen> {
         onCopyEnv: (text) {
           ClipboardService().copyToClipboard(text);
           _showSnackBar(context, AppLocalizations.of(context)?.envVarsCopied ?? '环境变量已复制（含密钥，请勿外传）');
+        },
+        initialTab: tab,
+        loadModels: () => KeyCacheService().getModelList(decryptedKey),
+        refreshModels: () async {
+          final result = await ModelListService().getModelList(key: decryptedKey);
+          if (result.success && result.models != null) {
+            await KeyCacheService().saveModelList(decryptedKey, result.models!);
+            return result.models;
+          }
+          if (context.mounted) {
+            _showSnackBar(context, result.error ?? AppLocalizations.of(context)?.updateModelListFailed ?? '更新模型列表失败', isError: true);
+          }
+          return null;
         },
       ),
     );
