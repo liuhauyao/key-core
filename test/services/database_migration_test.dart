@@ -109,8 +109,20 @@ void main() {
   databaseFactory = databaseFactoryFfi;
   final service = DatabaseService.instance;
 
-  test('schema version is 18', () {
-    expect(DatabaseService.schemaVersion, 18);
+  test('schema version is 19', () {
+    expect(DatabaseService.schemaVersion, 19);
+  });
+
+  test('upgrade v18 -> v19 creates mcp_server_apps (idempotent)', () async {
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, 15);
+    await db.execute('DROP TABLE mcp_server_apps');
+    expect(await _tables(db), isNot(contains('mcp_server_apps')));
+    await service.runUpgradeForTest(db, 18, 19);
+    await service.runUpgradeForTest(db, 18, 19);
+    expect(await _tables(db), contains('mcp_server_apps'));
+    expect(await _columns(db, 'mcp_server_apps'), {'server_id', 'tool', 'created_at'});
+    await db.close();
   });
 
   test('upgrade v17 -> v18 adds claude_code_config and keeps keys', () async {
@@ -136,7 +148,7 @@ void main() {
     final db = await _memoryDb();
     await service.runCreateForTest(db, DatabaseService.schemaVersion);
     final tables = await _tables(db);
-    expect(tables, containsAll(['ai_keys', 'mcp_servers', 'skills']));
+    expect(tables, containsAll(['ai_keys', 'mcp_servers', 'skills', 'mcp_server_apps']));
     expect(tables, isNot(contains('providers')));
     expect(
       await _columns(db, 'ai_keys'),

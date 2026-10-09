@@ -1,3 +1,4 @@
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../models/mcp_server.dart';
 import 'database_service.dart';
 
@@ -61,9 +62,13 @@ class McpDatabaseService {
     );
   }
 
-  /// 删除 MCP 服务器
+  /// 删除 MCP 服务器（同时删除其工具启用关系）
   Future<int> deleteMcpServer(int id) async {
     final db = await _databaseService.database;
+    final rows = await db.query('mcp_servers', columns: ['server_id'], where: 'id = ?', whereArgs: [id]);
+    if (rows.isNotEmpty) {
+      await db.delete('mcp_server_apps', where: 'server_id = ?', whereArgs: [rows.first['server_id']]);
+    }
     return await db.delete(
       'mcp_servers',
       where: 'id = ?',
@@ -74,6 +79,7 @@ class McpDatabaseService {
   /// 根据 serverId 删除 MCP 服务器
   Future<int> deleteMcpServerByServerId(String serverId) async {
     final db = await _databaseService.database;
+    await db.delete('mcp_server_apps', where: 'server_id = ?', whereArgs: [serverId]);
     return await db.delete(
       'mcp_servers',
       where: 'server_id = ?',
@@ -130,5 +136,64 @@ class McpDatabaseService {
     );
     return maps.isNotEmpty;
   }
-}
 
+  // ---------------------------------------------------------------------------
+  // 按工具启用（对齐 CC Switch 的 enabled_<app>）
+  // ---------------------------------------------------------------------------
+
+  /// 全部启用关系：serverId → 已启用的工具
+  Future<Map<String, Set<AiToolType>>> getAllServerApps() async {
+    final db = await _databaseService.database;
+    final rows = await db.query('mcp_server_apps');
+    final out = <String, Set<AiToolType>>{};
+    for (final r in rows) {
+      final tool = _toolFromValue(r['tool'] as String);
+      if (tool == null) continue;
+      (out[r['server_id'] as String] ??= <AiToolType>{}).add(tool);
+    }
+    return out;
+  }
+
+  /// 某个服务已启用的工具
+  Future<Set<AiToolType>> getServerApps(String serverId) async {
+    final db = await _databaseService.database;
+    final rows = await db.query('mcp_server_apps', where: 'server_id = ?', whereArgs: [serverId]);
+    return rows.map((r) => _toolFromValue(r['tool'] as String)).whereType<AiToolType>().toSet();
+  }
+
+  /// 某个工具上已启用的服务 ID
+  Future<Set<String>> getServerIdsForTool(AiToolType tool) async {
+    final db = await _databaseService.database;
+    final rows = await db.query('mcp_server_apps', where: 'tool = ?', whereArgs: [tool.value]);
+    return rows.map((r) => r['server_id'] as String).toSet();
+  }
+
+  /// 设置服务在某工具上的启用状态
+  Future<void> setServerApp(String serverId, AiToolType tool, bool enabled) async {
+    final db = await _databaseService.database;
+    if (enabled) {
+      await db.insert(
+        'mcp_server_apps',
+        {'server_id': serverId, 'tool': tool.value, 'created_at': DateTime.now().toIso8601String()},
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    } else {
+      await db.delete('mcp_server_apps', where: 'server_id = ? AND tool = ?', whereArgs: [serverId, tool.value]);
+    }
+  }
+
+  /// serverId 改名时迁移启用关系
+  Future<void> renameServerApps(String oldId, String newId) async {
+    if (oldId == newId) return;
+    final db = await _databaseService.database;
+    await db.update('mcp_server_apps', {'server_id': newId}, where: 'server_id = ?', whereArgs: [oldId],
+        conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  static AiToolType? _toolFromValue(String v) {
+    for (final t in AiToolType.values) {
+      if (t.value == v) return t;
+    }
+    return null;
+  }
+}

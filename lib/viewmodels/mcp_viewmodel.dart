@@ -9,6 +9,10 @@ class McpViewModel extends BaseViewModel {
   final McpSyncService _syncService = McpSyncService();
 
   List<McpServer> _allServers = [];
+  Map<String, Set<AiToolType>> _serverApps = {};
+
+  /// serverId → 已启用的工具
+  Map<String, Set<AiToolType>> get serverApps => _serverApps;
   List<McpServer> _filteredServers = [];
   String _searchQuery = '';
 
@@ -29,6 +33,7 @@ class McpViewModel extends BaseViewModel {
   Future<void> loadServers({bool showLoading = true}) async {
     await executeAsync(() async {
       _allServers = await _databaseService.getAllMcpServers();
+      _serverApps = await _databaseService.getAllServerApps();
       _updateFilteredServers();
     }, showLoading: showLoading);
   }
@@ -94,14 +99,22 @@ class McpViewModel extends BaseViewModel {
       // 先更新内存中的列表，立即反映到 UI，实现无感更新
       final index = _allServers.indexWhere((s) => s.id == server.id);
       if (index != -1) {
+        _previousIds[server.id] = _allServers[index].serverId;
         _allServers[index] = server;
         _updateFilteredServers();
         notifyListeners();
       }
 
       // 然后在后台更新数据库，不阻塞 UI
+      final previous = index != -1 ? null : await _databaseService.getMcpServerById(server.id ?? -1);
       await _databaseService.updateMcpServer(server);
-      
+
+      // 已在工具中启用的服务：内容变化后立即重新写入（对齐 CC Switch）
+      final oldId = previous?.serverId ?? _previousIds[server.id];
+      await _syncService.resyncServer(server, previousServerId: oldId);
+      _previousIds.remove(server.id);
+      _serverApps = await _databaseService.getAllServerApps();
+
       return true;
     } catch (e) {
       // 如果更新失败，重新加载数据恢复状态
@@ -110,9 +123,11 @@ class McpViewModel extends BaseViewModel {
     }
   }
 
-  /// 删除 MCP 服务器
+  /// 删除 MCP 服务器（先从已启用的工具中移除）
   Future<bool> deleteServer(int id) async {
     return await executeAsync(() async {
+      final server = await _databaseService.getMcpServerById(id);
+      if (server != null) await _syncService.removeServerFromEnabledTools(server.serverId);
       await _databaseService.deleteMcpServer(id);
       await loadServers();
       return true;
@@ -246,6 +261,33 @@ class McpViewModel extends BaseViewModel {
   /// 检查 serverId 是否存在
   Future<bool> serverIdExists(String serverId, {int? excludeId}) async {
     return await _databaseService.serverIdExists(serverId, excludeId: excludeId);
+  }
+
+  final Map<int?, String> _previousIds = {};
+
+  /// 在某个工具上启用 / 停用服务（立即写入工具配置）
+  Future<bool> setServerEnabledForTool(McpServer server, AiToolType tool, bool enabled) async {
+    try {
+      await _syncService.setServerEnabledForTool(server, tool, enabled);
+      _serverApps = await _databaseService.getAllServerApps();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      setError('${tool.displayName}: $e');
+      return false;
+    }
+  }
+
+  /// 把所有启用关系重新写入各工具
+  Future<Map<AiToolType, bool>> syncAllEnabled() async {
+    return await executeAsync(() => _syncService.syncAllEnabled()) ?? const {};
+  }
+
+  /// 从多个工具导入 MCP 服务并记录启用关系
+  Future<McpImportAllResult?> importFromTools(Iterable<AiToolType> tools) async {
+    final r = await executeAsync(() => _syncService.importFromTools(tools));
+    await loadServers(showLoading: false);
+    return r;
   }
 }
 
