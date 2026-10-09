@@ -749,5 +749,13 @@
   "tool_disabled_in_settings": "设置中未启用",
   "enable_in_settings_hint": "在 设置 › 工具配置 中开启",
   "status_candidate": "候选",
-  "use_in_tools": "用在哪些工具"
+  "use_in_tools": "用在哪些工具",
+  "tab_overview": "概览",
+  "tab_models": "模型",
+  "models_empty": "还没有模型列表",
+  "models_empty_hint": "点击「刷新」从供应商拉取一次，结果会缓存在本机",
+  "models_search_hint": "搜索模型 ID",
+  "refresh": "刷新",
+  "models_count_hint": "共 {n} 个模型 · 点击复制 ID",
+  "models_match_hint": "匹配 {n} / {total}"
 }
