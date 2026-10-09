@@ -492,7 +492,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
       return;
     }
     if (!mounted) return;
-    showDialog(
+    showKeyDetailsSheet(
       context: context,
       builder: (context) => KeyDetailsDialog(
         aiKey: decryptedKey,

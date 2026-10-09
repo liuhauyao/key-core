@@ -59,7 +59,10 @@ void main() {
     expect(inCard(7, byKey('toolChip.plus')), findsOneWidget);
     expect(inCard(7, find.text('未用到工具')), findsOneWidget);
     // 有工具的卡片不 hover 时不显示 ＋
-    expect(inCard(1, byKey('toolChip.plus')), findsNothing);
+    // （按钮保持挂载以免菜单弹出后丢失选择，但不可见、不可点）
+    final plusVis = tester.widget<Visibility>(
+        find.ancestor(of: inCard(1, byKey('toolChip.plus')), matching: find.byType(Visibility)).first);
+    expect(plusVis.visible, isFalse);
   });
 
   testWidgets('点击「已启用」chip 直接切换；toast 带撤销，撤销恢复为官方配置', (tester) async {
@@ -168,7 +171,12 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
     expect(opacityOfActions(), 1);
     // hover 时有工具的卡片也出现 ＋
-    expect(inCard(5, byKey('toolChip.plus')), findsOneWidget);
+    expect(
+        tester
+            .widget<Visibility>(
+                find.ancestor(of: inCard(5, byKey('toolChip.plus')), matching: find.byType(Visibility)).first)
+            .visible,
+        isTrue);
   });
 
   testWidgets('过滤分段：正在使用 / 未用到工具 / 需处理', (tester) async {

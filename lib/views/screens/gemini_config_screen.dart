@@ -1231,7 +1231,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
       return;
     }
 
-    showDialog(
+    showKeyDetailsSheet(
       context: context,
       builder: (context) => KeyDetailsDialog(
         aiKey: decryptedKey,

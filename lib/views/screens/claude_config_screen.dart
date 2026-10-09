@@ -1029,7 +1029,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
       return;
     }
 
-    showDialog(
+    showKeyDetailsSheet(
       context: context,
       builder: (context) => KeyDetailsDialog(
         aiKey: decryptedKey,
