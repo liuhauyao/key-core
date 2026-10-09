@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../models/provider.dart';
 import '../services/database_service.dart';
@@ -41,7 +42,7 @@ class ProviderManagerService {
 
       return _presets!;
     } catch (e) {
-      print('加载供应商预设失败: $e');
+      debugPrint('加载供应商预设失败: $e');
       return [];
     }
   }
@@ -56,7 +57,7 @@ class ProviderManagerService {
         final provider = await _mapToProvider(map);
         providers.add(provider);
       } catch (e) {
-        print('解析供应商失败: $e');
+        debugPrint('解析供应商失败: $e');
       }
     }
 
@@ -73,7 +74,7 @@ class ProviderManagerService {
         final provider = await _mapToProvider(map);
         providers.add(provider);
       } catch (e) {
-        print('解析供应商失败: $e');
+        debugPrint('解析供应商失败: $e');
       }
     }
 
@@ -90,7 +91,7 @@ class ProviderManagerService {
         final provider = await _mapToProvider(map);
         providers.add(provider);
       } catch (e) {
-        print('解析供应商失败: $e');
+        debugPrint('解析供应商失败: $e');
       }
     }
 
@@ -105,37 +106,49 @@ class ProviderManagerService {
     try {
       return await _mapToProvider(map);
     } catch (e) {
-      print('解析供应商失败: $e');
+      debugPrint('解析供应商失败: $e');
       return null;
     }
   }
 
-  /// 保存或更新供应商
-  Future<void> saveProvider(Provider provider) async {
+  /// API Key 是否会以主密码加密存储（未设置主密码时为明文存储，与密钥包行为一致）
+  Future<bool> isEncryptionEnabled() => _authService.hasMasterPassword();
+
+  /// 把 Provider 转为可直接写入 providers 表的 map（纯函数，便于测试）
+  ///
+  /// - `models` / `supported_tools` 序列化为 JSON 字符串（sqflite 不支持 List）
+  /// - 明文 `api_key` 永远不会写入数据库，只写入 [storedApiKey]
+  static Map<String, dynamic> toDbMap(Provider provider, {String? storedApiKey}) {
     final map = provider.toMap();
-    
-    // 加密 API Key
+    map['models'] = json.encode(provider.models.map((m) => m.toMap()).toList());
+    map['supported_tools'] = json.encode(provider.supportedTools);
+    map.remove('api_key');
+    map['api_key_encrypted'] = storedApiKey;
+    map['api_key_nonce'] = storedApiKey == null ? null : '';
+    return map;
+  }
+
+  /// 保存或更新供应商
+  ///
+  /// 已设置主密码时，API Key 使用主密码派生的密钥以 AES-GCM 加密后存储；
+  /// 若设置了主密码但无法获取加密密钥，则拒绝保存，绝不回退为明文。
+  Future<void> saveProvider(Provider provider) async {
+    String? stored;
     if (provider.apiKey != null && provider.apiKey!.isNotEmpty) {
-      // 检查是否设置了主密码
       final hasPassword = await _authService.hasMasterPassword();
       if (hasPassword) {
         final encryptionKey = await _authService.getEncryptionKey();
-        if (encryptionKey != null) {
-          final encrypted = await _cryptService.encrypt(provider.apiKey!, encryptionKey);
-          map['api_key_encrypted'] = encrypted;
-          map['api_key_nonce'] = ''; // GCM 模式的 nonce 包含在加密数据中
+        if (encryptionKey == null) {
+          throw StateError('无法获取加密密钥，请重新验证主密码后再保存');
         }
+        stored = await _cryptService.encrypt(provider.apiKey!, encryptionKey);
       } else {
-        // 如果没有设置主密码，使用明文存储（安全性较低）
-        map['api_key_encrypted'] = provider.apiKey;
-        map['api_key_nonce'] = '';
+        // 未设置主密码：与现有密钥包行为一致，以明文存储（界面会给出提示）
+        stored = provider.apiKey;
       }
     }
-    
-    // 移除明文 API Key
-    map.remove('api_key');
 
-    await _dbService.insertOrUpdateProvider(map);
+    await _dbService.insertOrUpdateProvider(toDbMap(provider, storedApiKey: stored));
   }
 
   /// 从预设创建供应商
@@ -182,7 +195,7 @@ class ProviderManagerService {
         final provider = await _mapToProvider(map);
         providers.add(provider);
       } catch (e) {
-        print('解析供应商失败: $e');
+        debugPrint('解析供应商失败: $e');
       }
     }
 
@@ -215,7 +228,7 @@ class ProviderManagerService {
           apiKey = encryptedKey;
         }
       } catch (e) {
-        print('解密 API Key 失败: $e');
+        debugPrint('解密 API Key 失败: $e');
       }
     }
 
@@ -228,7 +241,7 @@ class ProviderManagerService {
             .map((m) => ProviderModel.fromMap(m as Map<String, dynamic>))
             .toList();
       } catch (e) {
-        print('解析模型列表失败: $e');
+        debugPrint('解析模型列表失败: $e');
       }
     }
 
@@ -240,7 +253,7 @@ class ProviderManagerService {
             .map((e) => e as String)
             .toList();
       } catch (e) {
-        print('解析工具列表失败: $e');
+        debugPrint('解析工具列表失败: $e');
       }
     }
 
@@ -275,7 +288,7 @@ class ProviderManagerService {
     }
 
     final presets = await loadPresets();
-    print('发现 ${presets.length} 个预设供应商');
+    debugPrint('发现 ${presets.length} 个预设供应商');
 
     // 仅导入官方供应商（不包含 API Key）
     for (final preset in presets) {
@@ -287,9 +300,9 @@ class ProviderManagerService {
             isActive: false, // 默认未激活，需要用户添加 API Key
           );
           await saveProvider(provider);
-          print('导入预设供应商: ${provider.name}');
+          debugPrint('导入预设供应商: ${provider.name}');
         } catch (e) {
-          print('导入预设供应商失败 ${preset.name}: $e');
+          debugPrint('导入预设供应商失败 ${preset.name}: $e');
         }
       }
     }

@@ -916,6 +916,9 @@ class OpenClawConfigService {
   }
 
   /// JSON5 预处理：剥离单行注释、块注释、尾随逗号，使标准 json.decode 可解析
+  /// 公开的 JSON5 预处理入口（供其他服务读取 openclaw.json 使用）
+  static String stripJson5(String content) => _preprocessJson5(content);
+
   static String _preprocessJson5(String content) {
     // 移除块注释 /* ... */
     final blockCommentRegex = RegExp(r'/\*[\s\S]*?\*/', multiLine: true);
