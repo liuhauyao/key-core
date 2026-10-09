@@ -565,5 +565,20 @@
   "active_in_tools": "生效於 {tools}",
   "enabled_n_tools": "已啟用 {n} 個工具",
   "copied_endpoint_of": "已複製「{name}」的請求位址",
-  "copied_key_of": "已複製「{name}」的金鑰"
+  "copied_key_of": "已複製「{name}」的金鑰",
+  "paste": "貼上",
+  "provider": "供應商",
+  "more_options": "更多選項",
+  "more_options_hint": "管理位址、標籤、備註、到期",
+  "form_ready": "已就緒",
+  "form_incomplete": "待補全",
+  "all": "全部",
+  "provider_search_hint": "搜尋供應商、網域…",
+  "provider_none": "沒有符合的供應商",
+  "provider_picker_keys": "↑↓ 選擇 · Enter 確認 · Esc 關閉",
+  "custom_provider": "自訂供應商",
+  "tool_disabled_in_settings": "設定中未啟用",
+  "enable_in_settings_hint": "在 設定 › 工具設定 中開啟",
+  "status_candidate": "候選",
+  "use_in_tools": "用在哪些工具"
 }

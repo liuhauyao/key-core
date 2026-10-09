@@ -734,5 +734,20 @@
   "active_in_tools": "生效于 {tools}",
   "enabled_n_tools": "已启用 {n} 个工具",
   "copied_endpoint_of": "已复制「{name}」的请求地址",
-  "copied_key_of": "已复制「{name}」的密钥"
+  "copied_key_of": "已复制「{name}」的密钥",
+  "paste": "粘贴",
+  "provider": "供应商",
+  "more_options": "更多选项",
+  "more_options_hint": "管理地址、标签、备注、过期",
+  "form_ready": "已就绪",
+  "form_incomplete": "待补全",
+  "all": "全部",
+  "provider_search_hint": "搜索供应商、域名…",
+  "provider_none": "没有匹配的供应商",
+  "provider_picker_keys": "↑↓ 选择 · Enter 确认 · Esc 关闭",
+  "custom_provider": "自定义供应商",
+  "tool_disabled_in_settings": "设置中未启用",
+  "enable_in_settings_hint": "在 设置 › 工具配置 中开启",
+  "status_candidate": "候选",
+  "use_in_tools": "用在哪些工具"
 }

@@ -734,5 +734,20 @@
   "active_in_tools": "Active in {tools}",
   "enabled_n_tools": "Enabled in {n} tools",
   "copied_endpoint_of": "Copied the base URL of “{name}”",
-  "copied_key_of": "Copied the key of “{name}”"
+  "copied_key_of": "Copied the key of “{name}”",
+  "paste": "Paste",
+  "provider": "Provider",
+  "more_options": "More options",
+  "more_options_hint": "Console URL, tags, notes, expiry",
+  "form_ready": "Ready",
+  "form_incomplete": "Incomplete",
+  "all": "All",
+  "provider_search_hint": "Search providers or domains…",
+  "provider_none": "No matching provider",
+  "provider_picker_keys": "↑↓ select · Enter confirm · Esc close",
+  "custom_provider": "Custom provider",
+  "tool_disabled_in_settings": "Off in Settings",
+  "enable_in_settings_hint": "Turn on in Settings › Tools",
+  "status_candidate": "Candidate",
+  "use_in_tools": "Use in tools"
 }

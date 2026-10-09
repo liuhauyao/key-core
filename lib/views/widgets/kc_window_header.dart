@@ -82,7 +82,8 @@ class KcWindowHeader extends StatelessWidget implements PreferredSizeWidget {
                 child: Row(
                   children: [
                     if (leading != null) ...[leading!, const SizedBox(width: 10)],
-                    Flexible(
+                    // 标题占满剩余空间（Flexible+Spacer 会平分余量，导致右侧按钮漂到中间）
+                    Expanded(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,8 +102,7 @@ class KcWindowHeader extends StatelessWidget implements PreferredSizeWidget {
                         ],
                       ),
                     ),
-                    if (center != null) ...[const SizedBox(width: 16), center!],
-                    const Spacer(),
+                    if (center != null) ...[const SizedBox(width: 16), center!, const SizedBox(width: 16)],
                     ...actions.expand((w) => [w, const SizedBox(width: 6)]),
                     if (onClose != null)
                       ShadButton.ghost(
