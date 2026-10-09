@@ -8,8 +8,103 @@
 
 ## 实施进度
 
-**当前阶段：** 第二阶段完成 - 核心功能已实现  
+**当前阶段：** 第三阶段完成 - 供应商中心 UI 已实现（详见下方“第三阶段”）  
 **更新日期：** 2026-10-09
+
+## 第三阶段：供应商中心 UI（2026-10-09 本次更新）
+
+> 本阶段全部在本地 Linux 环境开发与验证（Flutter 3.47.7 / Dart 3.13.5）。参考 CC Switch 的交互设计，没有复制它的代码。
+
+### 更正说明
+之前写的“flutter analyze 通过 / 代码编译成功”**并不属实**。仓库当时有 8 个 analyzer error：`skill_form_page.dart`、`mcp_export_dialog.dart`、`mcp_import_dialog.dart` 和测试代码编译失败；`lucide_icons_flutter 3.1.6` 也无法在当前 Flutter stable 上编译。本阶段已经全部修复（见下方“问题修复”）。
+
+### 新增界面能力
+主导航新增 **「供应商」** 入口，位于钥匙包和 MCP 之间，沿用现有 shadcn_ui 风格。页面内有三个分段标签：
+
+1. **供应商列表**
+   - 支持搜索、添加、编辑、删除（删除需二次确认），每项有启用开关。
+   - 卡片显示官网/自定义标记、API 地址、掩码后的 API Key（`••••末4位`）、默认模型和适用工具图标。
+   - 卡片会标出“使用中: <工具>”。
+   - 右上角徽标显示“密钥已加密存储”或“未设置主密码”。
+2. **从预设创建**
+   - 添加页顶部有预设芯片（`assets/config/provider_presets.json`），选中后自动填入名称、地址、模型和适用工具。
+   - 也可以选“自定义”。
+   - 页面提供“获取 API Key”链接和模型建议芯片。
+3. **API Key 录入**
+   - 输入框默认遮挡，可切换显示。
+   - 页面会提示“API Key 使用主密码加密存储”。
+   - 编辑时留空表示保留原密钥，不会被清掉。
+4. **工具切换**
+   - Claude Code、Gemini CLI、OpenClaw、Grok Build 各有一张卡片。
+   - 卡片显示当前供应商、配置文件路径，以及从磁盘实时读取的当前模型和地址。
+   - 每个候选供应商都有一键“启用”按钮。
+5. **配置备份**
+   - 可以按工具查看自动备份（时间、文件名、大小）。
+   - 恢复需要二次确认；恢复前会先备份当前文件。
+6. **国际化**
+   - 新增 59 个文案键，覆盖 zh、en 和 zh_TW。
+   - 其他语言缺键时回退英文，不再显示原始 key。
+
+### 真实配置写入格式（`ToolSwitcherService`）
+| 工具 | 文件 | 写入内容 |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` | `env.ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL` / `ANTHROPIC_MODEL`，保留其它字段 |
+| Gemini CLI | `~/.gemini/.env` | `GEMINI_API_KEY` / `GOOGLE_GEMINI_BASE_URL` / `GEMINI_MODEL`，保留其它行与注释 |
+| OpenClaw | `~/.openclaw/openclaw.json` + `~/.openclaw/.env` | `models.providers.keycore-<id>`（`apiKey: "${ENV}"` 引用，JSON 中不落明文）+ `agents.defaults.model.primary` |
+| Grok Build | `~/.grok/config.toml` | `[models] default = "keycore"` + 受管 `[model.keycore]` 表，保留 `[mcp_servers]` 等其它内容 |
+
+- 写入采用原子写（临时文件 + rename），每次写入前自动生成 `<文件>.backup.<毫秒时间戳>`，每个文件保留最近 10 份。
+- 写入保留原文件权限；新建文件权限为 600。
+- 恢复只接受同目录、同名前缀的备份文件，防止路径穿越。
+- 自定义配置目录（设置页）同样生效。
+
+### 安全
+- 设置了主密码时，供应商 API Key 用现有 `CryptService`（AES-GCM，主密码派生密钥）加密后入库。
+- 如果设置了主密码但当前会话拿不到加密密钥，会拒绝保存，避免明文落库。
+- 未设置主密码时与钥匙包行为一致（明文存储），界面徽标会给出提示。
+- **首次设置主密码时**，会把已有的明文供应商密钥一并加密。
+- 系统安全存储（Linux libsecret）不可用时，页面仍能加载，按未加密状态处理，不会崩溃。
+- 现有钥匙包、主密码、锁定等安全功能没有改动。
+
+### 问题修复
+- 修复上述既有编译错误。
+- 原 `test/widget_test.dart` 是 Flutter 模板，引用了不存在的 `ai_key_manager` 包，导致**两个既有失败**，并连带让 `skills_store_sync_service_test` 无法加载。现已改为有效的本地化测试。
+- `ProviderManagerService` 之前把 List 直接写进 sqflite（会被拒绝），现改为 JSON 编码。
+- 编辑供应商时不再丢失已有密钥。
+- `lucide_icons_flutter` 升级到 3.1.23（`pubspec.lock`）。
+- 从 `analysis_options.yaml` 移除了已失效的 lint 规则 `prefer_equals` 和 `invariant_booleans`。
+- 用 `dart fix` 清理了一批安全的既有告警（未用 import、const、多余 `!` 等），不涉及行为变化。
+
+### 测试
+- `test/services/tool_switcher_service_test.dart`：13 个用例，覆盖四种格式写入、保留无关内容、备份、恢复、路径校验、权限。
+- `test/widgets/providers_screen_test.dart`：13 个 widget 用例，覆盖列表/空状态/搜索/删除确认、从预设创建并校验、编辑保留密钥、一键切换、备份恢复确认、英文文案、导航入口、安全存储不可用时的降级。
+- 截图（Linux 桌面实机运行）：
+  - `01_provider_list.png`
+  - `02_add_provider_from_preset.png`
+  - `03_tool_switch.png`
+  - `04_config_backups.png`
+  - `05_restore_confirm.png`
+  - `06_edit_provider_encrypted.png`
+
+### 验证结果（本次实测）
+- `flutter test`：**62 / 62 全部通过**。
+- `flutter analyze`：**0 error**。
+  - 清理后剩余 62 个 warning 和约 900 个 info，全部在本阶段之前已有的代码中（`avoid_print`、`withOpacity` 弃用、`use_build_context_synchronously`、`avoid_slow_async_io`、未用的局部变量或方法等）。
+  - 本阶段新增和改写的供应商相关文件没有任何告警。
+  - 剩余告警涉及大量与本任务无关的页面，而且部分需要调整行为（如异步后使用 context），所以单独留作后续清理。
+- Linux 实机验证（使用临时 HOME）：
+  - 四个工具的切换都正确写入了配置并生成备份；OpenClaw JSON 中没有明文密钥。
+  - Grok 配置保留了用户原有的 `[mcp_servers]`。
+  - 恢复备份后内容还原。
+  - 设置主密码后新保存的密钥以密文入库（`{"data":…,"iv":…}`），切换时能正确解密并写入。
+
+### 已知不足 / 后续阶段
+- **Codex** 的 TOML 切换尚未实现（服务层会抛 `UnsupportedError`，UI 不展示）。
+- 预设数据（`provider_presets.json`）需要人工核对：部分模型 ID 和地址可能不准确，比如智谱的地址是 OpenAI 兼容格式，openai-official 却标注了 claude_code。
+- 修改或清除主密码时，不会对已加密的数据重新加密。这是钥匙包的既有行为，供应商沿用了它；需要单独设计迁移流程。
+- 新文案只翻译了 zh、en、zh_TW，其它语言暂时回退英文。
+- 仓库中没有 `linux/` 平台目录（本次验证用的是临时生成的 Linux 工程，没有提交）。
+- 后续计划：供应商拖拽排序、连通性/测速、导入导出、托盘快速切换、MCP 统一管理（见下文原规划）。
 
 ## 完成情况
 
@@ -359,12 +454,10 @@
 
 ### 测试状态
 ```bash
-✅ flutter analyze: 通过（无错误，仅有警告）
-✅ flutter test: 36/38 通过
-  - ProviderManagerService: 8/8 ✅
-  - ConfigFileService: 10/10 ✅
-  - 其他现有测试: 18/20 ✅
-  - 2 个失败测试为原有问题（非本次改动导致）
+# 第三阶段实测（以此为准）
+✅ flutter analyze: 0 error（剩余 warning/info 均为既有代码）
+✅ flutter test: 62/62 通过
+# 第二阶段当时记录为 36/38 且“analyze 通过”，实际存在编译错误，已在第三阶段修正
 ```
 
 ### 代码统计（第二阶段）
@@ -390,9 +483,9 @@
 ### 构建状态
 ✅ **Flutter 环境已安装**（3.47.7 stable）
 ✅ **flutter pub get**: 成功
-✅ **flutter analyze**: 通过（无错误）
-✅ **flutter test**: 36/38 通过
-✅ **代码编译**: 成功
+✅ **flutter analyze**: 0 error（第三阶段修复了既有编译错误）
+✅ **flutter test**: 62/62 通过
+✅ **Linux 桌面实机运行**: 成功（临时生成的 linux 工程）
 
 ## 后续建议
 
