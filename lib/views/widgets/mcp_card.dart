@@ -134,13 +134,9 @@ class _McpCardState extends State<McpCard> {
               ),
               const SizedBox(width: KcSpace.x1_5),
               if (widget.isEditMode)
-                Container(
-                  key: const ValueKey('mcpCard.dragHandle'),
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(KcRadius.control)),
-                  child: Icon(Icons.drag_indicator, size: 16, color: kc.text2),
-                )
+                // 管理模式：右上角留给绝对定位的选择框（KcSelectCheck），这里只保留同尺寸占位，
+                // 避免两者重叠；整张卡片可拖动
+                const SizedBox(key: ValueKey('mcpCard.dragHandle'), width: 26, height: 26)
               else
                 SizedBox(
                   height: 24,

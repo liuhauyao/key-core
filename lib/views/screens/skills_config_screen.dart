@@ -79,14 +79,12 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
           // Sync status bar
           final syncSummary = viewModel.getSyncSummary();
 
-          return Column(
+          // 批量栏悬浮在底部（Stack 叠放），不插入到 Column 中 → 不推动内容（零位移，form_v3.md §13）
+          return Stack(children: [
+            Column(
             children: [
               // Toolbar
               _buildToolbar(context, viewModel, shadTheme, localizations, syncSummary),
-
-              // Selection mode bar
-              if (_isSelectMode)
-                _buildSelectionToolbar(context, viewModel, shadTheme, localizations),
 
               // Content area
               Expanded(
@@ -111,7 +109,15 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                 ),
               ),
             ],
-          );
+            ),
+            if (_isEditMode || _isSelectMode)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 16,
+                child: Center(child: _buildSelectionToolbar(context, viewModel, shadTheme, localizations)),
+              ),
+          ]);
         },
       ),
     );
@@ -551,7 +557,6 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
               key: ValueKey(skill.id),
               skill: skill,
               isEditMode: _isEditMode,
-              isSelected: skill.id != null && _selectedSkillIds.contains(skill.id),
               onTap: () {
                 if (_isSelectMode) {
                   _toggleSelection(skill);
