@@ -762,13 +762,15 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
 
   // ========== CC Switch 对齐的 Skills 功能（最小 UI 入口） ==========
 
-  void _toast(BuildContext context, String message) {
+  void _toast(BuildContext context, String message, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    // 「…失败：…」类消息按错误样式显示
+    final isError = error || message.contains('失败');
+    showKcToast(context, message, kind: isError ? KcToastKind.error : KcToastKind.success);
   }
 
   void _toastResult(BuildContext context, SkillsViewModel vm, String success, Object? result) {
-    _toast(context, result == null ? '失败：${vm.errorMessage ?? '未知错误'}' : success);
+    _toast(context, result == null ? '失败：${vm.errorMessage ?? '未知错误'}' : success, error: result == null);
   }
 
   Future<List<SkillTargetTool>> _installTargets() => SkillsPathService().detectInstalledTools();
@@ -838,7 +840,7 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                         repoController.clear();
                         setDialogState(() {});
                       } catch (e) {
-                        if (ctx.mounted) _toast(ctx, '$e');
+                        if (ctx.mounted) _toast(ctx, '$e', error: true);
                       }
                     },
                     child: const Text('添加'),
