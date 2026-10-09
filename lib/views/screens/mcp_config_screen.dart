@@ -1,3 +1,4 @@
+import '../widgets/kc_controls.dart';
 import '../../models/mcp_server_category.dart';
 import '../../utils/mcp_server_presets.dart';
 import 'package:flutter/material.dart';
@@ -389,7 +390,8 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
           return SingleChildScrollView(
             child: Padding(
             padding: const EdgeInsets.fromLTRB(padding, padding, padding, padding + kcFloatingBarReserve),
-            child: ReorderableWrap(
+            child: SizedBox(width: double.infinity, child: ReorderableWrap(
+                  alignment: WrapAlignment.start,
               spacing: cardSpacing,
               runSpacing: cardSpacing,
               needsLongPressDraggable: false, // 禁用长按拖动，允许直接拖动
@@ -422,7 +424,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                   child: card,
                 );
               }).toList(),
-            ),
+            )),
           ));
         }
 
@@ -626,7 +628,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                               else if (busy.contains(tool))
                                 const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                               else
-                                Switch.adaptive(
+                                KcSwitch(
                                   value: on,
                                   onChanged: (v) async {
                                     setDialogState(() => busy.add(tool));

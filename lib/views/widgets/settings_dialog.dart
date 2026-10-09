@@ -1,3 +1,4 @@
+import 'kc_controls.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -522,9 +523,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         context,
         localizations.minimizeToTray,
         localizations.minimizeToTrayDescDetail,
-        Transform.scale(
-          scale: 0.8,
-          child: Switch(
+        SizedBox(child: KcSwitch(
             value: settingsViewModel.minimizeToTray,
             onChanged: (value) async {
               await settingsViewModel.setMinimizeToTray(value);

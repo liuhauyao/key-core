@@ -417,7 +417,7 @@ class _SkillFormPageState extends State<SkillFormPage> {
             const SizedBox(width: 8),
             ShadButton(
               width: 38,
-              height: 38,
+              height: 32,
               padding: EdgeInsets.zero,
               onPressed: () {
                 _addTag(_tagController.text);

@@ -1,3 +1,4 @@
+import '../widgets/kc_controls.dart';
 import 'package:flutter/services.dart';
 import '../widgets/kc_manage_scaffold.dart';
 import '../../theme/kc_tokens.dart';
@@ -167,7 +168,7 @@ class _PromptsView extends StatelessWidget {
                                         },
                                 ),
                                 const SizedBox(width: KcSpace.x2),
-                                Switch(
+                                KcSwitch(
                                   value: p.enabled,
                                   activeTrackColor: cs.primary,
                                   onChanged: (v) async {

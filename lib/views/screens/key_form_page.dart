@@ -1,3 +1,4 @@
+import '../widgets/kc_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -1378,7 +1379,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                 KcToolLogo(tool: tool, size: 22),
                 const SizedBox(width: 10),
                 Expanded(child: Text(tool.displayName, style: KcType.strong.copyWith(color: cs.foreground))),
-                Switch.adaptive(
+                KcSwitch(
                   key: ValueKey('keyForm.moreTool.${tool.value}'),
                   value: _toolConfigs[tool.value]?['enabled'] == true,
                   onChanged: (v) => setState(() {
@@ -2026,9 +2027,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-              Transform.scale(
-                scale: 0.75,
-                child: Switch(
+              SizedBox(child: KcSwitch(
                   value: _enableClaudeCode,
                   onChanged: (value) {
                     setState(() {
@@ -2168,9 +2167,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-              Transform.scale(
-                scale: 0.75,
-                child: Switch(
+              SizedBox(child: KcSwitch(
                   value: _enableCodex,
                   onChanged: (value) {
                     setState(() {
@@ -2273,9 +2270,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-              Transform.scale(
-                scale: 0.75,
-                child: Switch(
+              SizedBox(child: KcSwitch(
                   value: _enableGemini,
                   onChanged: (value) {
                     setState(() {
@@ -2366,9 +2361,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                 ],
               ),
             ),
-            Transform.scale(
-              scale: 0.75,
-              child: Switch(
+            SizedBox(child: KcSwitch(
                 value: _enableOpenclaw,
                 onChanged: (value) {
                   setState(() {
@@ -2461,9 +2454,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                 ],
               ),
             ),
-            Transform.scale(
-              scale: 0.75,
-              child: Switch(
+            SizedBox(child: KcSwitch(
                 value: _enableClaudeDesktop,
                 onChanged: (value) {
                   setState(() {

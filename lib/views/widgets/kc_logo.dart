@@ -268,7 +268,7 @@ class KeyLogoChip extends StatelessWidget {
     final kc = context.kc;
     if (_none) {
       return SizedBox(
-        key: key ?? const ValueKey('keyLogoChip.none'),
+        key: const ValueKey('keyLogoChip.none'),
         width: size,
         height: size,
         child: CustomPaint(
@@ -280,30 +280,58 @@ class KeyLogoChip extends StatelessWidget {
       );
     }
     if (tool != null) {
+      // 方块仍是 20×20（与其它行右缘对齐），✓ 角标溢出绘制在右下角
       return SizedBox(
-        width: size + 3,
-        height: size + 3,
+        key: const ValueKey('keyLogoChip.official'),
+        width: size,
+        height: size,
         child: Stack(clipBehavior: Clip.none, children: [
-          KcPlatformLogo(platform: officialVendor(tool!), size: size, logoSize: 13, radius: 5),
+          KeyLogoChip.box(context, platform: officialVendor(tool!)),
           Positioned(
-            right: 0,
-            bottom: 0,
+            right: -3,
+            bottom: -3,
             child: Container(
-              width: 11,
-              height: 11,
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(
-                color: const Color(0xFF007AFF),
+                color: kc.actionText,
                 shape: BoxShape.circle,
                 border: Border.all(color: kc.sidebar, width: 1.5),
               ),
-              child: const Icon(Icons.check, size: 7, color: Colors.white),
+              child: const Icon(Icons.check, size: 6, color: Colors.white),
             ),
           ),
         ]),
       );
     }
     final k = aiKey!;
-    return KcPlatformLogo(platform: k.platformType, customIconFileName: k.icon, name: k.name, size: size, logoSize: 13, radius: 5);
+    return KeyLogoChip.box(context, platform: k.platformType, customIconFileName: k.icon, name: k.name);
+  }
+
+  /// 统一方块：20×20、圆角 4、1px 边框、白底，内部 logo 12（首字回退同尺寸方块）。
+  static Widget box(BuildContext context, {required PlatformType platform, String? customIconFileName, String? name, double s = size}) {
+    final kc = context.kc;
+    final has = PlatformIconService.hasBrandLogo(platform, customIconFileName: customIconFileName);
+    final text = (name?.trim().isNotEmpty ?? false) ? name!.trim() : platform.value;
+    return Container(
+      key: const ValueKey('keyLogoChip.box'),
+      width: s,
+      height: s,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: has ? KcLogo.containerBg : kc.subtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: KcLogo.containerBorder, width: 1),
+      ),
+      child: has
+          ? SizedBox(
+              width: 12,
+              height: 12,
+              child: FittedBox(child: PlatformIconService.buildIcon(platform: platform, customIconFileName: customIconFileName, size: 12)),
+            )
+          : Text(text.isEmpty ? '?' : String.fromCharCode(text.runes.first).toUpperCase(),
+              style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: kc.text2, height: 1)),
+    );
   }
 }
 
@@ -331,11 +359,11 @@ class KeyLogoStack extends StatelessWidget {
               left: step * i,
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: kc.sidebar, width: 1.5),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: kc.sidebar, width: 1),
                 ),
-                child: KcPlatformLogo(
-                    platform: shown[i].platformType, customIconFileName: shown[i].icon, name: shown[i].name, size: s - 3, logoSize: 11, radius: 5),
+                child: KeyLogoChip.box(context,
+                    platform: shown[i].platformType, customIconFileName: shown[i].icon, name: shown[i].name, s: s - 2),
               ),
             ),
         ]),

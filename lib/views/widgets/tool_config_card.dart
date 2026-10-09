@@ -1,3 +1,4 @@
+import 'kc_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -237,11 +238,9 @@ class _ToolConfigCardState extends State<ToolConfigCard> {
                         ),
                       )
                     else
-                      Transform.scale(
-                        scale: 0.8,
-                        child: Switch(
+                      SizedBox(child: KcSwitch(
                           value: isEnabled,
-                          onChanged: isValid || !isEnabled ? _handleToggle : null,
+                          onChanged: _handleToggle, // 关闭总是允许（旧：配置缺失时整个禁用，无法关闭）
                           activeTrackColor: shadTheme.colorScheme.primary,
                         ),
                       ),

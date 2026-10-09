@@ -342,8 +342,26 @@ abstract final class KcTheme {
       brightness: brightness,
       colorScheme: scheme,
       radius: BorderRadius.circular(KcRadius.control),
+      // 统一按钮规格（v4）：md 32 / sm 28 / lg 36，圆角 6，字号 13
+      buttonSizesTheme: const ShadButtonSizesTheme(
+        regular: ShadButtonSizeTheme(height: 32, padding: EdgeInsets.symmetric(horizontal: 12)),
+        sm: ShadButtonSizeTheme(height: 28, padding: EdgeInsets.symmetric(horizontal: 10)),
+        lg: ShadButtonSizeTheme(height: 36, padding: EdgeInsets.symmetric(horizontal: 14)),
+        icon: ShadButtonSizeTheme(height: 32, width: 32, padding: EdgeInsets.zero),
+      ),
+      primaryButtonTheme: _btn,
+      secondaryButtonTheme: _btn,
+      outlineButtonTheme: _btn,
+      ghostButtonTheme: _btn,
+      destructiveButtonTheme: _btn,
+      switchTheme: const ShadSwitchTheme(width: 32, height: 18, margin: 2),
     );
   }
+
+  static const _btn = ShadButtonTheme(
+    gap: 6,
+    textStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, height: 1.2),
+  );
 
   static ThemeData material(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
