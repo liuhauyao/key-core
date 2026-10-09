@@ -158,6 +158,26 @@ class ProviderManagerService {
     await _dbService.insertOrUpdateProvider(toDbMap(provider, storedApiKey: stored));
   }
 
+  /// 首次设置主密码后，把数据库中以明文存储的供应商 API Key 重新加密
+  ///
+  /// 返回重新加密的数量。与 KeyManagerViewModel.reEncryptAllPlaintextKeys 对应。
+  Future<int> reEncryptPlaintextKeys() async {
+    if (!await _authService.hasMasterPassword()) return 0;
+    final encryptionKey = await _authService.getEncryptionKey();
+    if (encryptionKey == null) return 0;
+    var count = 0;
+    for (final row in await _dbService.getAllProviders()) {
+      final value = row['api_key_encrypted'] as String?;
+      if (value == null || value.isEmpty || value.startsWith('{')) continue;
+      final updated = Map<String, dynamic>.from(row);
+      updated['api_key_encrypted'] = await _cryptService.encrypt(value, encryptionKey);
+      updated['api_key_nonce'] = '';
+      await _dbService.insertOrUpdateProvider(updated);
+      count++;
+    }
+    return count;
+  }
+
   /// 从预设创建供应商
   Future<Provider> createFromPreset(
     String presetId,

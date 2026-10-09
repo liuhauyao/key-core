@@ -30,6 +30,7 @@ import '../../services/key_validation_service.dart';
 import '../../services/model_list_service.dart';
 import '../widgets/model_list_dialog.dart';
 import '../../viewmodels/settings_viewmodel.dart';
+import '../../viewmodels/providers_viewmodel.dart';
 import '../../utils/app_localizations.dart';
 import '../../utils/platform_icon_service.dart';
 import 'dart:io';
@@ -223,6 +224,10 @@ class _MainScreenState extends State<MainScreen> {
         _geminiConfigScreenKey.currentState?.refresh();
       } else if (app == AppType.openClaw) {
         _openClawConfigScreenKey.currentState?.refresh();
+      } else if (app == AppType.providers) {
+        // 进入供应商中心时刷新（主密码状态、工具实时配置可能已在其他页面变化）
+        final providersVm = context.read<ProvidersViewModel>();
+        if (providersVm.hasLoaded && !providersVm.isLoading) providersVm.load();
       }
       // MCP 和密钥列表页面使用 ViewModel 缓存，不需要手动触发
     }
