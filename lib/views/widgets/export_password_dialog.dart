@@ -21,7 +21,7 @@ class _ExportPasswordDialogState extends State<ExportPasswordDialog> {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  final bool _isLoading = false;
+  bool _isLoading = false;
   String? _errorMessage;
 
   @override
@@ -141,7 +141,7 @@ class _ExportPasswordDialogState extends State<ExportPasswordDialog> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, size: 20, color: Colors.red),
+                            Icon(Icons.error_outline, size: 20, color: Colors.red),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -209,7 +209,7 @@ class _ExportPasswordDialogState extends State<ExportPasswordDialog> {
                     ShadButton(
                       onPressed: _isLoading ? null : _submit,
                       leading: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(

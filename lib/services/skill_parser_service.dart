@@ -38,7 +38,7 @@ class SkillParserService {
   SkillParseResult parseSkillMd(String content) {
     final trimmed = content.trimLeft();
     if (!trimmed.startsWith('---')) {
-      const folderName = 'skill';
+      final folderName = 'skill';
       return SkillParseResult(
         name: folderName,
         body: content,
@@ -108,7 +108,7 @@ class SkillParserService {
     final skillFile = File(path.join(skillDir.path, skillFileName));
 
     if (!await skillFile.exists()) {
-      return const SkillValidationResult(
+      return SkillValidationResult(
         isValid: false,
         errors: ['Missing $skillFileName'],
       );

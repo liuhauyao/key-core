@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../utils/app_localizations.dart';
 import '../../viewmodels/settings_viewmodel.dart';
 import '../../models/mcp_server.dart';
@@ -8,7 +9,6 @@ import '../../models/mcp_server.dart';
 /// 应用类型枚举
 enum AppType {
   keyManager(Icons.vpn_key, null),
-  providers(Icons.hub_outlined, null),
   claudeCode(Icons.code, 'assets/icons/platforms/claude-color.svg'),
   codex(Icons.terminal, 'assets/icons/platforms/openai.svg'),
   gemini(Icons.auto_awesome, 'assets/icons/platforms/gemini-color.svg'),
@@ -26,8 +26,6 @@ enum AppType {
     switch (this) {
       case AppType.keyManager:
         return localizations?.keys ?? '钥匙包';
-      case AppType.providers:
-        return localizations?.navProviders ?? '供应商';
       case AppType.claudeCode:
         return 'Claude';
       case AppType.codex:

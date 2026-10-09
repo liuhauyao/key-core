@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../models/ai_key.dart';
 import '../constants/app_constants.dart';
+import '../services/platform_registry.dart';
+import '../services/cloud_config_service.dart';
+import '../models/platform_type.dart';
 
 /// 数据库服务
 /// 提供AI密钥的CRUD操作
@@ -27,15 +29,6 @@ class DatabaseService {
     return _database!;
   }
 
-  /// 仅供测试：在给定数据库上执行建表逻辑
-  @visibleForTesting
-  Future<void> runCreateForTest(Database db, int version) => _onCreate(db, version);
-
-  /// 仅供测试：在给定数据库上执行升级迁移
-  @visibleForTesting
-  Future<void> runUpgradeForTest(Database db, int oldVersion, int newVersion) =>
-      _onUpgrade(db, oldVersion, newVersion);
-
   /// 初始化数据库
   Future<Database> _initDatabase() async {
     // 初始化FFI加载器（仅在macOS/Windows/Linux上需要）
@@ -52,7 +45,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 16,
+      version: 15,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -148,39 +141,6 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_mcp_servers_type ON mcp_servers(server_type)');
 
     await _createSkillsTable(db);
-    await _createProvidersTable(db);
-  }
-
-  /// 创建供应商表
-  Future<void> _createProvidersTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS providers (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        name_zh TEXT,
-        provider_type TEXT NOT NULL,
-        api_endpoint TEXT,
-        api_key_encrypted TEXT,
-        api_key_nonce TEXT,
-        models TEXT,
-        supported_tools TEXT,
-        region TEXT,
-        plan_type TEXT,
-        icon_url TEXT,
-        website_url TEXT,
-        api_key_url TEXT,
-        is_active INTEGER DEFAULT 1,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        description TEXT,
-        is_sponsored INTEGER DEFAULT 0,
-        family TEXT
-      )
-    ''');
-
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_providers_active ON providers(is_active)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_providers_region ON providers(region)');
   }
 
   Future<void> _createSkillsTable(Database db) async {
@@ -212,7 +172,7 @@ class DatabaseService {
   Future<bool> _columnExists(Database db, String tableName, String columnName) async {
     try {
       final result = await db.rawQuery(
-        'PRAGMA table_info($tableName)',
+        "PRAGMA table_info($tableName)",
       );
       return result.any((row) => row['name'] == columnName);
     } catch (e) {
@@ -420,17 +380,6 @@ class DatabaseService {
     await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_sonnet_model', 'TEXT');
     await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_haiku_model', 'TEXT');
     await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_opus_model', 'TEXT');
-
-    if (oldVersion < 16) {
-      // 供应商表（CC Switch 风格供应商管理）。
-      // main 已占用 v14/v15，故在 v16 创建；IF NOT EXISTS 兼容曾运行过
-      // 早期分支构建（当时在 v14 建表）的数据库。
-      await _createProvidersTable(db);
-      // 早期分支构建的 v14 没有执行 main 的 v14 迁移，这里幂等补齐。
-      await _addColumnIfNotExists(db, 'ai_keys', 'enable_claude_desktop', 'INTEGER DEFAULT 0');
-      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_base_url', 'TEXT');
-      await _addColumnIfNotExists(db, 'ai_keys', 'claude_desktop_model', 'TEXT');
-    }
   }
 
   /// 插入密钥
@@ -745,93 +694,6 @@ class DatabaseService {
       await db.close();
       _database = null;
     }
-  }
-
-  // ============= Provider 相关方法 =============
-
-  /// 插入或更新供应商
-  Future<void> insertOrUpdateProvider(Map<String, dynamic> provider) async {
-    final db = await database;
-    await db.insert(
-      'providers',
-      provider,
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  /// 获取所有供应商
-  Future<List<Map<String, dynamic>>> getAllProviders() async {
-    final db = await database;
-    return await db.query(
-      'providers',
-      orderBy: 'created_at DESC',
-    );
-  }
-
-  /// 获取活跃的供应商
-  Future<List<Map<String, dynamic>>> getActiveProviders() async {
-    final db = await database;
-    return await db.query(
-      'providers',
-      where: 'is_active = ?',
-      whereArgs: [1],
-      orderBy: 'created_at DESC',
-    );
-  }
-
-  /// 根据 ID 获取供应商
-  Future<Map<String, dynamic>?> getProviderById(String id) async {
-    final db = await database;
-    final results = await db.query(
-      'providers',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    return results.isEmpty ? null : results.first;
-  }
-
-  /// 根据工具类型获取供应商
-  Future<List<Map<String, dynamic>>> getProvidersByTool(String tool) async {
-    final db = await database;
-    final results = await db.query(
-      'providers',
-      where: 'supported_tools LIKE ?',
-      whereArgs: ['%$tool%'],
-      orderBy: 'created_at DESC',
-    );
-    return results;
-  }
-
-  /// 更新供应商活跃状态
-  Future<int> updateProviderActive(String id, bool isActive) async {
-    final db = await database;
-    return await db.update(
-      'providers',
-      {'is_active': isActive ? 1 : 0, 'updated_at': DateTime.now().millisecondsSinceEpoch},
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
-
-  /// 删除供应商
-  Future<int> deleteProvider(String id) async {
-    final db = await database;
-    return await db.delete(
-      'providers',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
-
-  /// 搜索供应商
-  Future<List<Map<String, dynamic>>> searchProviders(String keyword) async {
-    final db = await database;
-    return await db.query(
-      'providers',
-      where: 'name LIKE ? OR name_zh LIKE ? OR description LIKE ?',
-      whereArgs: ['%$keyword%', '%$keyword%', '%$keyword%'],
-      orderBy: 'created_at DESC',
-    );
   }
 
   /// 清除所有数据（删除数据库文件）

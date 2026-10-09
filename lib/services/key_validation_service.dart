@@ -53,7 +53,9 @@ class KeyValidationService {
       ValidationConfig? validationConfig = providerConfig.validation;
 
       // 如果没有配置，尝试使用默认配置
-      validationConfig ??= _getDefaultValidationConfig(key.platformType);
+      if (validationConfig == null) {
+        validationConfig = _getDefaultValidationConfig(key.platformType);
+      }
 
       // 如果还是没有配置，使用通用校验器
       if (validationConfig == null) {
@@ -76,7 +78,7 @@ class KeyValidationService {
       );
 
       return result;
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('KeyValidationService: 校验异常: $e');
       return KeyValidationResult.failure(
         error: ValidationError.unknown,

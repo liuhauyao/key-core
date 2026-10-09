@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../models/ai_key.dart';
 import '../models/model_info.dart';
 import '../models/validation_config.dart';
+import '../models/platform_type.dart';
 import '../services/cloud_config_service.dart';
 import '../services/region_filter_service.dart';
 import 'validators/validation_helper.dart';

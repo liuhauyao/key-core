@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../models/ai_key.dart';
 import '../services/auth_service.dart';
 import '../services/crypt_service.dart';
 import '../services/settings_service.dart';
 import '../services/platform_config_path_service.dart';
+import 'ai_tool_config_service.dart';
 
 /// Gemini 配置服务
 /// 管理 ~/.gemini/settings.json 和 ~/.gemini/.env 的读写

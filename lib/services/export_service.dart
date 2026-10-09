@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import '../models/ai_key.dart';
+import '../models/mcp_server.dart';
 import '../services/database_service.dart';
 import '../services/crypt_service.dart';
 import '../services/auth_service.dart';

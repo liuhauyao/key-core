@@ -13,6 +13,7 @@ linter:
     prefer_const_literals_to_create_immutables: true
     unnecessary_const: true
     unnecessary_new: true
+    prefer_equals: true
 
     # Security
     avoid_print: true
@@ -36,6 +37,7 @@ linter:
     control_flow_in_finally: true
     empty_statements: true
     hash_and_equals: true
+    invariant_booleans: true
     iterable_contains_unrelated_type: true
     list_remove_unrelated_type: true
     literal_only_boolean_expressions: true
@@ -57,8 +59,6 @@ analyzer:
     - "**/*.freezed.dart"
     - "**/*.config.dart"
     - "**/generated/**"
-    - build/**
-    - macos/**
   errors:
     invalid_annotation_target: ignore
 

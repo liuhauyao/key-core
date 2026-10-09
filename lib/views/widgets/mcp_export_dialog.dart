@@ -66,7 +66,7 @@ class _McpExportDialogState extends State<McpExportDialog> {
     }
 
     // 检查工具配置文件中是否有同名的 MCP 服务
-    final toolServers = (await _syncService.getToolMcpServers(_selectedTool!)).mcpServers;
+    final toolServers = await _syncService.getToolMcpServers(_selectedTool!);
     final existingServerIds = <String>[];
     
     if (toolServers != null) {
@@ -358,7 +358,7 @@ class _McpExportDialogState extends State<McpExportDialog> {
                                           ],
                                         ),
                                         secondary: server.isActive
-                                            ? const Icon(
+                                            ? Icon(
                                                 Icons.check_circle,
                                                 size: 20,
                                                 color: Colors.green,
@@ -385,7 +385,7 @@ class _McpExportDialogState extends State<McpExportDialog> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline, size: 20, color: Colors.red),
+                                Icon(Icons.error_outline, size: 20, color: Colors.red),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -427,7 +427,7 @@ class _McpExportDialogState extends State<McpExportDialog> {
                             ? null
                             : _exportToTool,
                         leading: _isLoading
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(
