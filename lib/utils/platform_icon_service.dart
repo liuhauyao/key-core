@@ -37,14 +37,34 @@ class PlatformIconService {
     }
   }
 
-  /// 获取平台图标文件名
+  /// 配置文件（app_config.json 的 providers[].icon）里没有 logo 的平台的默认 logo。
+  ///
+  /// 配置中的 icon 始终优先；这里只兜底两类缺口（ui_redesign_plan.md §4.6.3）：
+  /// - 内置平台 id 与配置的 platformType 对不上（google ↔ gemini、kimi ↔ moonshot）或配置里没有该平台；
+  /// - 配置里有该平台但没写 icon（katCoder / bailing / dmxapi / packycode）。
+  /// 放在这里而不是改 app_config.json：该文件由供应商预设工作流维护，避免冲突，也不会多出预设条目。
+  static const Map<String, String> builtinIconFallbacks = {
+    'google': 'gemini-color.svg',
+    'kimi': 'kimi-color.svg',
+    'qwen': 'qwen-color.svg',
+    'wenxin': 'wenxin-color.svg',
+    'coze': 'coze.svg',
+    'katCoder': 'kwaikat.svg',
+    'bailing': 'bailing-color.png',
+    'dmxapi': 'dmxapi-color.svg',
+    'packycode': 'packycode.svg',
+  };
+
+  /// 获取平台图标文件名（配置优先，其次 [builtinIconFallbacks]；都没有返回 null）
   static String? getIconFileName(PlatformType platform) {
-    if (_iconCache == null) {
-      // 如果还未加载，返回 null（使用 Material Icon 作为 fallback）
-      return null;
-    }
-    return _iconCache![platform.id];
+    final fromConfig = _iconCache?[platform.id];
+    if (fromConfig != null && fromConfig.isNotEmpty) return fromConfig;
+    return builtinIconFallbacks[platform.id];
   }
+
+  /// 是否只能走回退（首字 / Material 图标）：只允许自定义平台出现这种情况。
+  static bool hasBrandLogo(PlatformType platform, {String? customIconFileName}) =>
+      (customIconFileName != null && customIconFileName.isNotEmpty) || getIconFileName(platform) != null;
 
   /// 获取平台图标路径（相对于assets目录）
   static String? getIconAssetPath(PlatformType platform) {
