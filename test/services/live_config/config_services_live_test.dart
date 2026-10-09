@@ -385,7 +385,9 @@ void main() {
       final cleaned = CodexConfigService.cleanConfigTomlForOfficial(userToml);
       expect(cleaned, contains('[mcp_servers.fs]'));
       expect(cleaned, isNot(contains('model_provider')));
-      expect(CodexConfigService.cleanConfigTomlForOfficial(ourBlock), '');
+      // model_reasoning_effort 属于通用偏好，切回官方时保留
+      expect(CodexConfigService.cleanConfigTomlForOfficial(ourBlock).trim(), 'model_reasoning_effort = "high"');
+      expect(CodexConfigService.cleanConfigTomlForOfficial(ourBlock.replaceFirst('model_reasoning_effort = "high"\n', '')), '');
     });
 
     test('applyProviderToAuth sets the provider key and keeps other auth fields', () {

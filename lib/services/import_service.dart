@@ -250,6 +250,7 @@ class ImportService {
             enableClaudeDesktop: keyMap['enable_claude_desktop'] as bool? ?? false,
             claudeDesktopBaseUrl: keyMap['claude_desktop_base_url'] as String?,
             claudeDesktopModel: keyMap['claude_desktop_model'] as String?,
+            toolConfigs: AIKey.parseToolConfigs(keyMap['tool_configs']),
             claudeDesktopSonnetModel: keyMap['claude_desktop_sonnet_model'] as String?,
             claudeDesktopHaikuModel: keyMap['claude_desktop_haiku_model'] as String?,
             claudeDesktopOpusModel: keyMap['claude_desktop_opus_model'] as String?,

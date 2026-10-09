@@ -109,8 +109,71 @@ void main() {
   databaseFactory = databaseFactoryFfi;
   final service = DatabaseService.instance;
 
-  test('schema version is 19', () {
-    expect(DatabaseService.schemaVersion, 21);
+  test('schema version is 22', () {
+    expect(DatabaseService.schemaVersion, 22);
+  });
+
+  test('upgrade v21 -> v22 adds ai_keys.tool_configs and keeps keys (idempotent)', () async {
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, 15);
+    await db.execute('ALTER TABLE ai_keys DROP COLUMN tool_configs');
+    await db.insert('ai_keys', _aiKeyRow('Existing', 'sk-existing'));
+    await service.runUpgradeForTest(db, 21, 22);
+    await service.runUpgradeForTest(db, 21, 22);
+    expect(await _columns(db, 'ai_keys'), contains('tool_configs'));
+    final key = AIKey.fromMap((await db.query('ai_keys')).single);
+    expect(key.keyValue, 'sk-existing');
+    expect(key.toolConfigs, isEmpty);
+    await db.close();
+  });
+
+  test('upgrade from v1 reaches exactly the fresh-install schema (columns + indexes)', () async {
+    // 参照：全新安装
+    final fresh = await _memoryDb();
+    await service.runCreateForTest(fresh, DatabaseService.schemaVersion);
+    final freshTables = (await _tables(fresh)).where((t) => !t.startsWith('sqlite_')).toSet();
+
+    // 构造 v1：只有 ai_keys 的初始列，没有任何后续表
+    final v1Columns = {
+      'id', 'name', 'platform', 'platform_type', 'management_url', 'api_endpoint', 'key_value', 'key_nonce',
+      'expiry_date', 'tags', 'notes', 'is_active', 'is_favorite', 'created_at', 'updated_at', 'last_used_at',
+    };
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, DatabaseService.schemaVersion);
+    for (final t in ['mcp_servers', 'skills', 'prompts', 'mcp_server_apps']) {
+      await db.execute('DROP TABLE IF EXISTS $t');
+    }
+    for (final idx in await _indexes(db)) {
+      if (!idx.startsWith('sqlite_')) await db.execute('DROP INDEX IF EXISTS $idx');
+    }
+    for (final c in (await _columns(db, 'ai_keys')).difference(v1Columns)) {
+      await db.execute('ALTER TABLE ai_keys DROP COLUMN $c');
+    }
+    await db.execute('CREATE INDEX idx_ai_keys_platform ON ai_keys(platform)');
+    await db.execute('CREATE INDEX idx_ai_keys_expiry ON ai_keys(expiry_date)');
+    await db.execute('CREATE INDEX idx_ai_keys_active ON ai_keys(is_active)');
+    await db.execute('CREATE INDEX idx_ai_keys_favorite ON ai_keys(is_favorite)');
+    await db.insert('ai_keys', {
+      'name': 'Old',
+      'platform': 'OpenAI',
+      'platform_type': 0,
+      'key_value': 'enc',
+      'created_at': DateTime(2024).toIso8601String(),
+      'updated_at': DateTime(2024).toIso8601String(),
+    });
+
+    await service.runUpgradeForTest(db, 1, DatabaseService.schemaVersion);
+
+    expect((await _tables(db)).where((t) => !t.startsWith('sqlite_')).toSet(), freshTables);
+    for (final t in freshTables) {
+      expect(await _columns(db, t), await _columns(fresh, t), reason: 'table $t');
+    }
+    expect(await _indexes(db), containsAll(await _indexes(fresh)));
+    final key = AIKey.fromMap((await db.query('ai_keys')).single);
+    expect(key.name, 'Old');
+    expect(key.toolConfigs, isEmpty);
+    await db.close();
+    await fresh.close();
   });
 
   test('upgrade v18 -> v19 creates mcp_server_apps (idempotent)', () async {

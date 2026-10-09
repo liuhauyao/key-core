@@ -65,6 +65,11 @@ class AIKey extends Equatable {
   final String? claudeDesktopHaikuModel;  // Haiku 路由映射到哪个上游模型
   final String? claudeDesktopOpusModel;   // Opus 路由映射到哪个上游模型
 
+  /// 新工具（OpenCode / Grok Build / Hermes / Pi / MiniMax Code）的按密钥设置
+  /// （JSON 列 `tool_configs`）。键为工具 id（与 `AiToolType.value` 一致），值形如
+  /// `{enabled: bool, baseUrl?: String, model?: String}`；缺省字段取供应商预设。
+  final Map<String, Map<String, dynamic>> toolConfigs;
+
   // 校验状态
   final bool isValidated; // 是否校验通过
 
@@ -112,6 +117,7 @@ class AIKey extends Equatable {
     this.claudeDesktopSonnetModel,
     this.claudeDesktopHaikuModel,
     this.claudeDesktopOpusModel,
+    this.toolConfigs = const {},
     this.isValidated = false,
   });
 
@@ -159,6 +165,7 @@ class AIKey extends Equatable {
     String? claudeDesktopSonnetModel,
     String? claudeDesktopHaikuModel,
     String? claudeDesktopOpusModel,
+    Map<String, Map<String, dynamic>>? toolConfigs,
     bool? isValidated,
   }) {
     return AIKey(
@@ -205,6 +212,7 @@ class AIKey extends Equatable {
       claudeDesktopSonnetModel: claudeDesktopSonnetModel ?? this.claudeDesktopSonnetModel,
       claudeDesktopHaikuModel: claudeDesktopHaikuModel ?? this.claudeDesktopHaikuModel,
       claudeDesktopOpusModel: claudeDesktopOpusModel ?? this.claudeDesktopOpusModel,
+      toolConfigs: toolConfigs ?? this.toolConfigs,
       isValidated: isValidated ?? this.isValidated,
     );
   }
@@ -255,7 +263,32 @@ class AIKey extends Equatable {
       'claude_desktop_sonnet_model': claudeDesktopSonnetModel,
       'claude_desktop_haiku_model': claudeDesktopHaikuModel,
       'claude_desktop_opus_model': claudeDesktopOpusModel,
+      'tool_configs': toolConfigs.isEmpty ? null : jsonEncode(toolConfigs),
       'is_validated': isValidated ? 1 : 0,
+    };
+  }
+
+  /// 某个新工具的按密钥设置（无则为空 Map）
+  Map<String, dynamic> toolConfig(String toolId) => toolConfigs[toolId] ?? const {};
+
+  /// 是否对某个新工具启用
+  bool isToolEnabled(String toolId) => toolConfig(toolId)['enabled'] == true;
+
+  /// 解析 `tool_configs` 列 / 导出文件中的值（字符串或 Map），无效时返回空
+  static Map<String, Map<String, dynamic>> parseToolConfigs(Object? raw) {
+    Object? v = raw;
+    if (v is String) {
+      if (v.trim().isEmpty) return const {};
+      try {
+        v = jsonDecode(v);
+      } catch (_) {
+        return const {};
+      }
+    }
+    if (v is! Map) return const {};
+    return {
+      for (final e in v.entries)
+        if (e.value is Map) '${e.key}': Map<String, dynamic>.from(e.value as Map),
     };
   }
 
@@ -388,6 +421,7 @@ class AIKey extends Equatable {
       claudeDesktopSonnetModel: map['claude_desktop_sonnet_model'],
       claudeDesktopHaikuModel: map['claude_desktop_haiku_model'],
       claudeDesktopOpusModel: map['claude_desktop_opus_model'],
+      toolConfigs: parseToolConfigs(map['tool_configs']),
       isValidated: (map['is_validated']?.toInt() ?? 0) == 1,
     );
   }
@@ -479,6 +513,7 @@ class AIKey extends Equatable {
         claudeDesktopSonnetModel,
         claudeDesktopHaikuModel,
         claudeDesktopOpusModel,
+        toolConfigs,
         isValidated,
       ];
 }
