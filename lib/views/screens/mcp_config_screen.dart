@@ -140,14 +140,18 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                           ),
                           // 按工具启用：从工具导入 / 重新写入
                           PopupMenuButton<String>(
-                            tooltip: '按工具启用',
+                            tooltip: AppLocalizations.of(context)?.mcpEnablePerTool ?? 'Enable per tool',
                             icon: Icon(Icons.apps_outlined, size: 18, color: shadTheme.colorScheme.primary),
                             onSelected: (v) => v == 'import'
                                 ? _importFromEnabledTools(context, viewModel)
                                 : _syncAllEnabled(context, viewModel),
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(value: 'import', child: Text('从已启用的工具导入')),
-                              PopupMenuItem(value: 'sync', child: Text('重新写入全部已启用的服务')),
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                  value: 'import',
+                                  child: Text(AppLocalizations.of(context)?.mcpImportFromTools ?? 'Import from enabled tools')),
+                              PopupMenuItem(
+                                  value: 'sync',
+                                  child: Text(AppLocalizations.of(context)?.mcpResyncAll ?? 'Rewrite all enabled servers')),
                             ],
                           ),
                           // 分隔线
@@ -546,11 +550,13 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
         builder: (dialogContext, setDialogState) {
           final enabled = viewModel.serverApps[server.serverId] ?? const <AiToolType>{};
           return AlertDialog(
-            title: Text('${server.name} · 按工具启用'),
+            title: Text(AppLocalizations.of(context)?.mcpEnablePerToolTitle(server.name) ??
+                '${server.name} · Enable per tool'),
             content: SizedBox(
               width: 360,
               child: tools.isEmpty
-                  ? const Text('请先在设置中启用至少一个工具')
+                  ? Text(AppLocalizations.of(context)?.mcpNoToolsEnabled ??
+                      'Enable at least one tool in Settings first')
                   : Column(
                       mainAxisSize: MainAxisSize.min,
                       children: tools
@@ -561,7 +567,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                                 onChanged: (v) async {
                                   final ok = await viewModel.setServerEnabledForTool(server, tool, v);
                                   if (!ok && context.mounted) {
-                                    _showSnackBarSafe(context, viewModel.errorMessage ?? '写入失败', isError: true);
+                                    _showSnackBarSafe(context, viewModel.errorMessage ?? (AppLocalizations.of(context)?.mcpWriteFailed ?? 'Write failed'), isError: true);
                                   }
                                   setDialogState(() {});
                                 },
@@ -570,7 +576,7 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
                     ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('关闭')),
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: Text(AppLocalizations.of(context)?.close ?? 'Close')),
             ],
           );
         },
@@ -582,15 +588,23 @@ class _McpConfigScreenState extends State<McpConfigScreen> {
     final r = await viewModel.importFromTools(_mcpTools(context));
     if (!context.mounted || r == null) return;
     final linked = r.linked.values.fold<int>(0, (a, b) => a + b.length);
-    _showSnackBarSafe(context, '新增 ${r.added.length} 个服务，记录 $linked 条启用关系'
-        '${r.failed.isEmpty ? '' : '，失败 ${r.failed.length} 个'}');
+    final loc = AppLocalizations.of(context);
+    _showSnackBarSafe(
+        context,
+        loc?.mcpImportResult(r.added.length, linked, r.failed.length) ??
+            'Added ${r.added.length}, linked $linked, failed ${r.failed.length}');
   }
 
   Future<void> _syncAllEnabled(BuildContext context, McpViewModel viewModel) async {
     final r = await viewModel.syncAllEnabled();
     if (!context.mounted) return;
     final failed = r.entries.where((e) => !e.value).map((e) => e.key.displayName).toList();
-    _showSnackBarSafe(context, failed.isEmpty ? '已写入 ${r.length} 个工具' : '写入失败：${failed.join('、')}',
+    final loc = AppLocalizations.of(context);
+    _showSnackBarSafe(
+        context,
+        failed.isEmpty
+            ? (loc?.mcpResyncDone(r.length) ?? 'Wrote ${r.length} tools')
+            : (loc?.mcpResyncFailed(failed.join(', ')) ?? 'Write failed: ${failed.join(', ')}'),
         isError: failed.isNotEmpty);
   }
 
