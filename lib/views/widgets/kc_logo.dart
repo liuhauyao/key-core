@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../models/mcp_server.dart' show AiToolType;
+import '../../models/platform_type.dart';
+import '../../utils/platform_icon_service.dart';
 import '../../theme/kc_tokens.dart';
 
 /// 侧栏和卡片用到的 5 个工具（顺序即展示顺序）
@@ -163,6 +165,63 @@ class KcToolLogo extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 平台 logo（36 白底容器 / 24 logo）。没有品牌 logo 的平台（只应是自定义平台）显示
+/// `bg-subtle` 底 + `text-2` 色的名称首字，不再回退到 Material 图标（§4.6.1）。
+class KcPlatformLogo extends StatelessWidget {
+  const KcPlatformLogo({
+    super.key,
+    required this.platform,
+    this.customIconFileName,
+    this.name,
+    this.size = 36,
+    this.logoSize,
+    this.radius = KcRadius.logo,
+    this.circle = false,
+  });
+
+  final PlatformType platform;
+  final String? customIconFileName;
+
+  /// 首字回退用的名称（默认用平台名）
+  final String? name;
+  final double size;
+  final double? logoSize;
+  final double radius;
+  final bool circle;
+
+  @override
+  Widget build(BuildContext context) {
+    final inner = logoSize ?? (size * 2 / 3).roundToDouble();
+    if (PlatformIconService.hasBrandLogo(platform, customIconFileName: customIconFileName)) {
+      return KcLogoBox(
+        size: size,
+        radius: radius,
+        circle: circle,
+        child: PlatformIconService.buildIcon(
+          platform: platform,
+          customIconFileName: customIconFileName,
+          size: inner,
+        ),
+      );
+    }
+    final kc = context.kc;
+    final text = (name?.trim().isNotEmpty ?? false) ? name!.trim() : platform.value;
+    final initial = text.isEmpty ? '?' : String.fromCharCode(text.runes.first).toUpperCase();
+    return KcLogoBox(
+      key: const ValueKey('platformLogo.initial'),
+      size: size,
+      radius: radius,
+      circle: circle,
+      background: kc.subtle,
+      bordered: false,
+      child: Text(
+        initial,
+        style: TextStyle(fontSize: inner * 0.62, fontWeight: FontWeight.w600, color: kc.text2, height: 1),
       ),
     );
   }

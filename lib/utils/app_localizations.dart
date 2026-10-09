@@ -494,6 +494,35 @@ class AppLocalizations {
       'category_third_party': '第三方',
       'category_aggregator': '聚合平台',
       'undo': '撤销',
+      'status_active': '生效中',
+      'undo_switch_restored': '已恢复：{tool} 使用 {name}',
+      'no_keys_match_filter': '没有符合条件的密钥',
+      'import_backup_file': '导入备份文件',
+      'empty_keys_desc': '添加第一把密钥后，就能一键切换到 Claude Code、Codex、Gemini 等工具。',
+      'empty_keys_title': '钥匙包还是空的',
+      'favorite': '收藏',
+      'sync_balance': '余额：{v}',
+      'sync_loaded_models': '加载模型 {n} 个',
+      'sync_failed_check_network': '同步失败，请检查密钥或网络',
+      'more_actions': '更多',
+      'validation_failed_badge': '校验失败',
+      'expires_in_days': '{n} 天后过期',
+      'enable_for_tool': '启用到 {tool}',
+      'enable_more_tools': '启用到更多工具',
+      'openclaw_chip_tip': '已启用到 OpenClaw（在 OpenClaw 页写入或移除）',
+      'active_in_tool_tip': '正在 {tool} 生效',
+      'switch_to_tool_tip': '切到 {tool} · 写入 {path}',
+      'n_tools': '{n} 个工具',
+      'segment_attention': '需处理',
+      'segment_unused': '未用到工具',
+      'segment_in_use': '正在使用',
+      'segment_all': '全部',
+      'esc_to_exit': 'Esc 退出',
+      'manage_hint': '拖动卡片调整顺序；拖到窗口上下边缘会自动滚动。每张卡片底部可置顶 / 编辑 / 删除。',
+      'manage_toggle_tip': '管理：排序 / 置顶 / 删除',
+      'done': '完成',
+      'manage_keys_title': '管理密钥',
+      'key_grid_subtitle': '{n} 个密钥 · {m} 个正被工具使用',
       'sidebar_current_key_tip': '{tool} 当前使用：{name}',
       'mcp_servers_nav': 'MCP 服务',
       'n_enabled': '{n} 个已启用',
@@ -965,6 +994,35 @@ class AppLocalizations {
       'category_third_party': 'Third-party',
       'category_aggregator': 'Aggregator',
       'undo': 'Undo',
+      'status_active': 'Active',
+      'undo_switch_restored': 'Restored: {tool} uses {name}',
+      'no_keys_match_filter': 'No keys match the filter',
+      'import_backup_file': 'Import a backup file',
+      'empty_keys_desc': 'Add your first key, then switch Claude Code, Codex, Gemini and more to it in one click.',
+      'empty_keys_title': 'No keys yet',
+      'favorite': 'Favorite',
+      'sync_balance': 'Balance: {v}',
+      'sync_loaded_models': 'Loaded {n} models',
+      'sync_failed_check_network': 'Sync failed. Check the key or your network.',
+      'more_actions': 'More',
+      'validation_failed_badge': 'Check failed',
+      'expires_in_days': 'Expires in {n} days',
+      'enable_for_tool': 'Enable for {tool}',
+      'enable_more_tools': 'Enable for more tools',
+      'openclaw_chip_tip': 'Enabled for OpenClaw (write or remove it on the OpenClaw page)',
+      'active_in_tool_tip': 'Active in {tool}',
+      'switch_to_tool_tip': 'Switch {tool} to this key · writes {path}',
+      'n_tools': '{n} tools',
+      'segment_attention': 'Needs attention',
+      'segment_unused': 'Not used by tools',
+      'segment_in_use': 'In use',
+      'segment_all': 'All',
+      'esc_to_exit': 'Esc to exit',
+      'manage_hint': 'Drag cards to reorder; dragging near the top or bottom edge scrolls automatically. Each card has pin / edit / delete at the bottom.',
+      'manage_toggle_tip': 'Manage: reorder / pin / delete',
+      'done': 'Done',
+      'manage_keys_title': 'Manage keys',
+      'key_grid_subtitle': '{n} keys · {m} in use by tools',
       'sidebar_current_key_tip': '{tool} is using: {name}',
       'mcp_servers_nav': 'MCP servers',
       'n_enabled': '{n} enabled',
@@ -1196,6 +1254,35 @@ class AppLocalizations {
   String get requestAddress => translate('request_address');
   // ---- UI-2：反馈与文案 ----
   String get undo => translate('undo');
+  String get statusActive => translate('status_active');
+  String undoSwitchRestored(String tool, String name) => translate('undo_switch_restored').replaceAll('{tool}', tool).replaceAll('{name}', name);
+  String get noKeysMatchFilter => translate('no_keys_match_filter');
+  String get importBackupFile => translate('import_backup_file');
+  String get emptyKeysDesc => translate('empty_keys_desc');
+  String get emptyKeysTitle => translate('empty_keys_title');
+  String get favoriteLabel => translate('favorite');
+  String syncBalance(String v) => translate('sync_balance').replaceAll('{v}', v);
+  String syncLoadedModels(int n) => translate('sync_loaded_models').replaceAll('{n}', '$n');
+  String get syncFailedCheckNetwork => translate('sync_failed_check_network');
+  String get moreActions => translate('more_actions');
+  String get validationFailedBadge => translate('validation_failed_badge');
+  String expiresInDays(int n) => translate('expires_in_days').replaceAll('{n}', '$n');
+  String enableForTool(String tool) => translate('enable_for_tool').replaceAll('{tool}', tool);
+  String get enableMoreTools => translate('enable_more_tools');
+  String get openclawChipTip => translate('openclaw_chip_tip');
+  String activeInToolTip(String tool) => translate('active_in_tool_tip').replaceAll('{tool}', tool);
+  String switchToToolTip(String tool, String path) => translate('switch_to_tool_tip').replaceAll('{tool}', tool).replaceAll('{path}', path);
+  String nTools(int n) => translate('n_tools').replaceAll('{n}', '$n');
+  String get segmentAttention => translate('segment_attention');
+  String get segmentUnused => translate('segment_unused');
+  String get segmentInUse => translate('segment_in_use');
+  String get segmentAll => translate('segment_all');
+  String get escToExit => translate('esc_to_exit');
+  String get manageHint => translate('manage_hint');
+  String get manageToggleTip => translate('manage_toggle_tip');
+  String get done => translate('done');
+  String get manageKeysTitle => translate('manage_keys_title');
+  String keyGridSubtitle(int n, int m) => translate('key_grid_subtitle').replaceAll('{n}', '$n').replaceAll('{m}', '$m');
   String sidebarCurrentKeyTip(String tool, String name) => translate('sidebar_current_key_tip').replaceAll('{tool}', tool).replaceAll('{name}', name);
   String get mcpServersNav => translate('mcp_servers_nav');
   String nEnabled(int n) => translate('n_enabled').replaceAll('{n}', '$n');
