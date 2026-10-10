@@ -1,3 +1,4 @@
+import 'kc_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:convert';
@@ -1081,9 +1082,7 @@ class _KeyCardState extends State<KeyCard> {
             ),
             // 管理模式下右上角留给选择框（KcSelectableCard），这里只放 OpenClaw 开关
             if (widget.onToggle != null && !widget.isEditMode)
-              Transform.scale(
-                scale: 0.75,
-                child: Switch(value: widget.isCurrent, onChanged: widget.onToggle, activeTrackColor: cs.primary),
+              SizedBox(child: KcSwitch(value: widget.isCurrent, onChanged: widget.onToggle, activeTrackColor: cs.primary),
               )
             else if (widget.isEditMode)
               const SizedBox(width: 22),
@@ -1256,9 +1255,7 @@ class _KeyCardState extends State<KeyCard> {
       );
     }
     if (widget.onToggle != null) {
-      return Transform.scale(
-        scale: 0.75,
-        child: Switch(value: widget.isCurrent, onChanged: widget.onToggle, activeTrackColor: cs.primary),
+      return SizedBox(child: KcSwitch(value: widget.isCurrent, onChanged: widget.onToggle, activeTrackColor: cs.primary),
       );
     }
     final showActions = _isHovering || _menuOpen;

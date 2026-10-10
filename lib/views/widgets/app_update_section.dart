@@ -2,6 +2,7 @@
 //   App Store 版：只有「通过 App Store 更新」（在 App Store 中打开），不出现仓库 / 许可证 / GitHub。
 //   开源版：「检查更新（GitHub Releases）」→ 下载 → SHA-256 校验 → 打开安装包；另有 仓库 / 许可证 / 反馈 链接。
 import 'package:flutter/material.dart';
+import 'kc_settings.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../config/edition.dart';
@@ -101,27 +102,11 @@ class _AppUpdateSectionState extends State<AppUpdateSection> {
     final l = AppLocalizations.of(context);
     String t(String k, String f) => l?.tr(k, f) ?? f;
 
-    Widget row({required Key key, required String title, String? desc, Widget? trailing}) => ConstrainedBox(
-          key: key,
-          constraints: const BoxConstraints(minHeight: 52),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(title, style: KcType.body.copyWith(fontWeight: FontWeight.w500, color: cs.foreground)),
-                  if (desc != null) ...[
-                    const SizedBox(height: 2),
-                    Text(desc, style: KcType.caption.copyWith(color: cs.mutedForeground)),
-                  ],
-                ]),
-              ),
-              if (trailing != null) ...[const SizedBox(width: 12), trailing],
-            ]),
-          ),
-        );
+    Widget row({required Key key, required String title, String? desc, Widget? trailing, Widget? leading}) =>
+        KcSettingsRow(key: key, title: title, subtitle: desc, trailing: trailing, leading: leading);
 
     final rows = <Widget>[];
+    final links = <Widget>[];
     // Edition.isAppStore 是编译期常量：App Store 构建中 else 分支（含 OssLinks 字符串）被整段 tree-shake
     if (Edition.isAppStore || _appStore) {
       rows.add(row(
@@ -169,33 +154,26 @@ class _AppUpdateSectionState extends State<AppUpdateSection> {
           ),
       };
       rows.add(row(key: const ValueKey('update.oss'), title: t('update_oss_title', '应用更新（GitHub Releases）'), desc: desc, trailing: action));
-      Widget link(String k, IconData icon, String title, String url) => row(
+      Widget link(String k, IconData icon, Color tile, String title, String detail, String url) => KcSettingsRow(
             key: ValueKey('update.link.$k'),
+            leading: KcIconTile(icon, color: tile),
             title: title,
-            desc: url.replaceFirst('https://', ''),
-            trailing: IconButton(
-              icon: Icon(icon, size: 16, color: kc.text2),
-              onPressed: () => UrlLauncherService().openUrl(url),
-            ),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(detail, style: KcType.mono.copyWith(fontSize: 11.5, color: cs.mutedForeground)),
+              const SizedBox(width: 8),
+              Icon(Icons.open_in_new, size: 14, color: kc.text2),
+            ]),
+            onTap: () => UrlLauncherService().openUrl(url),
           );
-      rows.add(link('repo', Icons.open_in_new, t('about_repo', '源代码仓库'), OssLinks.repoUrl));
-      rows.add(link('license', Icons.open_in_new, t('about_license', '开源许可证'), OssLinks.licenseUrl));
-      rows.add(link('issues', Icons.open_in_new, t('about_issues', '反馈问题'), OssLinks.issuesUrl));
+      links.add(link('releases', Icons.article_outlined, KcIconTile.purple, t('about_changelog', '更新日志'), 'Releases', OssLinks.releasesUrl));
+      links.add(link('repo', Icons.code, KcIconTile.graphite, t('about_repo', '源代码仓库'), OssLinks.repoSlug, OssLinks.repoUrl));
+      links.add(link('issues', Icons.feedback_outlined, KcIconTile.green, t('about_issues', '反馈问题'), 'GitHub Issues', OssLinks.issuesUrl));
+      links.add(link('license', Icons.description_outlined, KcIconTile.gray, t('about_license', '开源许可证'), 'MIT', OssLinks.licenseUrl));
     }
 
-    return Container(
-      key: const ValueKey('appUpdateSection'),
-      decoration: BoxDecoration(
-        color: cs.card,
-        borderRadius: BorderRadius.circular(KcRadius.panel),
-        border: Border.all(color: cs.border),
-      ),
-      child: Column(children: [
-        for (var i = 0; i < rows.length; i++) ...[
-          if (i > 0) Divider(height: 1, color: cs.border),
-          rows[i],
-        ],
-      ]),
-    );
+    return Column(key: const ValueKey('appUpdateSection'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      KcSettingsSection(rows: rows),
+      if (links.isNotEmpty) ...[const SizedBox(height: 18), KcSettingsSection(rows: links)],
+    ]);
   }
 }

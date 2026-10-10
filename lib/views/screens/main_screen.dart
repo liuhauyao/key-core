@@ -795,7 +795,8 @@ class _MainScreenState extends State<MainScreen> {
               child: Padding(
                 // 底部为悬浮批量栏预留空间（只影响滚动范围，不移动任何卡片）
                 padding: const EdgeInsets.fromLTRB(padding, padding, padding, padding + kcFloatingBarReserve),
-                child: ReorderableWrap(
+                child: SizedBox(width: double.infinity, child: ReorderableWrap(
+                  alignment: WrapAlignment.start,
                   spacing: cardSpacing,
                   runSpacing: cardSpacing,
                   needsLongPressDraggable: false, // 禁用长按拖动，允许直接拖动
@@ -841,7 +842,7 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     );
                   }).toList(),
-                ),
+                )),
               ),
             ),
           );

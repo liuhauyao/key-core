@@ -1,6 +1,8 @@
 // 应用外壳导航（ui_redesign_plan §2.2 / §5.1）：左侧 200px 侧栏，窄窗口（<900）收为 72px 图标轨。
 // `AppType` 仍是唯一的导航数据源；Claude Code / Claude Desktop 拆为两行，共用 ClaudeConfigScreen。
 import 'package:flutter/material.dart';
+import 'kc_settings.dart';
+import '../../constants/app_constants.dart';
 import '../../services/platform/window_chrome.dart';
 import 'kc_window_header.dart' show KcDragArea;
 import 'package:flutter_svg/flutter_svg.dart';
@@ -157,6 +159,11 @@ class AppSidebar extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
               ),
             ),
+            if (inSettings && !collapsed)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                child: Text('v${AppConstants.appVersion}', key: const ValueKey('sidebar.version'), style: KcType.caption.copyWith(color: kc.text2)),
+              ),
             if (!inSettings) ...[
               Divider(height: KcSpace.x4, thickness: 1, color: cs.border),
               _SidebarRow(
@@ -180,6 +187,14 @@ class AppSidebar extends StatelessWidget {
     ]);
   }
 
+  static Color _settingsTint(SettingsCategory c) => switch (c) {
+        SettingsCategory.general => KcIconTile.gray,
+        SettingsCategory.tools => KcIconTile.blue,
+        SettingsCategory.data => KcIconTile.green,
+        SettingsCategory.security => KcIconTile.orange,
+        SettingsCategory.about => KcIconTile.purple,
+      };
+
   List<Widget> _settingsItems(BuildContext context, AppLocalizations? l10n) {
     final kc = context.kc;
     final cats = l10n != null
@@ -198,7 +213,8 @@ class AppSidebar extends StatelessWidget {
       for (final (label, cat) in cats)
         _SidebarRow(
           key: ValueKey('sidebar.settings.${cat.name}'),
-          leading: Icon(_settingsIcon(cat), size: 16, color: cat == settingsCategory ? ShadTheme.of(context).colorScheme.foreground : kc.text2),
+          // 系统设置风格：20px 彩色圆角图标块（灰 / 蓝 / 绿 / 橙 / 紫）
+          leading: KcIconTile(_settingsIcon(cat), color: _settingsTint(cat), size: 20),
           label: label,
           selected: cat == settingsCategory,
           collapsed: collapsed,

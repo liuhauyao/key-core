@@ -1,3 +1,4 @@
+import 'kc_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -140,8 +141,7 @@ class _McpCardState extends State<McpCard> {
               else
                 SizedBox(
                   height: 24,
-                  child: FittedBox(
-                    child: Switch(
+                  child: SizedBox(child: KcSwitch(
                       key: const ValueKey('mcpCard.toggle'),
                       value: widget.server.isActive,
                       onChanged: (value) => widget.onToggleActive?.call(value),
@@ -237,13 +237,7 @@ class _McpCardState extends State<McpCard> {
                 onPressed: (widget.server.docs?.isNotEmpty ?? false) ? widget.onOpenDocs : null,
               ),
               const Spacer(),
-              _buildActionButton(
-                context,
-                key: const ValueKey('mcpCard.edit'),
-                icon: Icons.edit_outlined,
-                tooltip: localizations?.edit ?? '编辑',
-                onPressed: widget.onEdit,
-              ),
+              // 右侧槽：删除（仅管理模式可见，常驻占位）在左，编辑固定在最右下角
               Visibility(
                 visible: widget.isEditMode,
                 maintainSize: true,
@@ -257,6 +251,13 @@ class _McpCardState extends State<McpCard> {
                   onPressed: widget.isEditMode ? widget.onDelete : null,
                   color: kc.dangerText,
                 ),
+              ),
+              _buildActionButton(
+                context,
+                key: const ValueKey('mcpCard.edit'),
+                icon: Icons.edit_outlined,
+                tooltip: localizations?.edit ?? '编辑',
+                onPressed: widget.onEdit,
               ),
             ],
           ),

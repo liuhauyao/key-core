@@ -1,3 +1,4 @@
+import '../widgets/kc_controls.dart';
 import '../widgets/kc_menu.dart';
 import 'dart:io';
 import 'dart:convert';
@@ -23,7 +24,6 @@ import '../../utils/app_localizations.dart';
 import '../../models/cloud_config.dart';
 import '../../models/mcp_server.dart';
 import '../widgets/master_password_dialog.dart';
-import '../widgets/tool_config_card.dart';
 import '../widgets/export_password_dialog.dart';
 import '../../services/macos_bookmark_service.dart';
 import '../../services/settings_service.dart';
@@ -33,6 +33,8 @@ import '../widgets/kc_toast.dart';
 import '../../theme/kc_tokens.dart';
 import '../../config/edition.dart';
 import '../widgets/app_update_section.dart';
+import '../widgets/kc_settings.dart';
+import '../widgets/tool_settings_row.dart';
 
 /// 设置分组枚举
 enum SettingsCategory {
@@ -459,23 +461,11 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     final external = widget.category;
     if (external != null) {
       if (_selectedCategory != external) _selectedCategory = external;
-      final title = sidebarCategories.firstWhere((c) => c.$2 == external).$1;
       return Scaffold(
         backgroundColor: shadTheme.colorScheme.background,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              height: KcSize.pageHeader,
-              padding: const EdgeInsets.symmetric(horizontal: KcSpace.page),
-              alignment: Alignment.centerLeft,
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: shadTheme.colorScheme.border)),
-              ),
-              child: Text(title, style: KcType.page.copyWith(color: shadTheme.colorScheme.foreground)),
-            ),
-            Expanded(child: _buildContentArea(context, localizations, settingsViewModel, shadTheme)),
-          ],
+        body: KeyedSubtree(
+          key: ValueKey('settings.page.${_selectedCategory.name}'),
+          child: _buildCategoryContent(context, localizations, settingsViewModel, shadTheme),
         ),
       );
     }
@@ -609,17 +599,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     SettingsViewModel settingsViewModel,
     ShadThemeData shadTheme,
   ) {
-    return SingleChildScrollView(
+    return KeyedSubtree(
       key: ValueKey('settings.page.${_selectedCategory.name}'),
-      padding: const EdgeInsets.only(left: 28, top: 12, right: 28, bottom: 32),
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          // System Settings 风格：内容列最大 680，居中
-          constraints: const BoxConstraints(maxWidth: 680),
-          child: _buildCategoryContent(context, localizations, settingsViewModel, shadTheme),
-        ),
-      ),
+      child: _buildCategoryContent(context, localizations, settingsViewModel, shadTheme),
     );
   }
 
@@ -632,469 +614,23 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
   ) {
     switch (_selectedCategory) {
       case SettingsCategory.general:
-        return _buildGeneralSettings(context, localizations, settingsViewModel, shadTheme);
+        return _pageGeneral(context, localizations, settingsViewModel);
       case SettingsCategory.tools:
-        return _buildToolsSettings(context, localizations, settingsViewModel, shadTheme);
+        return _pageTools(context, localizations);
       case SettingsCategory.data:
-        return _buildDataSettings(context, localizations, shadTheme);
+        return _pageData(context, localizations);
       case SettingsCategory.security:
-        return _buildSecuritySettings(context, localizations, shadTheme);
+        return _pageSecurity(context, localizations);
       case SettingsCategory.about:
-        return _buildAboutSettings(context, localizations, shadTheme);
+        return _pageAbout(context, localizations);
     }
   }
 
-  /// 关于：IDE 风格 — 左侧图标、右侧标题层级与简介、底部版权
-  Widget _buildAboutSettings(
-    BuildContext context,
-    AppLocalizations localizations,
-    ShadThemeData shadTheme,
-  ) {
-    final fg = shadTheme.colorScheme.foreground;
-    final mutedFg = shadTheme.colorScheme.mutedForeground;
 
-    Widget buildAboutBody(PackageInfo? info, {required bool loading}) {
-      final version = (!loading && info != null)
-          ? info.version
-          : AppConstants.appVersion;
-      final buildNum = (!loading && info != null) ? info.buildNumber : '';
 
-      final titleStyle = shadTheme.textTheme.h4.copyWith(
-        fontSize: 26,
-        fontWeight: FontWeight.w600,
-        height: 1.15,
-        letterSpacing: -0.5,
-        color: fg,
-      );
-      final buildStyle = shadTheme.textTheme.small.copyWith(
-        fontSize: 13,
-        height: 1.45,
-        color: mutedFg,
-      );
-      final bodyStyle = shadTheme.textTheme.p.copyWith(
-        fontSize: 14,
-        height: 1.55,
-        color: mutedFg,
-      );
-      final footerStyle = shadTheme.textTheme.small.copyWith(
-        fontSize: 12,
-        height: 1.4,
-        color: mutedFg.withOpacity(0.9),
-      );
 
-      final textBlock = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (loading)
-            Text(localizations.loading, style: titleStyle)
-          else
-            Text(
-              '${localizations.appName} $version',
-              style: titleStyle,
-            ),
-          if (!loading && buildNum.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              localizations.aboutBuildLine(buildNum),
-              style: buildStyle,
-            ),
-          ],
-          const SizedBox(height: 20),
-          Text(localizations.aboutIntroText, style: bodyStyle),
-          const SizedBox(height: 20),
-          AppUpdateSection(currentVersion: (!loading && info != null) ? info.version : null),
-          const SizedBox(height: 28),
-          Text(localizations.aboutCopyright, style: footerStyle),
-        ],
-      );
 
-      final iconBlock = ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Image.asset(
-          'assets/images/app_about.png',
-          width: 128,
-          height: 128,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return SizedBox(
-              width: 128,
-              height: 128,
-              child: Icon(
-                Icons.vpn_key_rounded,
-                size: 56,
-                color: mutedFg,
-              ),
-            );
-          },
-        ),
-      );
 
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final stacked = constraints.maxWidth < 520;
-          if (stacked) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                iconBlock,
-                const SizedBox(height: 24),
-                textBlock,
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              iconBlock,
-              const SizedBox(width: 32),
-              Expanded(child: textBlock),
-            ],
-          );
-        },
-      );
-    }
-
-    return FutureBuilder<PackageInfo>(
-      future: PackageInfo.fromPlatform(),
-      builder: (context, snapshot) {
-        final loading = snapshot.connectionState == ConnectionState.waiting;
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(28, 32, 32, 36),
-          child: SizedBox(
-            width: double.infinity,
-            child: buildAboutBody(
-              snapshot.hasData ? snapshot.data : null,
-              loading: loading,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 构建常规设置
-  Widget _buildGeneralSettings(
-    BuildContext context,
-    AppLocalizations localizations,
-    SettingsViewModel settingsViewModel,
-    ShadThemeData shadTheme,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-              // 界面设置
-              _buildSettingSection(
-                context,
-                localizations.interfaceLanguage,
-                _buildInterfaceSettings(context, localizations, settingsViewModel),
-              ),
-        const SizedBox(height: 20),
-              // 地区限制（仅在中国大陆地区显示）
-              if (_shouldShowRegionFilter) ...[
-                _buildSettingSection(
-                  context,
-                  localizations.regionRestrictions,
-                  _buildRegionFilterControl(context, localizations, shadTheme),
-                ),
-                const SizedBox(height: 20),
-              ],
-              // 窗口行为
-              _buildSettingSection(
-                context,
-                localizations.windowBehavior,
-                _buildWindowBehaviorControl(context, localizations, settingsViewModel),
-              ),
-        const SizedBox(height: 20),
-              // 配置模板更新
-              _buildSettingSection(
-                context,
-                localizations.configTemplateUpdate,
-                _buildConfigUpdateSettings(context, localizations),
-              ),
-      ],
-    );
-  }
-
-  /// 构建配置更新设置
-  Widget _buildConfigUpdateSettings(
-    BuildContext context,
-    AppLocalizations localizations,
-  ) {
-    final shadTheme = ShadTheme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.card,
-        borderRadius: BorderRadius.circular(KcRadius.panel),
-        border: Border.all(color: shadTheme.colorScheme.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      localizations.cloudConfig,
-                      style: shadTheme.textTheme.p.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: shadTheme.colorScheme.foreground,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _configDate != null
-                          ? _configDate!
-                          : localizations.loading,
-                      style: shadTheme.textTheme.small.copyWith(
-                        color: shadTheme.colorScheme.mutedForeground,
-                      ),
-                    ),
-                  ],
-                ),
-                ShadButton(
-                  onPressed: _isCheckingUpdate ? null : _checkForUpdates,
-                  child: _isCheckingUpdate
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              shadTheme.colorScheme.foreground,
-                            ),
-                          ),
-                        )
-                      : Text(localizations.checkUpdate),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建工具配置设置
-  Widget _buildToolsSettings(
-    BuildContext context,
-    AppLocalizations localizations,
-    SettingsViewModel settingsViewModel,
-    ShadThemeData shadTheme,
-  ) {
-    // 使用 Consumer 来监听工具状态变化，避免整个 SettingsScreen 重建
-    return Consumer<SettingsViewModel>(
-      builder: (context, viewModel, child) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 目录访问授权（仅在 macOS 上显示）
-            if (Platform.isMacOS) ...[
-              _buildSettingSection(
-                context,
-                '目录访问授权',
-                _buildHomeDirAuthorizationControl(context, viewModel, shadTheme),
-              ),
-              const SizedBox(height: 20),
-            ],
-            // 工具配置网格
-            LayoutBuilder(
-              builder: (context, constraints) {
-            // 响应式布局：根据宽度动态计算每行显示的卡片数量（与密钥卡片列表一致）
-            const double minCardWidth = 280; // 工具卡片最小宽度
-            const double cardSpacing = 16.0; // 卡片间距
-            const double padding = 0; // LayoutBuilder已经考虑了padding，这里不需要再减
-            
-            final availableWidth = constraints.maxWidth;
-            // 动态计算列数：可用宽度 / (最小卡片宽度 + 间距)
-            int crossAxisCount = (availableWidth / (minCardWidth + cardSpacing)).floor();
-            
-            // 确保至少显示1列，最多5列
-            crossAxisCount = crossAxisCount.clamp(1, 5);
-            
-            // 如果可用宽度不足以容纳计算出的列数，减少列数
-            final cardWidth = (availableWidth - (crossAxisCount - 1) * cardSpacing) / crossAxisCount;
-            if (cardWidth < minCardWidth && crossAxisCount > 1) {
-              crossAxisCount -= 1;
-            }
-            
-            // 定义工具显示顺序：cursor, claudecode, codex, gemini, windsurf, openclaw
-            final orderedTools = [
-              AiToolType.cursor,
-              AiToolType.claudecode,
-              AiToolType.codex,
-              AiToolType.gemini,
-              AiToolType.claudeDesktop,
-              AiToolType.windsurf,
-              AiToolType.openclaw,
-              // MCP / Skills / 提示词同步目标
-              ...AiToolType.syncOnlyTools,
-            ];
-            
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: cardSpacing,
-                    mainAxisSpacing: cardSpacing,
-                    childAspectRatio: (cardWidth / 120), // 固定高度120，动态宽度
-                  ),
-                  itemCount: orderedTools.length,
-                  itemBuilder: (context, index) {
-                    final tool = orderedTools[index];
-                    return ToolConfigCard(
-                      tool: tool,
-                      viewModel: viewModel,
-                    );
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-            _buildSkillsSettings(context, localizations, shadTheme),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildSkillsSettings(
-    BuildContext context,
-    AppLocalizations localizations,
-    ShadThemeData shadTheme,
-  ) {
-    return Consumer<SkillsViewModel>(
-      builder: (context, skillsViewModel, child) {
-        if (skillsViewModel.skillsSourceDir == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            skillsViewModel.init();
-          });
-        }
-        return _buildSettingSection(
-          context,
-          localizations.skillsSettingsTitle,
-          Container(
-            decoration: BoxDecoration(
-              color: shadTheme.colorScheme.card,
-              borderRadius: BorderRadius.circular(KcRadius.panel),
-              border: Border.all(color: shadTheme.colorScheme.border),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  localizations.skillsSourcePath,
-                  style: shadTheme.textTheme.small.copyWith(
-                    color: shadTheme.colorScheme.mutedForeground,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  skillsViewModel.skillsSourceDir ?? '~/.keycore/skills/',
-                  style: shadTheme.textTheme.p,
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ShadButton.outline(
-                      onPressed: () async {
-                        final dirPath = await SkillsPathService().ensureSkillsSourceDir();
-                        if (Platform.isMacOS) {
-                          await Process.run('open', [dirPath]);
-                        } else if (Platform.isWindows) {
-                          await Process.run('explorer', [dirPath]);
-                        } else if (Platform.isLinux) {
-                          await Process.run('xdg-open', [dirPath]);
-                        }
-                      },
-                      child: Text(localizations.skillsOpenDirectory),
-                    ),
-                    ShadButton.outline(
-                      onPressed: () => skillsViewModel.refresh(),
-                      child: Text(localizations.skillsRescan),
-                    ),
-                    ShadButton(
-                      onPressed: () async {
-                        await skillsViewModel.syncAll(replaceExisting: false);
-                        if (context.mounted) {
-                          showKcToast(context, localizations.skillsSyncAllDone, kind: KcToastKind.success);
-                        }
-                      },
-                      child: Text(localizations.skillsSyncAll),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 构建用户主目录授权控件
-  Widget _buildHomeDirAuthorizationControl(
-    BuildContext context,
-    SettingsViewModel viewModel,
-    ShadThemeData shadTheme,
-  ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.card,
-        borderRadius: BorderRadius.circular(KcRadius.panel),
-        border: Border.all(color: shadTheme.colorScheme.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '用户主目录访问权限',
-                    style: shadTheme.textTheme.p.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: shadTheme.colorScheme.foreground,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _isCheckingAuthorization
-                        ? '正在检查授权状态...'
-                        : _isHomeDirAuthorized
-                            ? '已授权访问用户主目录，应用可以读取工具配置文件'
-                            : '未授权，需要授权才能访问工具配置文件',
-                    style: shadTheme.textTheme.small.copyWith(
-                      color: shadTheme.colorScheme.mutedForeground,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            ShadButton(
-              onPressed: _isCheckingAuthorization || _isHomeDirAuthorized
-                  ? null
-                  : () => _requestHomeDirAuthorization(context, viewModel),
-              child: Text(_isHomeDirAuthorized ? '已授权' : '授权'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// 请求用户主目录授权
   Future<void> _requestHomeDirAuthorization(
@@ -1149,177 +685,11 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     }
   }
 
-  /// 构建数据选项设置
-  Widget _buildDataSettings(
-    BuildContext context,
-    AppLocalizations localizations,
-    ShadThemeData shadTheme,
-  ) {
-    final viewModel = context.read<KeyManagerViewModel>();
-    // 分组列表行（与「通用」页同一语言），替代旧的两张灰底大卡片
-    return _groupBox(context, [
-      _buildSettingItem(
-        context,
-        localizations.importKeys,
-        localizations.importKeysDesc,
-        ShadButton.outline(
-          key: const ValueKey('settings.data.import'),
-          height: KcSize.control,
-          leading: const Icon(Icons.file_upload_outlined, size: 15),
-          onPressed: () => _handleImport(context, viewModel),
-          child: Text(localizations.tr('import_ellipsis', '导入…')),
-        ),
-      ),
-      _buildSettingItem(
-        context,
-        localizations.exportKeys,
-        localizations.exportKeysDesc,
-        ShadButton.outline(
-          key: const ValueKey('settings.data.export'),
-          height: KcSize.control,
-          leading: const Icon(Icons.file_download_outlined, size: 15),
-          onPressed: () => _handleExport(context, viewModel),
-          child: Text(localizations.tr('export_ellipsis', '导出…')),
-        ),
-        isLast: true,
-      ),
-    ]);
-  }
 
-  /// System Settings 风格分组容器：卡片底色 + 1px 边框 + 行间分隔线
-  Widget _groupBox(BuildContext context, List<Widget> rows) {
-    final cs = ShadTheme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.card,
-        borderRadius: BorderRadius.circular(KcRadius.panel),
-        border: Border.all(color: cs.border),
-      ),
-      child: Column(children: [
-        for (final (i, r) in rows.indexed) ...[
-          if (i > 0) Divider(height: 1, thickness: 1, indent: 14, color: cs.border),
-          r,
-        ],
-      ]),
-    );
-  }
 
-  /// 构建安全选项设置
-  Widget _buildSecuritySettings(
-    BuildContext context,
-    AppLocalizations localizations,
-    ShadThemeData shadTheme,
-  ) {
-    return _buildSecurityControl(context, localizations);
-  }
 
-  Widget _buildSettingSection(
-    BuildContext context,
-    String title,
-    Widget control,
-  ) {
-    final shadTheme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // System Settings 风格：小号分组标题 + 紧凑分组列表（form_v3.md §9）
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 6),
-          child: Text(
-            title,
-            style: KcType.caption.copyWith(fontWeight: FontWeight.w600, color: shadTheme.colorScheme.mutedForeground),
-          ),
-        ),
-        control,
-      ],
-    );
-  }
 
-  Widget _buildInterfaceSettings(
-    BuildContext context,
-    AppLocalizations localizations,
-    SettingsViewModel settingsViewModel,
-  ) {
-    final shadTheme = ShadTheme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.card,
-        borderRadius: BorderRadius.circular(KcRadius.panel),
-        border: Border.all(color: shadTheme.colorScheme.border),
-      ),
-      child: Column(
-        children: [
-          // 语言设置
-          _buildSettingItem(
-            context,
-            localizations.interfaceLanguage,
-            localizations.interfaceLanguageDesc,
-            _buildLanguageControl(context, localizations, settingsViewModel),
-          ),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: shadTheme.colorScheme.border,
-          ),
-          // 外观主题
-          _buildSettingItem(
-            context,
-            localizations.appearanceTheme,
-            localizations.appearanceThemeDesc,
-            _buildThemeControl(context, localizations, settingsViewModel),
-            isLast: true,
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildSettingItem(
-    BuildContext context,
-    String label,
-    String description,
-    Widget control, {
-    bool isLast = false,
-  }) {
-    final shadTheme = ShadTheme.of(context);
-    // 统一行高（最小 52）与内边距 14×10，说明文字内联在标签下方
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 52),
-      child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: KcType.body.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: shadTheme.colorScheme.foreground,
-                  ),
-                ),
-                if (description.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    style: KcType.caption.copyWith(
-                      color: shadTheme.colorScheme.mutedForeground,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          control,
-        ],
-      ),
-    ),
-    );
-  }
 
   Widget _buildLanguageControl(
     BuildContext context,
@@ -1425,176 +795,9 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     );
   }
 
-  Widget _buildThemeControl(
-    BuildContext context,
-    AppLocalizations localizations,
-    SettingsViewModel settingsViewModel,
-  ) {
-    final shadTheme = ShadTheme.of(context);
-    ThemeMode currentMode = settingsViewModel.themeMode;
-    
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.muted,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: shadTheme.colorScheme.border,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildThemeSegmentedItem(
-            context,
-            Icons.light_mode,
-            localizations.themeLight,
-            currentMode == ThemeMode.light,
-            () => settingsViewModel.setThemeMode(ThemeMode.light),
-          ),
-          _buildThemeSegmentedItem(
-            context,
-            Icons.dark_mode,
-            localizations.themeDark,
-            currentMode == ThemeMode.dark,
-            () => settingsViewModel.setThemeMode(ThemeMode.dark),
-          ),
-          _buildThemeSegmentedItem(
-            context,
-            Icons.brightness_auto,
-            localizations.themeSystem,
-            currentMode == ThemeMode.system,
-            () => settingsViewModel.setThemeMode(ThemeMode.system),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildThemeSegmentedItem(
-    BuildContext context,
-    IconData icon,
-    String label,
-    bool isActive,
-    VoidCallback onTap,
-  ) {
-    final shadTheme = ShadTheme.of(context);
-    
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive 
-              ? shadTheme.colorScheme.primary
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isActive 
-                  ? shadTheme.colorScheme.primaryForeground
-                  : shadTheme.colorScheme.mutedForeground,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: shadTheme.textTheme.small.copyWith(
-                color: isActive 
-                    ? shadTheme.colorScheme.primaryForeground
-                    : shadTheme.colorScheme.mutedForeground,
-                fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildWindowBehaviorControl(
-    BuildContext context,
-    AppLocalizations localizations,
-    SettingsViewModel settingsViewModel,
-  ) {
-    final shadTheme = ShadTheme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.card,
-        borderRadius: BorderRadius.circular(KcRadius.panel),
-        border: Border.all(color: shadTheme.colorScheme.border),
-      ),
-      child: _buildSettingItem(
-        context,
-        localizations.minimizeToTray,
-        localizations.minimizeToTrayDescDetail,
-        Transform.scale(
-          scale: 0.8,
-          child: Switch(
-            value: settingsViewModel.minimizeToTray,
-            onChanged: (value) async {
-              await settingsViewModel.setMinimizeToTray(value);
-              if (value && mounted) {
-                showKcToast(context, localizations.minimizeToTrayEnabled, kind: KcToastKind.success);
-              }
-            },
-            activeTrackColor: shadTheme.colorScheme.primary,
-          ),
-        ),
-        isLast: true,
-      ),
-    );
-  }
 
-  Widget _buildSecurityControl(
-    BuildContext context,
-    AppLocalizations localizations,
-  ) {
-    final kc = context.kc;
-    return _groupBox(context, [
-      _buildSettingItem(
-        context,
-        _hasPassword ? localizations.masterPasswordSet : localizations.masterPasswordNotSet,
-        _hasPassword ? localizations.masterPasswordEncrypted : localizations.masterPasswordPlain,
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            height: 20,
-            padding: const EdgeInsets.symmetric(horizontal: 7),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: _hasPassword ? kc.okSoft : kc.warnSoft, borderRadius: BorderRadius.circular(999)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(_hasPassword ? Icons.lock : Icons.lock_open, size: 12, color: _hasPassword ? kc.okText : kc.warnText),
-              const SizedBox(width: 4),
-              Text(_hasPassword ? localizations.tr('encrypted', '已加密') : localizations.tr('not_encrypted', '未加密'),
-                  style: KcType.badge.copyWith(color: _hasPassword ? kc.okText : kc.warnText)),
-            ]),
-          ),
-          const SizedBox(width: 10),
-          ShadButton.outline(
-            key: const ValueKey('settings.security.password'),
-            height: KcSize.control,
-            onPressed: () async {
-              final result = await showDialog<bool>(
-                context: context,
-                builder: (context) => const MasterPasswordDialog(),
-              );
-              if (result == true) {
-                await _checkPasswordStatus();
-                if (!context.mounted) return;
-                context.read<KeyManagerViewModel>().refresh();
-              }
-            },
-            child: Text(_hasPassword ? localizations.change : localizations.set),
-          ),
-        ]),
-        isLast: true,
-      ),
-    ]);
-  }
 
 
 
@@ -1759,92 +962,346 @@ class _SettingsScreenState extends State<SettingsScreen> with AutomaticKeepAlive
     }
   }
 
-  /// 构建地区过滤控制
-  Widget _buildRegionFilterControl(BuildContext context, AppLocalizations localizations, ShadThemeData shadTheme) {
-    if (_isRegionFilterLoading) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: shadTheme.colorScheme.muted,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
+
+
+  // ───────────────────────── v4：系统设置风格页面（settings_*.png 稿件） ─────────────────────────
+
+  String _tt(String k, String f) => AppLocalizations.of(context)?.tr(k, f) ?? f;
+
+  Widget _themeSeg(SettingsViewModel vm, AppLocalizations l) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    Widget seg(ThemeMode m, IconData icon, String label) {
+      final on = vm.themeMode == m;
+      return GestureDetector(
+        key: ValueKey('settings.theme.${m.name}'),
+        onTap: () => vm.setThemeMode(m),
+        child: Container(
+          height: 22,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          decoration: BoxDecoration(
+            color: on ? cs.card : Colors.transparent,
+            borderRadius: BorderRadius.circular(5),
+            boxShadow: on ? kc.shadowSm : null,
           ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 13, color: on ? cs.foreground : kc.text2),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(fontSize: 12.5, fontWeight: on ? FontWeight.w600 : FontWeight.w400, color: on ? cs.foreground : kc.text2)),
+          ]),
         ),
       );
     }
 
     return Container(
-      decoration: BoxDecoration(
-        color: shadTheme.colorScheme.card,
-        borderRadius: BorderRadius.circular(KcRadius.panel),
-        border: Border.all(color: shadTheme.colorScheme.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    localizations.regionRestrictionsTitle,
-                    style: shadTheme.textTheme.p.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: shadTheme.colorScheme.foreground,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    localizations.regionRestrictionsDesc,
-                    style: shadTheme.textTheme.small.copyWith(
-                      color: shadTheme.colorScheme.mutedForeground,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            Transform.scale(
-              scale: 0.8,
-              child: Switch(
-              value: _chinaRegionFilterEnabled,
-              onChanged: (value) async {
-                try {
-                  await RegionFilterService.setChinaRegionFilter(value);
-                  setState(() {
-                    _chinaRegionFilterEnabled = value;
-                  });
-
-                  if (mounted) {
-                    showKcToast(context, value ? localizations.regionRestrictionsEnabled : localizations.regionRestrictionsDisabled, kind: KcToastKind.success);
-
-                    // 通知其他组件刷新
-                    final keyManagerViewModel = context.read<KeyManagerViewModel>();
-                    await keyManagerViewModel.refresh();
-
-                    // 通知平台注册表重新加载（如果地区过滤改变）
-                    await PlatformRegistry.reloadDynamicPlatforms(_cloudConfigService);
-                    await PlatformPresets.init(forceRefresh: true);
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    showKcToast(context, localizations.regionRestrictionsFailed, kind: KcToastKind.success);
-                  }
-                }
-              },
-                activeTrackColor: shadTheme.colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-      ),
+      height: 28,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(7)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        seg(ThemeMode.light, Icons.light_mode_outlined, l.themeLight),
+        seg(ThemeMode.dark, Icons.dark_mode_outlined, l.themeDark),
+        seg(ThemeMode.system, Icons.contrast, l.themeSystem),
+      ]),
     );
   }
 
+  Widget _pageGeneral(BuildContext context, AppLocalizations l, SettingsViewModel vm) {
+    return Consumer<SettingsViewModel>(builder: (context, vm, _) {
+      return KcSettingsPage(
+        title: l.settingsGeneral,
+        subtitle: _tt('settings_general_sub', '语言、外观与窗口行为'),
+        children: [
+          KcSettingsSection(title: _tt('settings_appearance', '外观'), rows: [
+            KcSettingsRow(
+              title: l.interfaceLanguage,
+              subtitle: l.interfaceLanguageDesc,
+              trailing: _buildLanguageControl(context, l, vm),
+            ),
+            KcSettingsRow(title: l.appearanceTheme, trailing: _themeSeg(vm, l)),
+            if (_shouldShowRegionFilter)
+              KcSettingsRow(
+                key: const ValueKey('settings.regionFilter'),
+                title: l.regionRestrictionsTitle,
+                subtitle: l.regionRestrictionsDesc,
+                trailing: _isRegionFilterLoading
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5))
+                    : KcSwitch(value: _chinaRegionFilterEnabled, onChanged: (v) => _setRegionFilter(v, l)),
+              ),
+          ]),
+          KcSettingsSection(title: l.windowBehavior, rows: [
+            KcSettingsRow(
+              title: l.minimizeToTray,
+              subtitle: l.minimizeToTrayDescDetail,
+              trailing: KcSwitch(
+                key: const ValueKey('settings.minimizeToTray'),
+                value: vm.minimizeToTray,
+                onChanged: (v) async {
+                  await vm.setMinimizeToTray(v);
+                  if (v && context.mounted) showKcToast(context, l.minimizeToTrayEnabled, kind: KcToastKind.success);
+                },
+              ),
+            ),
+          ]),
+          KcSettingsSection(title: _tt('settings_updates', '更新'), rows: [
+            KcSettingsRow(
+              title: l.cloudConfig,
+              subtitle: _tt('settings_templates_desc', '模型列表、请求地址等供应商预设'),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (_configDate != null)
+                  Text(_configDate!, style: KcType.caption.copyWith(color: ShadTheme.of(context).colorScheme.mutedForeground)),
+                const SizedBox(width: 10),
+                ShadButton.outline(
+                  key: const ValueKey('settings.templates.check'),
+                  size: ShadButtonSize.sm,
+                  onPressed: _isCheckingUpdate ? null : _checkForUpdates,
+                  child: _isCheckingUpdate
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5))
+                      : Text(l.checkUpdate),
+                ),
+              ]),
+            ),
+          ]),
+        ],
+      );
+    });
+  }
+
+  Future<void> _setRegionFilter(bool value, AppLocalizations l) async {
+    try {
+      await RegionFilterService.setChinaRegionFilter(value);
+      setState(() => _chinaRegionFilterEnabled = value);
+      if (!mounted) return;
+      showKcToast(context, value ? l.regionRestrictionsEnabled : l.regionRestrictionsDisabled, kind: KcToastKind.success);
+      await context.read<KeyManagerViewModel>().refresh();
+      await PlatformRegistry.reloadDynamicPlatforms(_cloudConfigService);
+      await PlatformPresets.init(forceRefresh: true);
+    } catch (_) {
+      if (mounted) showKcToast(context, l.regionRestrictionsFailed, kind: KcToastKind.error);
+    }
+  }
+
+  static const _orderedTools = [
+    AiToolType.cursor,
+    AiToolType.claudecode,
+    AiToolType.codex,
+    AiToolType.gemini,
+    AiToolType.claudeDesktop,
+    AiToolType.windsurf,
+    AiToolType.openclaw,
+  ];
+
+  Widget _pageTools(BuildContext context, AppLocalizations l) {
+    return Consumer<SettingsViewModel>(builder: (context, vm, _) {
+      final tools = [..._orderedTools, ...AiToolType.syncOnlyTools.where((t) => !_orderedTools.contains(t))];
+      final on = tools.where(vm.isToolEnabled).length;
+      final kc = context.kc;
+      return KcSettingsPage(
+        title: l.settingsTools,
+        subtitle: _tt('settings_tools_sub', '检测状态、配置路径与启用'),
+        children: [
+          if (Platform.isMacOS)
+            KcSettingsSection(title: _tt('settings_access', '访问授权'), rows: [
+              KcSettingsRow(
+                leading: const KcIconTile(Icons.folder_outlined, color: KcIconTile.blue),
+                title: _tt('home_dir_access', '主目录访问'),
+                subtitle: _isCheckingAuthorization
+                    ? _tt('checking', '正在检查…')
+                    : _tt('home_dir_access_desc', '用于读写各工具的配置文件'),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (!_isCheckingAuthorization)
+                    _isHomeDirAuthorized
+                        ? KcStatusChip(_tt('authorized', '已授权'), kind: KcChipKind.ok)
+                        : KcStatusChip(_tt('unauthorized', '未授权'), kind: KcChipKind.warn),
+                  const SizedBox(width: 8),
+                  ShadButton.outline(
+                    size: ShadButtonSize.sm,
+                    onPressed: _isCheckingAuthorization ? null : () => _requestHomeDirAuthorization(context, vm),
+                    child: Text(_isHomeDirAuthorized ? _tt('reauthorize', '重新授权') : _tt('authorize', '授权')),
+                  ),
+                ]),
+              ),
+            ]),
+          KcSettingsSection(
+            key: const ValueKey('settings.tools.list'),
+            title: '${_tt('settings_ai_tools', 'AI 工具')}  ·  ${_tt('enabled_count', '已启用 {n} / {m}').replaceAll('{n}', '$on').replaceAll('{m}', '${tools.length}')}',
+            dividerIndent: 50,
+            rows: [for (final t in tools) ToolSettingsRow(key: ValueKey('toolRow.wrap.${t.value}'), tool: t, viewModel: vm)],
+            footer: _tt('settings_tools_footer', '关闭某个工具后，侧栏、密钥卡片和 MCP / Skills 同步都不再显示它；已写入的工具配置文件不会被修改。'),
+          ),
+          Consumer<SkillsViewModel>(builder: (context, svm, _) {
+            if (svm.skillsSourceDir == null) WidgetsBinding.instance.addPostFrameCallback((_) => svm.init());
+            return KcSettingsSection(title: l.skillsSettingsTitle, rows: [
+              KcSettingsRow(
+                leading: const KcIconTile(Icons.auto_awesome_outlined, color: KcIconTile.purple),
+                title: l.skillsSourcePath,
+                subtitle: svm.skillsSourceDir ?? '~/.keycore/skills/',
+                mono: true,
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  ShadButton.outline(size: ShadButtonSize.sm, onPressed: () => svm.refresh(), child: Text(l.skillsRescan)),
+                  const SizedBox(width: 6),
+                  ShadButton.outline(
+                    size: ShadButtonSize.sm,
+                    onPressed: () async {
+                      final dir = await SkillsPathService().ensureSkillsSourceDir();
+                      if (Platform.isMacOS) {
+                        await Process.run('open', [dir]);
+                      } else if (Platform.isWindows) {
+                        await Process.run('explorer', [dir]);
+                      } else {
+                        await Process.run('xdg-open', [dir]);
+                      }
+                    },
+                    child: Text(l.skillsOpenDirectory),
+                  ),
+                ]),
+              ),
+              KcSettingsRow(
+                title: l.skillsSyncAll,
+                trailing: ShadButton.outline(
+                  size: ShadButtonSize.sm,
+                  leading: Icon(Icons.sync, size: 14, color: kc.text2),
+                  onPressed: () async {
+                    await svm.syncAll(replaceExisting: false);
+                    if (context.mounted) showKcToast(context, l.skillsSyncAllDone, kind: KcToastKind.success);
+                  },
+                  child: Text(_tt('sync_now', '立即同步')),
+                ),
+              ),
+            ]);
+          }),
+        ],
+      );
+    });
+  }
+
+  Widget _pageData(BuildContext context, AppLocalizations l) {
+    final vm = context.read<KeyManagerViewModel>();
+    return KcSettingsPage(
+      title: l.settingsData,
+      subtitle: _tt('settings_data_sub', '导入与导出'),
+      children: [
+        KcSettingsSection(title: _tt('settings_import_export', '导入与导出'), rows: [
+          KcSettingsRow(
+            leading: const KcIconTile(Icons.file_download_outlined, color: KcIconTile.green),
+            title: l.importKeys,
+            subtitle: l.importKeysDesc,
+            trailing: ShadButton.outline(
+              key: const ValueKey('settings.data.import'),
+              size: ShadButtonSize.sm,
+              leading: const Icon(Icons.file_download_outlined, size: 14),
+              onPressed: () => _handleImport(context, vm),
+              child: Text(l.tr('import_ellipsis', '导入…')),
+            ),
+          ),
+          KcSettingsRow(
+            leading: const KcIconTile(Icons.file_upload_outlined, color: KcIconTile.blue),
+            title: l.exportKeys,
+            subtitle: l.exportKeysDesc,
+            trailing: ShadButton.outline(
+              key: const ValueKey('settings.data.export'),
+              size: ShadButtonSize.sm,
+              leading: const Icon(Icons.file_upload_outlined, size: 14),
+              onPressed: () => _handleExport(context, vm),
+              child: Text(l.tr('export_ellipsis', '导出…')),
+            ),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  Widget _pageSecurity(BuildContext context, AppLocalizations l) {
+    return KcSettingsPage(
+      title: l.settingsSecurity,
+      subtitle: _tt('settings_security_sub', '主密码与加密'),
+      children: [
+        KcSettingsSection(title: _tt('master_password', '主密码'), rows: [
+          KcSettingsRow(
+            key: const ValueKey('settings.security.row'),
+            leading: const KcIconTile(Icons.lock_outline, color: KcIconTile.orange),
+            title: _hasPassword ? l.masterPasswordSet : l.masterPasswordNotSet,
+            subtitle: _hasPassword ? l.masterPasswordEncrypted : l.masterPasswordPlain,
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              _hasPassword
+                  ? KcStatusChip(l.tr('encrypted', '已加密'), kind: KcChipKind.ok, icon: Icons.check)
+                  : KcStatusChip(l.tr('not_encrypted', '未加密'), kind: KcChipKind.warn),
+              const SizedBox(width: 8),
+              ShadButton.outline(
+                key: const ValueKey('settings.security.password'),
+                size: ShadButtonSize.sm,
+                onPressed: () async {
+                  final result = await showDialog<bool>(context: context, builder: (_) => const MasterPasswordDialog());
+                  if (result == true) {
+                    await _checkPasswordStatus();
+                    if (!context.mounted) return;
+                    context.read<KeyManagerViewModel>().refresh();
+                  }
+                },
+                child: Text(_hasPassword ? '${l.change}…' : l.set),
+              ),
+            ]),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  Widget _pageAbout(BuildContext context, AppLocalizations l) {
+    final cs = ShadTheme.of(context).colorScheme;
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snap) {
+        final info = snap.data;
+        final version = info?.version ?? AppConstants.appVersion;
+        final build = info?.buildNumber ?? '';
+        final os = Platform.isMacOS ? 'macOS' : (Platform.isWindows ? 'Windows' : 'Linux');
+        final card = Container(
+          key: const ValueKey('settings.about.card'),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: cs.card,
+            borderRadius: BorderRadius.circular(KcRadius.panel),
+            border: Border.all(color: cs.border),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset('assets/images/app_about.png', width: 72, height: 72, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox(width: 72, height: 72)),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                  Text(l.tr('app_name_cn', '密枢'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: cs.foreground)),
+                  const SizedBox(width: 6),
+                  Text('Key Core', style: TextStyle(fontSize: 15, color: cs.mutedForeground)),
+                ]),
+                const SizedBox(height: 4),
+                Row(children: [
+                  Text('${l.tr('version', '版本')} $version${build.isEmpty ? '' : ' ($build)'}  ·  $os',
+                      style: KcType.caption.copyWith(color: cs.mutedForeground)),
+                  const SizedBox(width: 8),
+                  KcStatusChip(Edition.isAppStore ? 'App Store' : l.tr('edition_oss', '开源版')),
+                ]),
+                const SizedBox(height: 8),
+                Text(l.aboutIntroText, maxLines: 3, overflow: TextOverflow.ellipsis, style: KcType.caption.copyWith(color: cs.mutedForeground, height: 1.5)),
+              ]),
+            ),
+          ]),
+        );
+        return KcSettingsPage(
+          title: l.settingsAbout,
+          children: [
+            card,
+            AppUpdateSection(currentVersion: info?.version),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(l.aboutCopyright, style: TextStyle(fontSize: 11.5, color: cs.mutedForeground)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }

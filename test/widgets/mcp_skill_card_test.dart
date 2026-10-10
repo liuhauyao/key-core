@@ -2,6 +2,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:key_core/views/widgets/kc_controls.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:key_core/models/mcp_server.dart';
 import 'package:key_core/models/skill.dart';
@@ -71,10 +72,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mcpCard.toggle')));
     await tester.pump();
     expect(toggled, isFalse);
-    // 开启态：只给轨道上主色，滑块保持默认白色（之前 activeColor=主色 → 滑块与轨道同色，看起来没有滑块）
-    final sw = tester.widget<Switch>(find.byKey(const ValueKey('mcpCard.toggle')));
-    expect(sw.activeTrackColor, isNotNull);
-    expect(sw.activeThumbColor, isNull);
+    // v4：统一紧凑开关 KcSwitch 32×18
+    expect(tester.widget(find.byKey(const ValueKey('mcpCard.toggle'))), isA<KcSwitch>());
+    expect(tester.getSize(find.descendant(of: find.byKey(const ValueKey('mcpCard.toggle')), matching: find.byType(AnimatedContainer))), const Size(32, 18));
 
     await _pump(tester, _grid([McpCard(server: _mcp('github', 'GitHub'), isEditMode: true)], 140));
     expect(find.byKey(const ValueKey('mcpCard.dragHandle')), findsOneWidget);

@@ -392,7 +392,7 @@ class CodexConfigScreenState extends State<CodexConfigScreen> {
                           message: localizations?.refreshKeyList ?? '刷新列表',
                           child: ShadButton.ghost(
                             width: 38,
-                            height: 38,
+                            height: 32,
                             padding: EdgeInsets.zero,
                             onPressed: () {
                               refresh(force: true);

@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../widgets/kc_card_wrap.dart';
 import '../../theme/kc_tokens.dart';
 import 'package:provider/provider.dart';
 import 'package:reorderables/reorderables.dart';
@@ -442,9 +443,11 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
           // 与普通模式同样的 padding；底部为悬浮批量栏预留
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(padding, padding, padding, padding + kcFloatingBarReserve),
-            child: ReorderableWrap(
+            // 撑满宽度并左对齐：卡片少时也贴左排（不居中）
+            child: SizedBox(width: double.infinity, child: ReorderableWrap(
               spacing: cardSpacing,
               runSpacing: cardSpacing,
+              alignment: WrapAlignment.start,
               onReorder: (oldIndex, newIndex) {
                 if (newIndex > oldIndex) newIndex -= 1;
                 final item = skills.removeAt(oldIndex);
@@ -452,17 +455,13 @@ class _SkillsConfigScreenState extends State<SkillsConfigScreen> {
                 viewModel.updateSortOrder(skills);
               },
               children: cards,
-            ),
+            )),
           );
         }
 
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(padding, padding, padding, padding + (_isSelectMode ? kcFloatingBarReserve : 0)),
-          child: Wrap(
-            spacing: cardSpacing,
-            runSpacing: cardSpacing,
-            children: cards,
-          ),
+          child: KcCardWrap(key: const ValueKey('skills.grid'), spacing: cardSpacing, runSpacing: cardSpacing, children: cards),
         );
       },
     );

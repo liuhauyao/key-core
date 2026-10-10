@@ -1,3 +1,4 @@
+import 'kc_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -71,8 +72,7 @@ class _SkillCardState extends State<SkillCard> {
             else
               SizedBox(
                 height: 24,
-                child: FittedBox(
-                  child: Switch(
+                child: SizedBox(child: KcSwitch(
                     key: const ValueKey('skillCard.toggle'),
                     value: isActive,
                     onChanged: widget.onToggleActive,
@@ -123,7 +123,6 @@ class _SkillCardState extends State<SkillCard> {
           child: Row(children: [
             _slot(const ValueKey('skillCard.details'), Icons.visibility_outlined, l?.tr('view_details', '查看详情') ?? '查看详情', manage ? null : widget.onTap),
             const Spacer(),
-            _slot(const ValueKey('skillCard.edit'), Icons.edit_outlined, l?.edit ?? '编辑', widget.onEdit),
             Visibility(
               visible: manage,
               maintainSize: true,
@@ -132,6 +131,7 @@ class _SkillCardState extends State<SkillCard> {
               child: _slot(const ValueKey('skillCard.delete'), Icons.delete_outline, l?.tr('delete_btn', '删除') ?? '删除',
                   manage ? widget.onDelete : null, color: kc.dangerText),
             ),
+            _slot(const ValueKey('skillCard.edit'), Icons.edit_outlined, l?.edit ?? '编辑', widget.onEdit),
           ]),
         ),
       ]),

@@ -156,7 +156,7 @@ class _IconPickerState extends State<IconPicker> {
       'postgres.svg',
       'qdrant-icon.svg',
       'qwen-color.svg',
-      'siliconcloud-color.svg',
+      'siliconflow-color.svg',
       'slack.svg',
       'supabase-icon.svg',
       'tencentcloud-color.svg',

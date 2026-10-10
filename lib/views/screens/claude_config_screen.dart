@@ -455,7 +455,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                           message: localizations?.refreshKeyList ?? '刷新列表',
                           child: ShadButton.ghost(
                             width: 38,
-                            height: 38,
+                            height: 32,
                             padding: EdgeInsets.zero,
                             onPressed: () => refresh(force: true),
                             child: Icon(
@@ -1176,7 +1176,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                             const Spacer(),
                             ShadButton.ghost(
                               width: 36,
-                              height: 36,
+                              height: 32,
                               padding: EdgeInsets.zero,
                               child: Icon(
                                 Icons.add,
@@ -1222,7 +1222,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                                 const SizedBox(width: 8),
                                 ShadButton.ghost(
                                   width: 36,
-                                  height: 36,
+                                  height: 32,
                                   padding: EdgeInsets.zero,
                                   child: Icon(
                                     Icons.delete_outline,

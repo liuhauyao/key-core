@@ -77,7 +77,9 @@ class KcWindowHeader extends StatelessWidget implements PreferredSizeWidget {
           child: Stack(
             children: [
               const Positioned.fill(child: KcDragArea()),
-              Padding(
+              // Positioned.fill：让内容行撑满 52 高并垂直居中（与红绿灯中心 y=26 对齐）。
+              // 之前是非定位子节点，Stack 给的是松约束，整行贴在顶部。
+              Positioned.fill(child: Padding(
                 padding: EdgeInsets.only(left: left, right: 12),
                 child: Row(
                   children: [
@@ -115,7 +117,7 @@ class KcWindowHeader extends StatelessWidget implements PreferredSizeWidget {
                       ),
                   ],
                 ),
-              ),
+              )),
             ],
           ),
         );

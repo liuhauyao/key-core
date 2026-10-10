@@ -1,5 +1,6 @@
 // 密钥详情：右侧 560px 抽屉（ui_redesign_plan §5.3，mockup 03）。
 // 类名与原有构造参数不变（各工具页仍可直接复用）；新增的回调都是可选的，不传时对应操作不显示。
+import 'kc_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -566,8 +567,7 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
         children: [
           SizedBox(
             height: 24,
-            child: FittedBox(
-              child: Switch(
+            child: SizedBox(child: KcSwitch(
                 key: ValueKey('keyDetails.toggle.${t.value}'),
                 value: on,
                 activeTrackColor: cs.primary,
@@ -776,7 +776,7 @@ class _NewToolsSectionState extends State<NewToolsSection> {
                         child: Text(t('apply_to_tool', '写入')),
                       ),
                     const SizedBox(width: 6),
-                    Switch.adaptive(
+                    KcSwitch(
                       key: ValueKey('newTools.enable.${tool.value}'),
                       value: enabled,
                       onChanged: (v) => _run(tool, () async {
