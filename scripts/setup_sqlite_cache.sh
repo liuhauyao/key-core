@@ -4,8 +4,8 @@
 # 从而避免每次构建都从 GitHub 下载
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SCRIPT_DIR="$(cd -P "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd -P "$SCRIPT_DIR/.." && pwd)"
 VENDOR_DIR="$SCRIPT_DIR/vendor/sqlite3"
 
 # sqlite3 包的版本和下载参数（与 package 版本对齐）

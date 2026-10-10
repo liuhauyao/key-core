@@ -11,8 +11,8 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # 项目根目录（假设 source 此文件的脚本在 scripts/ 下）
-SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROJECT_DIR="$(cd "$SCRIPTS_DIR/.." && pwd)"
+SCRIPTS_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_DIR="$(cd -P "$SCRIPTS_DIR/.." && pwd)"
 
 BUNDLE_ID="cn.dlrow.keycore"
 APP_NAME="Key Core"
@@ -118,7 +118,7 @@ create_branded_dmg() {
 
   # 生成背景图（放在 dmg 同目录，create-dmg 会嵌入到 DMG 中）
   dmg_dir="$(dirname "$dmg_file")"
-  bg_file="${dmg_dir}/.dmg-bg-$$.png"
+  bg_file="${dmg_dir}/dmg-bg-$$.png"
   mkdir -p "$dmg_dir"
   generate_dmg_background "$bg_file" > /dev/null 2>&1
 
@@ -132,6 +132,9 @@ create_branded_dmg() {
   # 注意：不加 --skip-jenkins，否则 AppleScript 被跳过导致无背景/图标布局
   # Finder 会短暂打开（AppleScript 设置样式所需），完成后自动关闭
   # 勿加 --sandbox-safe：也会跳过 AppleScript
+  # setup_sqlite_cache.sh 被 source 后会打开 set -u / pipefail，这里单独记下退出码。
+  set +e
+  set +o pipefail
   "$create_dmg" \
     --volname "$volname" \
     --background "$bg_file" \
@@ -141,17 +144,16 @@ create_branded_dmg() {
     --app-drop-link 480 170 \
     --bless \
     "$dmg_file" \
-    "$staging_dir" 2>&1 | { grep -v "^$\|^hdiutil: WARNING\|^$\|^Device name:\|^Searching for\|^Mount dir:\|^Copying background\|^Making link\|^Will sleep for\|^Done running\|^Fixing\|^Done fixing\|^Deleting\.\|^Unmounting\|^Compressing\|^\." || true; }
-  local result="${PIPESTATUS[0]}"
-  rm -f "$bg_file" 2>/dev/null || true
-  if [[ $result -ne 0 ]]; then
-    print_warning "create-dmg 退出码 $result（AppleScript 可能失败）"
-  fi
-  return $result
-
+    "$staging_dir"
   local result=$?
+  set -e
   rm -f "$bg_file" 2>/dev/null || true
-  return $result
+  if [[ "$result" -ne 0 ]]; then
+    print_warning "create-dmg 退出码 ${result}，改用简单 DMG"
+    hdiutil create -volname "$volname" -srcfolder "$staging_dir" -ov -format UDZO "$dmg_file" >/dev/null
+    result=$?
+  fi
+  return "$result"
 }
 
 # 关闭所有与 DMG 相关的 Finder 窗口和已挂载卷（create-dmg AppleScript 可能会打开 Finder）

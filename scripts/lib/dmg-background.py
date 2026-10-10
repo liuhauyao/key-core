@@ -33,7 +33,8 @@ def linear_gradient(y, x):
     r = int(PRIMARY[0] * (1 - t) + LIGHT[0] * t)
     g = int(PRIMARY[1] * (1 - t) + LIGHT[1] * t)
     b = int(PRIMARY[2] * (1 - t) + LIGHT[2] * t)
-    return (min(r, 255), min(g, 255), min(b, 255), 255)
+    # Finder 不能把带透明通道的 PNG 设为磁盘背景，这里只输出 RGB。
+    return (min(r, 255), min(g, 255), min(b, 255))
 
 def create_png():
     raw_data = bytearray()
@@ -44,7 +45,7 @@ def create_png():
             raw_data.extend(px)
 
     sig = b'\x89PNG\r\n\x1a\n'
-    ihdr = make_chunk(b'IHDR', struct.pack('>IIBBBBB', WIDTH, HEIGHT, 8, 6, 0, 0, 0))
+    ihdr = make_chunk(b'IHDR', struct.pack('>IIBBBBB', WIDTH, HEIGHT, 8, 2, 0, 0, 0))
     compressed = zlib.compress(bytes(raw_data))
     idat = make_chunk(b'IDAT', compressed)
     iend = make_chunk(b'IEND', b'')

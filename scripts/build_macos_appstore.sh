@@ -10,7 +10,8 @@
 
 set -e
 
-cd "$(dirname "$0")/.."
+cd -P "$(dirname "$0")/.."
+export PATH="$(cd "$(dirname "$0")" && pwd)/macos-toolchain:${PATH}"
 
 echo "=========================================="
 echo "准备 Xcode Archive 环境（App Store）"
@@ -32,6 +33,9 @@ flutter pub get > /dev/null 2>&1
 echo "3. 初始化 SQLite 原生库缓存..."
 # shellcheck source=setup_sqlite_cache.sh
 source "$(dirname "$0")/setup_sqlite_cache.sh" > /dev/null 2>&1 || true
+set +u
+set +o pipefail
+set -e
 
 # 4. 清理 sqlite3 构建缓存
 echo "4. 清理 sqlite3 构建缓存..."

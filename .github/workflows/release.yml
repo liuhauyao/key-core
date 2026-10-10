@@ -1,0 +1,145 @@
+# 开源版三端打包，推送 v* tag 时发布 GitHub Release。
+# 应用内更新按扩展名和文件名挑选安装包（lib/services/app_update_service.dart）：
+#   macOS  .dmg（文件名含 mac）
+#   Windows .zip（文件名含 win，不要单独上传 exe）
+#   Linux  .tar.gz（文件名含 linux）
+# 并附带 SHA256SUMS。
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 构建并打包 DMG
+        env:
+          NO_REPLACE: "1"
+          # 避免构建脚本在 GitHub 上改走 ghproxy
+          GITHUB_PROXY: "direct"
+        run: |
+          # 脚本把非空 GITHUB_PROXY 当成镜像前缀；这里传 direct 只是为了跳过默认 ghproxy，下载失败会回退直连。
+          bash scripts/build_macos_github.sh
+          version="$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//')"
+          mkdir -p dist
+          cp "build/macos-github/Key Core-${version}.dmg" "dist/key-core-${version}-macos.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*.dmg
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 构建 Windows
+        shell: bash
+        run: |
+          flutter config --enable-windows-desktop
+          if [ ! -d windows ]; then
+            flutter create --platforms=windows .
+          fi
+          dart scripts/generate_icon_list.dart
+          flutter pub get
+          flutter build windows --release --dart-define=KC_EDITION=oss
+
+      - name: 打包 zip
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(\d+\.\d+\.\d+)').Matches.Groups[1].Value
+          if (Test-Path build/windows/x64/runner/Release) {
+            $src = "build/windows/x64/runner/Release"
+          } else {
+            $src = "build/windows/runner/Release"
+          }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path "$src/*" -DestinationPath "dist/key-core-$version-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.zip
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Linux 桌面依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev libayatana-appindicator3-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 构建 Linux
+        run: |
+          flutter config --enable-linux-desktop
+          if [ ! -d linux ]; then
+            flutter create --platforms=linux .
+          fi
+          dart scripts/generate_icon_list.dart
+          flutter pub get
+          flutter build linux --release --dart-define=KC_EDITION=oss
+
+      - name: 打包 tar.gz
+        run: |
+          version="$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//')"
+          mkdir -p dist
+          tar -C build/linux/x64/release/bundle -czf "dist/key-core-${version}-linux-x64.tar.gz" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*.tar.gz
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 生成校验和并发布
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          tag="${GITHUB_REF_NAME}"
+          gh release create "$tag" \
+            --repo "${{ github.repository }}" \
+            --title "$tag" \
+            --generate-notes \
+            --verify-tag \
+            *

@@ -5,7 +5,11 @@
 #       NO_REPLACE=1 ./scripts/build_macos_github.sh    # 跳过本地替换
 
 set -e
-cd "$(dirname "$0")/.."
+cd -P "$(dirname "$0")/.."
+
+# Xcode 在带空格的外置磁盘路径上时，Flutter 会截断 clang 路径；
+# Xcode 27 的 lipo 也不能一次校验多个架构。这两个包装脚本只影响本次构建。
+export PATH="$(cd "$(dirname "$0")" && pwd)/macos-toolchain:${PATH}"
 
 echo "━━━ macOS GitHub Release ━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -24,6 +28,10 @@ DMG_NAME="${APP_DISPLAY_NAME}-${VERSION}"
 # 1. SQLite 缓存
 echo "  • 初始化 SQLite 缓存"
 source "$(dirname "$0")/setup_sqlite_cache.sh" > /dev/null 2>&1 || true
+# 该脚本被 source 时会打开 set -u 和 pipefail，恢复为本脚本的 set -e
+set +u
+set +o pipefail
+set -e
 
 # 2. 图标配置
 echo "  • 生成图标配置"
@@ -58,6 +66,9 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$BUILD_SUCCESS" = false ]; do
         else
             echo ""
             echo "构建失败："
+            grep -E "contains errors|must be an absolute path|does not exist|failed:|Failed to package|PhaseScriptExecution failed|BUILD FAILED" /tmp/flutter_build.log | grep -v "Stale file" | head -30
+            echo ""
+            echo "日志末尾："
             tail -15 /tmp/flutter_build.log
             exit 1
         fi

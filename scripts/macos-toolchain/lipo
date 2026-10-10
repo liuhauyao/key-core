@@ -1,0 +1,33 @@
+#!/bin/bash
+# 转发给系统 lipo。
+# Xcode 27 的 lipo 对 `-verify_arch` 只接受一个架构，多个架构会报
+# “requires exactly one input file”。Flutter 会一次传入 arm64 和 x86_64。
+# 这里拆成逐个校验，其余子命令原样转发。
+set -euo pipefail
+
+REAL_LIPO=/usr/bin/lipo
+
+args=("$@")
+verify_index=-1
+for i in "${!args[@]}"; do
+  if [[ "${args[$i]}" == "-verify_arch" ]]; then
+    verify_index=$i
+    break
+  fi
+done
+
+if [[ $verify_index -ge 0 ]]; then
+  input=("${args[@]:0:verify_index}")
+  archs=("${args[@]:verify_index+1}")
+  if [[ ${#archs[@]} -gt 1 ]]; then
+    status=0
+    for arch in "${archs[@]}"; do
+      if ! "$REAL_LIPO" "${input[@]}" -verify_arch "$arch"; then
+        status=1
+      fi
+    done
+    exit "$status"
+  fi
+fi
+
+exec "$REAL_LIPO" "$@"

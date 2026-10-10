@@ -1,0 +1,15 @@
+// 仅截图用（不进仓库）：KC_DEMO_CN=true 时隐藏境外 AI 服务/工具，预演「中国大陆版」
+import 'models/mcp_server.dart';
+import 'models/platform_type.dart';
+
+const bool kDemoCn = bool.fromEnvironment('KC_DEMO_CN');
+const _cnIds = {
+  'minimax', 'deepSeek', 'siliconFlow', 'zhipu', 'bailian', 'baidu', 'qwen', 'volcengine', 'moonshot', 'zeroOne',
+  'baichuan', 'wenxin', 'kimi', 'katCoder', 'longcat', 'bailing', 'modelScope', 'tencent', 'alibaba', 'bytedance', 'sensenova',
+};
+final _cjk = RegExp(r'[\u4e00-\u9fff]');
+bool demoPlatformOk(PlatformType p) => !kDemoCn || _cnIds.contains(p.id) || _cjk.hasMatch(p.value);
+List<PlatformType> demoPlatforms(Iterable<PlatformType> ps) => ps.where(demoPlatformOk).toList();
+const _okTools = {AiToolType.openclaw, AiToolType.opencode, AiToolType.mcode};
+bool demoToolOk(AiToolType t) => !kDemoCn || _okTools.contains(t);
+List<T> demoTools<T>(List<T> ts, AiToolType Function(T) f) => ts.where((x) => demoToolOk(f(x))).toList();

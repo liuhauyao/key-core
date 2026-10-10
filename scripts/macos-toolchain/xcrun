@@ -1,0 +1,43 @@
+#!/bin/bash
+# 转发给系统 xcrun。
+# Flutter 用 `xcrun clang --version` 的 InstalledDir 定位 clang，并按空格取最后一段。
+# Xcode 装在「/Volumes/Data HD」这类带空格的路径时，路径会被截成相对路径，原生资源编译失败。
+# 这里把带空格的 InstalledDir 改写到用户目录下的无空格符号链接。
+set -euo pipefail
+
+REAL_XCRUN=/usr/bin/xcrun
+
+if [[ "${1:-}" == "clang" && "${2:-}" == "--version" ]]; then
+  set +e
+  output="$("$REAL_XCRUN" "$@")"
+  status=$?
+  set -e
+
+  developer_dir="$(/usr/bin/xcode-select -p)"
+  app_dir="$(cd "$developer_dir/../.." && pwd -P)"
+  link_dir="${HOME}/Applications/Xcode.app"
+  toolchain_bin="$link_dir/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin"
+
+  if [[ -d "$app_dir" && -x "$app_dir/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang" ]]; then
+    mkdir -p "${HOME}/Applications"
+    ln -sfn "$app_dir" "$link_dir"
+  fi
+
+  if [[ -x "$toolchain_bin/clang" ]]; then
+    while IFS= read -r line; do
+      if [[ "$line" == "InstalledDir: "* ]]; then
+        dir="${line#InstalledDir: }"
+        if [[ "$dir" == *" "* ]]; then
+          echo "InstalledDir: $toolchain_bin"
+          continue
+        fi
+      fi
+      printf '%s\n' "$line"
+    done <<<"$output"
+  else
+    printf '%s\n' "$output"
+  fi
+  exit "$status"
+fi
+
+exec "$REAL_XCRUN" "$@"

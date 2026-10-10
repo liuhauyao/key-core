@@ -1,0 +1,16 @@
+en/raw/01_keys.png: 
+en/raw/02_tool_lens.png: 
+en/raw/03_add_key.png: 
+en/raw/04_drawer.png: 
+en/raw/05_mcp_enable.png: 
+en/raw/06_mcp_sync.png: 
+en/raw/07_skills.png: 
+en/raw/08_security.png: 
+zh-Hans/raw/01_keys.png: 
+zh-Hans/raw/02_tool_lens.png: 
+zh-Hans/raw/03_add_key.png: 
+zh-Hans/raw/04_drawer.png: 
+zh-Hans/raw/05_mcp_enable.png: 
+zh-Hans/raw/06_mcp_sync.png: 
+zh-Hans/raw/07_skills.png: 
+zh-Hans/raw/08_security.png: 
