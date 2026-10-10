@@ -1,5 +1,7 @@
 import 'kc_controls.dart';
 import 'package:flutter/material.dart';
+import '../../utils/key_mask.dart';
+export '../../utils/key_mask.dart' show maskKeyForCard;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -1564,16 +1566,6 @@ class _KeyCardState extends State<KeyCard> {
       }
     }
   }
-}
-
-/// 卡片上显示的掩码密钥：只露前缀（如 `sk-`）和后 4 位；加密存储（有 nonce）时不解密，只显示圆点。
-String maskKeyForCard(AIKey key) {
-  const dots = '••••';
-  final v = key.keyValue.trim();
-  if (key.keyNonce != null || v.length < 8) return '$dots$dots';
-  final dash = v.indexOf('-');
-  final prefix = (dash > 0 && dash <= 6) ? v.substring(0, dash + 1) : '';
-  return '$prefix$dots${v.substring(v.length - 4)}';
 }
 
 /// 这把密钥启用了哪些工具（按 Claude Code / Desktop / Codex / Gemini / OpenClaw 顺序）

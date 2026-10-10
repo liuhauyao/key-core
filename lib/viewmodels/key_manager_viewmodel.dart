@@ -1,3 +1,4 @@
+import '../utils/key_mask.dart';
 import '../models/ai_key.dart';
 import '../models/platform_type.dart';
 import '../models/platform_category.dart';
@@ -207,9 +208,20 @@ class KeyManagerViewModel extends BaseViewModel {
   Future<void> loadKeys({bool showLoading = true}) async {
     await executeAsync(() async {
       _allKeys = await _databaseService.getAllKeys();
+      await _refreshMaskCache();
       _updateFilteredKeys();
       await _updateStatistics();
     }, showLoading: showLoading);
+  }
+
+  /// 加密存储的密钥：解密后只把「前缀 + 后 4 位」掩码放进缓存（明文不保留），供卡片 / 工具页显示
+  Future<void> _refreshMaskCache() async {
+    KeyMaskCache.clear();
+    for (final k in _allKeys) {
+      if (k.id == null || !isEncryptedKeyValue(k)) continue;
+      final plain = await decryptKeyValue(k.keyValue);
+      if (plain != null && !plain.trimLeft().startsWith('{')) KeyMaskCache.put(k.id!, plain);
+    }
   }
 
   /// 刷新密钥列表
