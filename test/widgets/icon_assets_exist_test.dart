@@ -28,4 +28,21 @@ void main() {
     }
     expect(missing, isEmpty);
   });
+
+  test('every referenced assets/... path exists', () {
+    final pattern = RegExp(r'''['"](assets/[A-Za-z0-9_./\-]+\.(?:svg|png|jpg|jpeg|json|ico|webp))['"]''');
+    final sources = <File>[
+      ...Directory('lib').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart')),
+      ...Directory('assets').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.json')),
+    ];
+    final missing = <String>{};
+    for (final f in sources) {
+      for (final m in pattern.allMatches(f.readAsStringSync())) {
+        final path = m.group(1)!;
+        if (path.contains(r'$')) continue;
+        if (!File(path).existsSync()) missing.add('$path (${f.path})');
+      }
+    }
+    expect(missing, isEmpty);
+  });
 }
