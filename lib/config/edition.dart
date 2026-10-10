@@ -17,12 +17,10 @@ class Edition {
 
   static KcEdition get current => isAppStore ? KcEdition.appstore : KcEdition.oss;
 
-  /// App Store 商品 ID。⚠️ 占位符：上架后替换为真实数字 ID（例如 6470000000）。
-  /// 由 scripts/build_macos_appstore.sh 通过 --dart-define=KC_APPSTORE_ID 传入。
-  static const String appStoreId = String.fromEnvironment('KC_APPSTORE_ID', defaultValue: 'APP_STORE_ID_PLACEHOLDER');
-
-  static bool get appStoreIdIsPlaceholder => appStoreId == 'APP_STORE_ID_PLACEHOLDER';
+  /// App Store 商品 ID（Apple ID 6755545736，Bundle ID cn.dlrow.keycore，SKU keycore-mac-1.0）。
+  /// 可通过 --dart-define=KC_APPSTORE_ID 覆盖。
+  static const String appStoreId = String.fromEnvironment('KC_APPSTORE_ID', defaultValue: '6755545736');
 
   /// 在 App Store 中打开本应用的地址（仅 App Store 版使用）
-  static String get appStoreUrl => 'macappstore://apps.apple.com/app/id$appStoreId';
+  static String get appStoreUrl => 'https://apps.apple.com/app/id$appStoreId';
 }
