@@ -23,10 +23,10 @@ Future<void> pump(WidgetTester t, {KcEdition? edition, AppUpdateService? svc}) a
 
 void main() {
   setUpAll(installTestPlatformMocks);
-  test('默认（未传 KC_EDITION）为开源版；App Store ID 是明确标注的占位符', () {
+  test('默认（未传 KC_EDITION）为开源版；App Store ID 为真实 ID 6755545736', () {
     expect(Edition.isOss, isTrue);
-    expect(Edition.appStoreIdIsPlaceholder, isTrue);
-    expect(Edition.appStoreUrl, contains('APP_STORE_ID_PLACEHOLDER'));
+    expect(Edition.appStoreId, '6755545736');
+    expect(Edition.appStoreUrl, 'https://apps.apple.com/app/id6755545736');
   });
 
   test('版本比较 / 选包 / 解析 SHA256', () {

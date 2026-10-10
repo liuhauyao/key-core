@@ -42,13 +42,13 @@ rm -rf .dart_tool/hooks_runner/sqlite3 2>/dev/null || true
 # 5. 先运行 Flutter 构建来生成必要的文件（这会生成 Flutter-Generated.xcconfig 等）
 #    KC_EDITION=appstore 是编译期常量（lib/config/edition.dart）；flutter build 会把 dart-define
 #    写进 Flutter-Generated.xcconfig 的 DART_DEFINES，随后 Xcode Archive 沿用同一份配置。
-#    KC_APPSTORE_ID：上架后在环境变量里给出真实数字 ID；未给出时沿用代码中明确标注的占位符。
+#    KC_APPSTORE_ID：默认 6755545736（代码内置）；如需覆盖可设置环境变量。
 echo "5. 预构建 Flutter 文件（KC_EDITION=appstore）..."
 DEFINES=(--dart-define=KC_EDITION=appstore)
 if [ -n "${KC_APPSTORE_ID:-}" ]; then
     DEFINES+=("--dart-define=KC_APPSTORE_ID=${KC_APPSTORE_ID}")
 else
-    echo "⚠️  未设置 KC_APPSTORE_ID，App Store 链接使用占位符 APP_STORE_ID_PLACEHOLDER（上架前必须提供）"
+    echo "使用默认 App Store ID 6755545736"
 fi
 flutter build macos --release "${DEFINES[@]}" > /tmp/flutter_build.log 2>&1 || {
     echo "错误: Flutter 构建失败"
