@@ -481,7 +481,7 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
                   isCurrent = (keyId == currentClaudeKeyId)
                 }
                 let menuItem = NSMenuItem(
-                  title: keyName,
+                  title: (key["menu_title"] as? String) ?? keyName,
                   action: #selector(self.switchClaudeCodeKey(_:)),
                   keyEquivalent: ""
                 )
@@ -520,7 +520,7 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
                   isCurrent = (keyId == currentCodexKeyId)
                 }
                 let menuItem = NSMenuItem(
-                  title: keyName,
+                  title: (key["menu_title"] as? String) ?? keyName,
                   action: #selector(self.switchCodexKey(_:)),
                   keyEquivalent: ""
                 )
@@ -559,7 +559,7 @@ class AppDelegate: FlutterAppDelegate, AppDelegateProtocol {
                   isCurrent = (keyId == currentGeminiKeyId)
                 }
                 let menuItem = NSMenuItem(
-                  title: keyName,
+                  title: (key["menu_title"] as? String) ?? keyName,
                   action: #selector(self.switchGeminiKey(_:)),
                   keyEquivalent: ""
                 )

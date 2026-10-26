@@ -42,7 +42,9 @@ class DatabaseService {
   /// - v20：`skills` 增加来源仓库与内容哈希（source_repo/source_ref/source_subdir/content_hash）。
   /// - v21：新增 `prompts` 表（系统提示词，CC Switch Prompts 对齐）。
   /// - v22：`ai_keys.tool_configs`（OpenCode / Grok Build / Hermes / Pi / MiniMax Code 的按密钥设置）。
-  static const int schemaVersion = 22;
+  /// - v23：`ai_keys.key_entries`（一张卡片承载同一供应商的多把密钥；
+  ///   为 NULL 即「单密钥」，由 `key_value` 合成唯一一把，老数据零迁移）。
+  static const int schemaVersion = 23;
 
   static const String promptsDdl = '''
     CREATE TABLE IF NOT EXISTS prompts (
@@ -231,7 +233,8 @@ class DatabaseService {
         claude_desktop_haiku_model TEXT,
         claude_desktop_opus_model TEXT,
         is_validated INTEGER DEFAULT 0,
-        tool_configs TEXT
+        tool_configs TEXT,
+        key_entries TEXT
       )
     ''');
 
@@ -556,6 +559,10 @@ class DatabaseService {
     }
     if (oldVersion < 22) {
       await _addColumnIfNotExists(db, 'ai_keys', 'tool_configs', 'TEXT');
+    }
+    if (oldVersion < 23) {
+      // 老行不写默认值：key_entries 为 NULL 即「单密钥」，由模型层合成唯一一把。
+      await _addColumnIfNotExists(db, 'ai_keys', 'key_entries', 'TEXT');
     }
   }
 
@@ -891,15 +898,26 @@ class DatabaseService {
     return maps.map((map) => AIKey.fromMap(map)).toList();
   }
 
-  /// 更新最后使用时间
-  Future<void> updateLastUsed(int id) async {
+  /// 更新某把子密钥的最后使用时间。
+  ///
+  /// 若 [entryIndex] 恰是当前密钥，卡片的 `last_used_at` 镜像随之同步
+  /// （[AIKey.replaceEntry] → [AIKey.toMap] 已保证）。
+  Future<void> updateEntryLastUsed(int id, int entryIndex, DateTime at) async {
     final db = await database;
-    await db.update(
+    final rows = await db.query(
       'ai_keys',
-      {'last_used_at': DateTime.now().toIso8601String()},
       where: 'id = ?',
       whereArgs: [id],
+      limit: 1,
     );
+    if (rows.isEmpty) return;
+    final key = AIKey.fromMap(rows.first);
+    if (entryIndex < 0 || entryIndex >= key.keyEntries.length) return;
+    final updated = key.replaceEntry(
+      entryIndex,
+      key.keyEntries[entryIndex].copyWith(lastUsedAt: at),
+    );
+    await db.update('ai_keys', updated.toMap(), where: 'id = ?', whereArgs: [id]);
   }
 
   /// 切换收藏状态

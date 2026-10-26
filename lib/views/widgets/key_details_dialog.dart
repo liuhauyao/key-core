@@ -88,7 +88,9 @@ class KeyDetailsDialog extends StatefulWidget {
   final AIKey aiKey;
   final KeyManagerViewModel viewModel;
   final VoidCallback onEdit;
-  final VoidCallback onCopyKey;
+
+  /// 复制指定子密钥下标（多密钥时抽屉选择器 / 逐把复制按钮用它）
+  final ValueChanged<int> onCopyKey;
   final VoidCallback onOpenManagementUrl;
   final Function(String) onCopyText; // 更灵活的复制文本回调
 
@@ -137,6 +139,9 @@ class KeyDetailsDialog extends StatefulWidget {
 
 class KeyDetailsDialogState extends State<KeyDetailsDialog> {
   bool _showKeyValue = false;
+
+  /// 抽屉内选中的子密钥下标（仅用于切换查看 / 复制，不改当前密钥，不写工具配置）；null = 跟随卡片当前密钥
+  int? _entryIndex;
   late AIKey _key = widget.aiKey;
   final Set<AiToolType> _busy = {};
   late int _tab = widget.loadModels == null ? 0 : widget.initialTab;
@@ -192,6 +197,106 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
     final dash = v.indexOf('-');
     final prefix = (dash > 0 && dash <= 6) ? v.substring(0, dash + 1) : '';
     return '$prefix${'•' * 20}${v.substring(v.length - 4)}';
+  }
+
+  /// 抽屉当前选中的子密钥下标（越界时收敛到当前密钥）
+  int get _displayEntryIndex =>
+      (_entryIndex ?? _key.normalizedActiveIndex).clamp(0, _key.keyEntries.length - 1);
+
+  KeyEntry get _displayEntry => _key.keyEntries[_displayEntryIndex];
+
+  /// 抽屉当前这把密钥生效的请求地址（该把有独立地址时优先，否则回退卡片默认地址）
+  String? get _displayEndpoint {
+    final custom = _displayEntry.endpoint?.trim();
+    return (custom != null && custom.isNotEmpty) ? custom : _key.apiEndpoint;
+  }
+
+  /// 多密钥时的「查看 / 复制哪一把」选择器（仅切换查看，不改当前密钥、不写工具配置）
+  Widget _entrySelector(BuildContext context, AppLocalizations? l) {
+    final cs = ShadTheme.of(context).colorScheme;
+    final kc = context.kc;
+    final current = _key.normalizedActiveIndex;
+    final selected = _displayEntryIndex;
+    return ClipRect(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Container(
+          height: KcSize.control,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(KcRadius.control + 2)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < _key.keyEntries.length; i++)
+                _entryChip(context, i, selected: i == selected, isCurrent: i == current, cs: cs, kc: kc, l: l),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _entryChip(
+    BuildContext context,
+    int index, {
+    required bool selected,
+    required bool isCurrent,
+    required ShadColorScheme cs,
+    required KcTokens kc,
+    required AppLocalizations? l,
+  }) {
+    final entry = _key.keyEntries[index];
+    return GestureDetector(
+      key: ValueKey('keyDetails.entry.$index'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _entryIndex = index),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: KcMotion.of(context),
+          curve: KcMotion.curve,
+          padding: const EdgeInsets.only(left: 10, right: 3),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? cs.card : Colors.transparent,
+            borderRadius: BorderRadius.circular(KcRadius.control),
+            boxShadow: selected ? kc.shadowSm : null,
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: entry.validated ? kc.ok : cs.mutedForeground.withValues(alpha: 0.4),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              entry.displayLabel(index),
+              style: KcType.body.copyWith(
+                color: selected ? cs.foreground : kc.text2,
+                fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+              ),
+            ),
+            if (isCurrent) ...[
+              const SizedBox(width: 6),
+              Text('● ${l?.tr('key_entry_current', '当前') ?? '当前'}', style: KcType.badge.copyWith(color: kc.okText)),
+            ],
+            const SizedBox(width: 2),
+            Tooltip(
+              message: l?.copy ?? '复制',
+              child: InkWell(
+                key: ValueKey('keyDetails.entry.copy.$index'),
+                onTap: () => widget.onCopyKey(index),
+                borderRadius: BorderRadius.circular(KcRadius.control),
+                child: SizedBox(width: 24, height: 24, child: Icon(Icons.copy_outlined, size: 13, color: kc.text2)),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 
   @override
@@ -425,11 +530,15 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_key.hasMultipleKeys) ...[
+          _entrySelector(context, l),
+          const SizedBox(height: KcSpace.x3),
+        ],
         _label(context, l?.keyValue ?? 'API 密钥'),
         _field(
           context,
           child: Text(
-            _showKeyValue ? _key.keyValue : _maskedFull(_key.keyValue),
+            _showKeyValue ? _displayEntry.value : _maskedFull(_displayEntry.value),
             key: const ValueKey('keyDetails.keyValue'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -443,7 +552,12 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
               tip: _showKeyValue ? (l?.hide ?? '隐藏') : (l?.show ?? '显示'),
               onTap: () => setState(() => _showKeyValue = !_showKeyValue),
             ),
-            _iconAction(context, icon: Icons.copy_outlined, tip: l?.copy ?? '复制', onTap: widget.onCopyKey),
+            _iconAction(
+              context,
+              icon: Icons.copy_outlined,
+              tip: l?.copy ?? '复制',
+              onTap: () => widget.onCopyKey(_displayEntryIndex),
+            ),
           ],
         ),
         const SizedBox(height: KcSpace.x4),
@@ -455,11 +569,11 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
                 _label(context, l?.requestAddress ?? '请求地址'),
                 _field(
                   context,
-                  child: Text(_key.apiEndpoint ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis, style: mono),
+                  child: Text(_displayEndpoint ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis, style: mono),
                   actions: [
-                    if (_key.apiEndpoint != null)
+                    if (_displayEndpoint != null)
                       _iconAction(context,
-                          icon: Icons.copy_outlined, tip: l?.copy ?? '复制', onTap: () => widget.onCopyText(_key.apiEndpoint!)),
+                          icon: Icons.copy_outlined, tip: l?.copy ?? '复制', onTap: () => widget.onCopyText(_displayEndpoint!)),
                   ],
                 ),
               ]),
@@ -638,7 +752,7 @@ class KeyDetailsDialogState extends State<KeyDetailsDialog> {
             ShadButton.outline(
               key: const ValueKey('keyDetails.copyEnv'),
               leading: const Icon(Icons.terminal, size: 16),
-              onPressed: () => widget.onCopyEnv!(buildEnvExport(_key)),
+              onPressed: () => widget.onCopyEnv!(buildEnvExport(_key.projectedForEntry(_displayEntryIndex))),
               child: Text(l?.copyAsEnv ?? '复制为环境变量'),
             ),
         ],

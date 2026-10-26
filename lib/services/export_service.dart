@@ -21,6 +21,21 @@ class ExportService {
   final AuthService _authService = AuthService();
   final SettingsService _settingsService = SettingsService();
 
+  /// 导出某张卡片的子密钥（逐把解密；值以明文写入，形状与 `key_entries` 列一致）。
+  ///
+  /// `encryptionKey` 为 null（未设主密码）时值本身已是明文，直接原样导出。
+  Future<Map<String, dynamic>> _exportKeyEntries(AIKey key, String? encryptionKey) async {
+    final items = <Map<String, dynamic>>[];
+    for (final e in key.keyEntries) {
+      var value = e.value;
+      if (encryptionKey != null && value.startsWith('{')) {
+        value = await _cryptService.decrypt(value, encryptionKey);
+      }
+      items.add(e.copyWith(value: value).toJson());
+    }
+    return {'active': key.normalizedActiveIndex, 'items': items};
+  }
+
   /// 导出所有密钥到JSON文件
   /// 如果用户设置了主密码，用主密码解密后明文导出
   /// 如果用户没有设置主密码，直接明文导出
@@ -67,6 +82,8 @@ class ExportService {
             'management_url': key.managementUrl,
             'api_endpoint': key.apiEndpoint,
             'key_value': decryptedValue,
+            // 子密钥列表（含 active）；旧版导入仅读 key_value 也能还原当前那把
+            'key_entries': await _exportKeyEntries(key, encryptionKey),
             'expiry_date': key.expiryDate?.toIso8601String(),
             'tags': key.tags,
             'notes': key.notes,
@@ -231,6 +248,8 @@ class ExportService {
             'management_url': key.managementUrl,
             'api_endpoint': key.apiEndpoint,
             'key_value': decryptedValue,
+            // 子密钥列表（含 active）；旧版导入仅读 key_value 也能还原当前那把
+            'key_entries': await _exportKeyEntries(key, encryptionKey),
             'expiry_date': key.expiryDate?.toIso8601String(),
             'tags': key.tags,
             'notes': key.notes,

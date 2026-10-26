@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../models/ai_key.dart';
 import '../models/mcp_server.dart';
 import '../services/tool_enable_service.dart';
 import '../services/settings_service.dart';
@@ -168,7 +169,7 @@ class TrayMenuBridge {
         final currentClaudeKeyId = await _getCurrentClaudeCodeKeyId();
         for (final key in claudeKeys) {
           final keyId = key['id'] as int;
-          final keyName = key['name'] as String;
+          final keyName = key['menu_title'] as String? ?? key['name'] as String;
           items.add(platform.TrayMenuItem(
             id: 'claudecode_$keyId',
             label: keyName,
@@ -204,7 +205,7 @@ class TrayMenuBridge {
         final currentCodexKeyId = await _getCurrentCodexKeyId();
         for (final key in codexKeys) {
           final keyId = key['id'] as int;
-          final keyName = key['name'] as String;
+          final keyName = key['menu_title'] as String? ?? key['name'] as String;
           items.add(platform.TrayMenuItem(
             id: 'codex_$keyId',
             label: keyName,
@@ -240,7 +241,7 @@ class TrayMenuBridge {
         final currentGeminiKeyId = await _getCurrentGeminiKeyId();
         for (final key in geminiKeys) {
           final keyId = key['id'] as int;
-          final keyName = key['name'] as String;
+          final keyName = key['menu_title'] as String? ?? key['name'] as String;
           items.add(platform.TrayMenuItem(
             id: 'gemini_$keyId',
             label: keyName,
@@ -304,6 +305,12 @@ class TrayMenuBridge {
     return await toolEnableService.isToolEnabled(tool);
   }
 
+  /// 菜单里该卡片的展示名：卡片名 + （多密钥时）当前子密钥别名
+  static String _menuTitle(AIKey key) {
+    if (!key.hasMultipleKeys) return key.name;
+    return '${key.name} · ${key.activeEntry.displayLabel(key.normalizedActiveIndex)}';
+  }
+
   /// 获取 ClaudeCode 密钥列表
   static Future<List<Map<String, dynamic>>> _getClaudeCodeKeys() async {
     if (_keyManagerViewModel == null) return [];
@@ -312,6 +319,7 @@ class TrayMenuBridge {
       'id': key.id,
       'name': key.name,
       'platform': key.platform,
+      'menu_title': _menuTitle(key),
     }).toList();
 
     // 添加官方配置选项
@@ -319,6 +327,7 @@ class TrayMenuBridge {
       'id': -1,
       'name': _getOfficialConfigText(),
       'platform': 'official',
+      'menu_title': _getOfficialConfigText(),
     });
 
     return result;
@@ -332,6 +341,7 @@ class TrayMenuBridge {
       'id': key.id,
       'name': key.name,
       'platform': key.platform,
+      'menu_title': _menuTitle(key),
     }).toList();
 
     // 添加官方配置选项
@@ -339,6 +349,7 @@ class TrayMenuBridge {
       'id': -1,
       'name': _getOfficialConfigText(),
       'platform': 'official',
+      'menu_title': _getOfficialConfigText(),
     });
 
     return result;
@@ -352,6 +363,7 @@ class TrayMenuBridge {
       'id': key.id,
       'name': key.name,
       'platform': key.platform,
+      'menu_title': _menuTitle(key),
     }).toList();
 
     // 添加官方配置选项
@@ -359,6 +371,7 @@ class TrayMenuBridge {
       'id': -1,
       'name': _getOfficialConfigText(),
       'platform': 'official',
+      'menu_title': _getOfficialConfigText(),
     });
 
     return result;

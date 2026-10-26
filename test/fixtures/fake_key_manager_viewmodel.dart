@@ -138,10 +138,14 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
   }
 
   @override
-  Future<bool> copyKeyToClipboard(int id) async {
+  Future<bool> copyKeyToClipboard(int id, {int? entryIndex}) async {
     copyCalls.add(id);
+    copyEntryCalls.add((id, entryIndex));
     return true;
   }
+
+  /// 子密钥维度的复制调用记录（多密钥卡片 / 详情抽屉）
+  final List<(int, int?)> copyEntryCalls = [];
 
   @override
   Future<AIKey?> getDecryptedKey(int id) async {
@@ -149,13 +153,17 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
     return _all.firstWhere((k) => k.id == id);
   }
 
-  bool _recordSwitch(String tool, int keyId, AiToolType t) {
+  bool _recordSwitch(String tool, int keyId, AiToolType t, int? entryIndex) {
     (switchCalls[tool] ??= []).add(keyId);
+    (switchEntryCalls[tool] ??= []).add(entryIndex);
     if (failSwitches) return false;
     current[t] = keyId;
     notifyListeners();
     return true;
   }
+
+  /// 各工具切换时传入的子密钥下标（与 [switchCalls] 一一对应）
+  final Map<String, List<int?>> switchEntryCalls = {};
 
   AIKey? _byId(int? id) {
     if (id == null) return null;
@@ -166,20 +174,48 @@ class FakeKeyManagerViewModel extends KeyManagerViewModel {
   }
 
   @override
-  Future<bool> switchClaudeCodeProvider(int keyId) async =>
-      _recordSwitch('claudeCode', keyId, AiToolType.claudecode);
+  Future<bool> switchClaudeCodeProvider(int keyId, {int? entryIndex}) async =>
+      _recordSwitch('claudeCode', keyId, AiToolType.claudecode, entryIndex);
 
   @override
-  Future<bool> switchCodexProvider(int keyId) async =>
-      _recordSwitch('codex', keyId, AiToolType.codex);
+  Future<bool> switchCodexProvider(int keyId, {int? entryIndex}) async =>
+      _recordSwitch('codex', keyId, AiToolType.codex, entryIndex);
 
   @override
-  Future<bool> switchGeminiProvider(int keyId) async =>
-      _recordSwitch('gemini', keyId, AiToolType.gemini);
+  Future<bool> switchGeminiProvider(int keyId, {int? entryIndex}) async =>
+      _recordSwitch('gemini', keyId, AiToolType.gemini, entryIndex);
 
   @override
-  Future<bool> switchClaudeDesktopProvider(int keyId) async =>
-      _recordSwitch('claudeDesktop', keyId, AiToolType.claudeDesktop);
+  Future<bool> switchClaudeDesktopProvider(int keyId, {int? entryIndex}) async =>
+      _recordSwitch('claudeDesktop', keyId, AiToolType.claudeDesktop, entryIndex);
+
+  /// 主界面卡片下拉切换「当前密钥」：本地改 active 下标并记录
+  final List<(int, int)> setActiveEntryCalls = [];
+
+  @override
+  Future<bool> setActiveKeyEntry(int keyId, int entryIndex) async {
+    setActiveEntryCalls.add((keyId, entryIndex));
+    final i = _all.indexWhere((k) => k.id == keyId);
+    if (i != -1 && entryIndex >= 0 && entryIndex < _all[i].keyEntries.length) {
+      _all[i] = _all[i].withActiveKeyIndex(entryIndex);
+      notifyListeners();
+    }
+    return true;
+  }
+
+  /// 卡片内删除一把子密钥（至少留一把）
+  final List<(int, int)> deleteEntryCalls = [];
+
+  @override
+  Future<bool> deleteKeyEntry(int keyId, int entryIndex) async {
+    deleteEntryCalls.add((keyId, entryIndex));
+    final i = _all.indexWhere((k) => k.id == keyId);
+    if (i != -1 && _all[i].keyEntries.length > 1) {
+      _all[i] = _all[i].removeEntry(entryIndex);
+      notifyListeners();
+    }
+    return true;
+  }
 
   final List<String> officialCalls = [];
 

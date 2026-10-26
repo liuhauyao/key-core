@@ -109,8 +109,26 @@ void main() {
   databaseFactory = databaseFactoryFfi;
   final service = DatabaseService.instance;
 
-  test('schema version is 22', () {
-    expect(DatabaseService.schemaVersion, 22);
+  test('schema version is 23', () {
+    expect(DatabaseService.schemaVersion, 23);
+  });
+
+  test('upgrade v22 -> v23 adds ai_keys.key_entries and keeps keys (idempotent)', () async {
+    final db = await _memoryDb();
+    await service.runCreateForTest(db, 15);
+    await db.execute('ALTER TABLE ai_keys DROP COLUMN key_entries');
+    await db.insert('ai_keys', _aiKeyRow('Existing', 'sk-existing'));
+    await service.runUpgradeForTest(db, 22, 23);
+    await service.runUpgradeForTest(db, 22, 23);
+    expect(await _columns(db, 'ai_keys'), contains('key_entries'));
+    final row = (await db.query('ai_keys')).single;
+    expect(row['key_entries'], isNull, reason: '老行不写默认值：NULL 即单密钥');
+    final key = AIKey.fromMap(row);
+    expect(key.keyEntries, hasLength(1));
+    expect(key.keyEntries.single.value, 'sk-existing');
+    expect(key.hasMultipleKeys, isFalse);
+    expect(key.normalizedActiveIndex, 0);
+    await db.close();
   });
 
   test('upgrade v21 -> v22 adds ai_keys.tool_configs and keeps keys (idempotent)', () async {

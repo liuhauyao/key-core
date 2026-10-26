@@ -58,6 +58,10 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
   List<AIKey> _filteredKeys = []; // 过滤后的密钥列表
   AIKey? _currentKey;
   bool _isOfficial = false; // 当前是否是官方配置
+
+  /// 多密钥卡片在本页选中的子密钥下标（keyId → entryIndex）；点卡片时用该把写入配置
+  final Map<int, int> _selectedEntry = {};
+  final Map<int, int> _selectedDesktopEntry = {};
   bool _isLoading = false; // 初始状态为 false，等待页面切换时加载
   bool _isRefreshing = false; // 防止重复刷新
   bool _configExists = true; // 配置文件是否存在
@@ -294,7 +298,21 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
     }
   }
 
-  Future<void> _switchProvider(AIKey key) async {
+  /// 工具页下拉切换子密钥：记录选中项；若该卡片已是本工具的当前密钥，
+  /// 立即按这把密钥（含其独立地址）写回配置，省掉「先选再点卡片」的二次确认。
+  void _selectEntry(AIKey key, int i) {
+    if (key.id == null) return;
+    setState(() => _selectedEntry[key.id!] = i);
+    if (_configExists && _currentKey?.id == key.id) _switchProvider(key, entryIndex: i);
+  }
+
+  void _selectDesktopEntry(AIKey key, int i) {
+    if (key.id == null) return;
+    setState(() => _selectedDesktopEntry[key.id!] = i);
+    if (_configExists && _currentDesktopKey?.id == key.id) _switchDesktopProvider(key, entryIndex: i);
+  }
+
+  Future<void> _switchProvider(AIKey key, {int? entryIndex}) async {
     if (key.id == null) return;
 
     final viewModel = context.read<KeyManagerViewModel>();
@@ -308,7 +326,7 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
       return;
     }
     
-    final success = await viewModel.switchClaudeCodeProvider(key.id!);
+    final success = await viewModel.switchClaudeCodeProvider(key.id!, entryIndex: entryIndex);
     
     if (success) {
       setState(() {
@@ -601,7 +619,9 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
               isCurrent: isCurrent,
               cardMode: KeyCardMode.switchKey,
               lens: AiToolType.claudecode, // 工具切换页面使用切换模式
-              onTap: () => _switchProvider(key),
+              onTap: () => _switchProvider(key, entryIndex: _selectedEntry[key.id]),
+              selectedEntryIndex: _selectedEntry[key.id],
+              onSelectEntry: (i) => _selectEntry(key, i),
               onView: () => _showKeyDetails(context, key),
               onEdit: () => _showEditKeyPage(context, key),
               onDelete: () {},
@@ -611,15 +631,16 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                 }
               },
               onCopyApiEndpoint: () {
-                if (key.claudeCodeBaseUrl != null) {
-                  ClipboardService().copyToClipboard(key.claudeCodeBaseUrl!);
+                final base = key.projectedForEntry(_selectedEntry[key.id]).claudeCodeBaseUrl;
+                if (base != null) {
+                  ClipboardService().copyToClipboard(base);
                   showKcToast(context, AppLocalizations.of(context)?.baseUrlCopied ?? 'Base URL 已复制', kind: KcToastKind.success);
                 }
               },
               onCopyApiKey: () {
                 final viewModel = context.read<KeyManagerViewModel>();
                 if (key.id != null) {
-                  viewModel.copyKeyToClipboard(key.id!);
+                  viewModel.copyKeyToClipboard(key.id!, entryIndex: _selectedEntry[key.id]);
                   showKcToast(context, localizations?.keyCopied ?? '密钥已复制', kind: KcToastKind.success);
                 }
               },
@@ -773,7 +794,9 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
               isCurrent: isCurrent,
               cardMode: KeyCardMode.switchKey,
               lens: AiToolType.claudeDesktop,
-              onTap: () => _switchDesktopProvider(key),
+              onTap: () => _switchDesktopProvider(key, entryIndex: _selectedDesktopEntry[key.id]),
+              selectedEntryIndex: _selectedDesktopEntry[key.id],
+              onSelectEntry: (i) => _selectDesktopEntry(key, i),
               onView: () => _showKeyDetails(context, key),
               onEdit: () => _showEditKeyPage(context, key),
               onDelete: () {},
@@ -783,15 +806,16 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
                 }
               },
               onCopyApiEndpoint: () {
-                if (key.claudeDesktopBaseUrl != null) {
-                  ClipboardService().copyToClipboard(key.claudeDesktopBaseUrl!);
+                final base = key.projectedForEntry(_selectedDesktopEntry[key.id]).claudeDesktopBaseUrl;
+                if (base != null) {
+                  ClipboardService().copyToClipboard(base);
                   showKcToast(context, AppLocalizations.of(context)?.baseUrlCopied ?? 'Base URL 已复制', kind: KcToastKind.success);
                 }
               },
               onCopyApiKey: () {
                 final viewModel = context.read<KeyManagerViewModel>();
                 if (key.id != null) {
-                  viewModel.copyKeyToClipboard(key.id!);
+                  viewModel.copyKeyToClipboard(key.id!, entryIndex: _selectedDesktopEntry[key.id]);
                   showKcToast(context, localizations?.keyCopied ?? '密钥已复制', kind: KcToastKind.success);
                 }
               },
@@ -879,11 +903,11 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
   }
 
   /// 切换 Claude Desktop 密钥
-  Future<void> _switchDesktopProvider(AIKey key) async {
+  Future<void> _switchDesktopProvider(AIKey key, {int? entryIndex}) async {
     if (key.id == null) return;
     final viewModel = context.read<KeyManagerViewModel>();
 
-    final success = await viewModel.switchClaudeDesktopProvider(key.id!);
+    final success = await viewModel.switchClaudeDesktopProvider(key.id!, entryIndex: entryIndex);
     if (success) {
       setState(() {
         _currentDesktopKey = key;
@@ -972,8 +996,8 @@ class ClaudeConfigScreenState extends State<ClaudeConfigScreen> {
           Navigator.pop(context);
           _showEditKeyPage(context, decryptedKey);
         },
-        onCopyKey: () {
-          viewModel.copyKeyToClipboard(decryptedKey.id!);
+        onCopyKey: (entryIndex) {
+          viewModel.copyKeyToClipboard(decryptedKey.id!, entryIndex: entryIndex);
           final loc = AppLocalizations.of(context);
           showKcToast(context, loc?.keyCopiedToClipboard ?? '密钥已复制到剪贴板', kind: KcToastKind.success);
         },

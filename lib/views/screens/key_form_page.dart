@@ -59,7 +59,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   late TextEditingController _nameController;
   late TextEditingController _managementUrlController;
   late TextEditingController _apiEndpointController;
-  late TextEditingController _keyValueController;
+  // 密钥值不再用单一 controller：改为密钥项列表（见 _entries），_keyValueController 是「当前密钥」那个
   late TextEditingController _tagsController;
   late TextEditingController _notesController;
   late TextEditingController _expiryDateController;
@@ -102,7 +102,22 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   bool _isEditMode = false;
   bool _isCustomPlatform = false;
   bool _initialized = false; // 标记是否已完成初始化
-  bool _obscureKeyValue = true;
+
+  /// 密钥项列表编辑（form_v3.md 多密钥）：每项含别名 / 值 / 备注三个 controller
+  final List<_KeyEntryForm> _entries = [];
+
+  /// 当前密钥在 [_entries] 中的下标（保存后即 key_entries 的 active）
+  int _currentEntryIndex = 0;
+
+  /// 每项的校验状态（只有「当前密钥」那把会被校验/写入缓存）
+  final Map<int, ValidationState> _entryValidationStates = {};
+
+  /// 展开编辑的那几把密钥（其余只显示一行摘要，避免表单纵向过长）
+  final Set<int> _expandedEntries = {0};
+
+  /// 「当前密钥」那把的值 controller（校验 / 模型 / 余额仍只对它生效）
+  TextEditingController get _keyValueController => _entries[_currentEntryIndex].valueController;
+
   final GlobalKey _providerFieldKey = GlobalKey();
   bool _moreOpen = false; // 「更多选项」折叠区
 
@@ -128,8 +143,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
   final ModelListService _modelListService = ModelListService();
   final KeyCacheService _cacheService = KeyCacheService();
   
-  // 校验状态
-  ValidationState _validationState = ValidationState.idle;
+  // 校验状态（仅当前密钥那把；逐项状态见 _entryValidationStates）
   String? _validationErrorMessage;
   
   // 是否支持模型列表查询
@@ -162,7 +176,27 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     _hasManagementUrl = (widget.editingKey?.managementUrl ?? '').trim().isNotEmpty;
     _apiEndpointController =
         TextEditingController(text: widget.editingKey?.apiEndpoint ?? '');
-    _keyValueController = TextEditingController(text: widget.editingKey?.keyValue ?? '');
+    // 密钥项列表：编辑模式按 key_entries 逐把填充（老数据 = 单把），新建模式一把空项
+    final editing = widget.editingKey;
+    if (editing != null && editing.keyEntries.isNotEmpty) {
+      for (final e in editing.keyEntries) {
+        _entries.add(_KeyEntryForm(
+          value: e.value,
+          label: e.label ?? '',
+          endpoint: e.endpoint ?? '',
+          notes: e.notes ?? '',
+          validated: e.validated,
+          lastUsedAt: e.lastUsedAt,
+          createdAt: e.createdAt,
+        ));
+      }
+      _currentEntryIndex = editing.normalizedActiveIndex;
+      _expandedEntries
+        ..clear()
+        ..add(_currentEntryIndex);
+    } else {
+      _entries.add(_KeyEntryForm());
+    }
     _tagsController = TextEditingController(
         text: widget.editingKey?.tags.join(', ') ?? '');
     _notesController = TextEditingController(text: widget.editingKey?.notes ?? '');
@@ -228,7 +262,9 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       _selectedPlatform = widget.editingKey!.platformType;
       _isCustomPlatform = widget.editingKey!.platformType == PlatformType.custom;
       _expiryDate = widget.editingKey!.expiryDate;
-      _obscureKeyValue = true; // v3：编辑模式同样默认掩码（form_v3.md §1）
+      for (final e in _entries) {
+        e.obscure = true; // v3：编辑模式同样默认掩码（form_v3.md §1）
+      }
       _enableClaudeCode = widget.editingKey!.enableClaudeCode;
       _enableCodex = widget.editingKey!.enableCodex;
       _enableGemini = widget.editingKey!.enableGemini;
@@ -237,7 +273,9 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       _selectedIcon = widget.editingKey!.icon;
     } else {
       _isCustomPlatform = true;
-      _obscureKeyValue = true; // 添加模式下默认隐藏密钥值
+      for (final e in _entries) {
+        e.obscure = true; // 添加模式下默认隐藏密钥值
+      }
       _enableClaudeCode = false;
       _enableCodex = false;
       _enableGemini = false;
@@ -273,15 +311,19 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       }
     });
     
-    // 监听密钥值变化，重置校验状态
-    _keyValueController.addListener(() {
-      if (_validationState != ValidationState.idle) {
-        setState(() {
-          _validationState = ValidationState.idle;
-          _validationErrorMessage = null;
-        });
-      }
-    });
+    // 监听每把密钥值变化，重置该项校验状态
+    for (var i = 0; i < _entries.length; i++) {
+      final index = i;
+      _entries[i].valueController.addListener(() {
+        if ((_entryValidationStates[index] ?? ValidationState.idle) != ValidationState.idle) {
+          setState(() {
+            _entryValidationStates[index] = ValidationState.idle;
+            _entries[index].validated = false;
+            _validationErrorMessage = null;
+          });
+        }
+      });
+    }
     
     // 检查是否支持模型列表查询和密钥校验
     _checkPlatformCapabilities();
@@ -521,7 +563,9 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     _nameController.dispose();
     _managementUrlController.dispose();
     _apiEndpointController.dispose();
-    _keyValueController.dispose();
+    for (final e in _entries) {
+      e.dispose();
+    }
     _tagsController.dispose();
     _notesController.dispose();
     _expiryDateController.removeListener(_parseDateInput);
@@ -802,63 +846,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                       keyboardType: TextInputType.url,
                       isDark: Theme.of(context).brightness == Brightness.dark,
                     );
-    final keyValueField = _withFieldError(ImeSafeTextField(
-                controller: _keyValueController,
-                labelText: localizations?.keyValueLabelForm ?? '密钥值 *',
-                hintText: localizations?.keyValueHint ?? '请输入密钥值',
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: Icon(Icons.key, size: 18, color: shadTheme.colorScheme.mutedForeground),
-                ),
-                obscureText: _obscureKeyValue,
-                // 显示 / 粘贴 / 校验（form_v3.md §1）
-                suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(
-                    key: const ValueKey('keyForm.toggleObscure'),
-                    tooltip: _obscureKeyValue ? (localizations?.tr('show', '显示') ?? '显示') : (localizations?.tr('hide', '隐藏') ?? '隐藏'),
-                    icon: Icon(_obscureKeyValue ? Icons.visibility_off : Icons.visibility, size: 18, color: iconColor),
-                    onPressed: () => setState(() => _obscureKeyValue = !_obscureKeyValue),
-                    padding: const EdgeInsets.all(0),
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  ),
-                  IconButton(
-                    key: const ValueKey('keyForm.paste'),
-                    tooltip: localizations?.tr('paste', '粘贴') ?? '粘贴',
-                    icon: Icon(Icons.content_paste, size: 17, color: iconColor),
-                    onPressed: () async {
-                      final data = await Clipboard.getData(Clipboard.kTextPlain);
-                      final t = data?.text?.trim();
-                      if (t != null && t.isNotEmpty) setState(() => _keyValueController.text = t);
-                    },
-                    padding: const EdgeInsets.all(0),
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  ),
-                  if (_supportsValidation && _selectedPlatform != null)
-                    IconButton(
-                      key: const ValueKey('keyForm.validate'),
-                      tooltip: localizations?.validateKey ?? '验证',
-                      icon: _validationState == ValidationState.validating
-                          ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: shadTheme.colorScheme.primary))
-                          : Icon(
-                              _validationState == ValidationState.success
-                                  ? Icons.check_circle
-                                  : _validationState == ValidationState.failure
-                                      ? Icons.error
-                                      : Icons.verified_outlined,
-                              size: 17,
-                              color: _validationState == ValidationState.success
-                                  ? context.kc.ok
-                                  : _validationState == ValidationState.failure
-                                      ? context.kc.danger
-                                      : iconColor),
-                      onPressed: _keyValueController.text.isNotEmpty ? _handleValidate : null,
-                      padding: const EdgeInsets.all(0),
-                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                    ),
-                  const SizedBox(width: 6),
-                ]),
-                isDark: Theme.of(context).brightness == Brightness.dark,
-              ), errors['key']);
+    final keyValueField = _buildKeyEntriesField(context, shadTheme, localizations, errors['key']);
     final tagsField = _withFieldError(ImeSafeTextField(
                       controller: _tagsController,
                       labelText: localizations?.tagsLabel ?? '标签',
@@ -1266,7 +1254,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       errors['name'] = localizations?.keyNameTooLong(AppConstants.maxNameLength) ??
           '密钥名称不能超过 ${AppConstants.maxNameLength} 个字符';
     }
-    if (_keyValueController.text.trim().isEmpty) {
+    if (_entries.any((e) => e.valueController.text.trim().isEmpty)) {
       errors['key'] = localizations?.keyValueRequired ?? '请输入密钥值';
     }
     if (_tagsController.text.trim().length > 200) {
@@ -1293,6 +1281,292 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
         padding: const EdgeInsets.only(bottom: KcSpace.x3),
         child: Text(text, style: KcType.section.copyWith(color: ShadTheme.of(context).colorScheme.foreground)),
       );
+
+  // ── 密钥项列表编辑（多密钥） ──
+  // 每把默认占一行摘要（当前单选点 · 序号 · 别名 · 域名 · 校验点 · 展开）；
+  // 展开后编辑 别名 / 密钥值 / 独立地址 / 备注。只展开需要改的那把，避免表单纵向过长。
+  Widget _buildKeyEntriesField(
+    BuildContext context,
+    ShadThemeData shadTheme,
+    AppLocalizations? localizations,
+    String? error,
+  ) {
+    final cs = shadTheme.colorScheme;
+    final kc = context.kc;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final canDelete = _entries.length > 1;
+    final defaultEndpoint = _apiEndpointController.text.trim();
+
+    // 展开区：别名 / 密钥值 / 独立地址 / 备注
+    // 单密钥时不出现别名（别名是多密钥才需要的区分信息）
+    final showAlias = _entries.length > 1;
+    Widget expandedBody(int index) {
+      final entry = _entries[index];
+      final state = _entryValidationStates[index] ?? ValidationState.idle;
+      final entryValue = entry.valueController.text.trim();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showAlias) ...[
+            ImeSafeTextField(
+              controller: entry.labelController,
+              labelText: localizations?.tr('key_alias', '别名') ?? '别名',
+              hintText: localizations?.tr('key_alias_hint', '如：主号 / 备用') ?? '如：主号 / 备用',
+              isDark: isDark,
+            ),
+            const SizedBox(height: KcSpace.x2),
+          ],
+          ImeSafeTextField(
+            controller: entry.valueController,
+            labelText: localizations?.keyValueLabelForm ?? '密钥值 *',
+            hintText: localizations?.keyValueHint ?? '请输入密钥值',
+            prefixIcon: Padding(
+              padding: const EdgeInsets.all(4.0),
+              child: Icon(Icons.key, size: 18, color: cs.mutedForeground),
+            ),
+            obscureText: entry.obscure,
+            // 显示 / 粘贴 / 校验 / 删除（每把独立）
+            suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(
+                key: ValueKey('keyForm.toggleObscure.$index'),
+                tooltip: entry.obscure
+                    ? (localizations?.tr('show', '显示') ?? '显示')
+                    : (localizations?.tr('hide', '隐藏') ?? '隐藏'),
+                icon: Icon(entry.obscure ? Icons.visibility_off : Icons.visibility,
+                    size: 18, color: cs.foreground),
+                onPressed: () => setState(() => entry.obscure = !entry.obscure),
+                padding: const EdgeInsets.all(0),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              ),
+              IconButton(
+                key: ValueKey('keyForm.paste.$index'),
+                tooltip: localizations?.tr('paste', '粘贴') ?? '粘贴',
+                icon: Icon(Icons.content_paste, size: 17, color: cs.foreground),
+                onPressed: () async {
+                  final data = await Clipboard.getData(Clipboard.kTextPlain);
+                  final t = data?.text?.trim();
+                  if (t != null && t.isNotEmpty && mounted) {
+                    setState(() => entry.valueController.text = t);
+                  }
+                },
+                padding: const EdgeInsets.all(0),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              ),
+              if (_supportsValidation && _selectedPlatform != null)
+                IconButton(
+                  key: ValueKey('keyForm.validate.$index'),
+                  tooltip: localizations?.validateKey ?? '验证',
+                  icon: state == ValidationState.validating
+                      ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary))
+                      : Icon(
+                          state == ValidationState.success
+                              ? Icons.check_circle
+                              : state == ValidationState.failure
+                                  ? Icons.error
+                                  : Icons.verified_outlined,
+                          size: 17,
+                          color: state == ValidationState.success
+                              ? kc.ok
+                              : state == ValidationState.failure
+                                  ? kc.danger
+                                  : cs.foreground),
+                  onPressed: entryValue.isNotEmpty ? () => _handleValidateEntry(index) : null,
+                  padding: const EdgeInsets.all(0),
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                ),
+              const SizedBox(width: 6),
+            ]),
+            isDark: isDark,
+          ),
+          const SizedBox(height: KcSpace.x2),
+          ImeSafeTextField(
+            key: ValueKey('keyForm.endpoint.$index'),
+            controller: entry.endpointController,
+            labelText: localizations?.tr('key_endpoint', '地址（可选）') ?? '地址（可选）',
+            hintText: defaultEndpoint.isEmpty
+                ? (localizations?.tr('key_endpoint_hint', '不填则使用默认地址') ?? '不填则使用默认地址')
+                : '${localizations?.tr('key_endpoint_hint', '不填则使用默认地址') ?? '不填则使用默认地址'} · $defaultEndpoint',
+            prefixIcon: Padding(
+              padding: const EdgeInsets.all(4.0),
+              child: Icon(Icons.link, size: 18, color: cs.mutedForeground),
+            ),
+            isDark: isDark,
+          ),
+          const SizedBox(height: KcSpace.x2),
+          ImeSafeTextField(
+            controller: entry.notesController,
+            labelText: localizations?.tr('key_entry_notes', '备注（可选）') ?? '备注（可选）',
+            isDark: isDark,
+          ),
+        ],
+      );
+    }
+
+    Widget entryRow(int index) {
+      final entry = _entries[index];
+      final isCurrent = index == _currentEntryIndex;
+      final expanded = _expandedEntries.contains(index);
+      final state = _entryValidationStates[index] ?? ValidationState.idle;
+      final dotColor = state == ValidationState.success || entry.validated
+          ? kc.ok
+          : state == ValidationState.failure
+              ? kc.danger
+              : cs.mutedForeground.withValues(alpha: 0.4);
+
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(top: index == 0 ? BorderSide.none : BorderSide(color: cs.border)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              key: ValueKey('keyForm.entryRow.$index'),
+              onTap: () => setState(() {
+                if (expanded) {
+                  _expandedEntries.remove(index);
+                } else {
+                  _expandedEntries.add(index);
+                }
+              }),
+              child: SizedBox(
+                height: 38,
+                child: Row(children: [
+                  // 单选点 = 当前密钥（保存后写进 key_entries.active）
+                  GestureDetector(
+                    key: ValueKey('keyForm.currentEntry.$index'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _currentEntryIndex = index),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(
+                        isCurrent ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        size: 16,
+                        color: isCurrent ? cs.primary : cs.mutedForeground,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 18,
+                    height: 18,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: kc.subtle, borderRadius: BorderRadius.circular(9)),
+                    child: Text('${index + 1}', style: KcType.badge.copyWith(color: cs.mutedForeground)),
+                  ),
+                  const SizedBox(width: KcSpace.x2),
+                  // 摘要：别名 · 域名（随输入即时更新，不需要整表 setState）
+                  Expanded(
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([entry.labelController, entry.endpointController]),
+                      builder: (context, _) {
+                        final alias = entry.labelController.text.trim();
+                        final host = KeyEntry.hostOf(entry.endpointController.text.trim()) ??
+                            (localizations?.tr('key_endpoint_default_short', '默认地址') ?? '默认地址');
+                        return Text.rich(
+                          TextSpan(children: [
+                            TextSpan(
+                              text: alias.isEmpty ? '密钥 ${index + 1}' : alias,
+                              style: KcType.body.copyWith(
+                                  color: cs.foreground, fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400),
+                            ),
+                            TextSpan(text: '  ·  ', style: KcType.caption.copyWith(color: cs.mutedForeground)),
+                            TextSpan(
+                              text: host,
+                              style: KcType.caption.copyWith(
+                                  color: entry.endpointController.text.trim().isEmpty ? cs.mutedForeground : kc.actionText,
+                                  fontFeatures: KcType.tabular),
+                            ),
+                          ]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: KcSpace.x2),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: dotColor),
+                  ),
+                  const SizedBox(width: KcSpace.x2),
+                  Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 18, color: cs.mutedForeground),
+                  IconButton(
+                    key: ValueKey('keyForm.removeEntry.$index'),
+                    tooltip: localizations?.tr('delete', '删除') ?? '删除',
+                    icon: Icon(Icons.delete_outline,
+                        size: 17,
+                        color: canDelete ? cs.mutedForeground : cs.mutedForeground.withValues(alpha: 0.35)),
+                    onPressed: canDelete ? () => _removeEntry(index) : null,
+                    padding: const EdgeInsets.all(0),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  ),
+                  const SizedBox(width: 4),
+                ]),
+              ),
+            ),
+            if (expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(KcSpace.x2, 0, KcSpace.x2, KcSpace.x3),
+                child: expandedBody(index),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final field = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(children: [
+          Text(localizations?.keyValueLabelForm ?? '密钥值 *',
+              style: KcType.body.copyWith(fontWeight: FontWeight.w500, color: cs.foreground)),
+          const Spacer(),
+          InkWell(
+            key: const ValueKey('keyForm.addEntry'),
+            borderRadius: BorderRadius.circular(KcRadius.control),
+            onTap: _addEntry,
+            child: Container(
+              height: KcSize.controlSm,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(KcRadius.control),
+                border: Border.all(color: cs.border),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.add, size: 14, color: kc.actionText),
+                const SizedBox(width: 4),
+                Text(localizations?.tr('add_key', '添加密钥') ?? '添加密钥',
+                    style: KcType.body.copyWith(color: kc.actionText)),
+              ]),
+            ),
+          ),
+        ]),
+        const SizedBox(height: KcSpace.x3),
+        if (_entries.length == 1)
+          // 单密钥：不出现单选点 / 序号 / 展开 / 删除等多项控件，与原有表单一致
+          expandedBody(0)
+        else
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(KcRadius.panel),
+              border: Border.all(color: cs.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < _entries.length; i++) entryRow(i),
+              ],
+            ),
+          ),
+      ],
+    );
+    return _withFieldError(field, error);
+  }
 
   /// 顶部标题栏：标题 + 平台 · 名称 + 关闭
   Widget _buildFormHeader(BuildContext context, ShadThemeData shadTheme, AppLocalizations? localizations) {
@@ -1683,21 +1957,23 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     );
   }
 
-  /// 校验密钥
-  Future<void> _handleValidate() async {
+  /// 校验第 [index] 把密钥（逐把校验；成功/失败只写该项状态）
+  Future<void> _handleValidateEntry(int index) async {
     final localizations = AppLocalizations.of(context);
-    if (_keyValueController.text.trim().isEmpty) {
+    final value = _entries[index].valueController.text.trim();
+    if (value.isEmpty) {
       showKcToast(context, localizations?.enterKeyValueFirst ?? '请先输入密钥值', kind: KcToastKind.success);
       return;
     }
 
     setState(() {
-      _validationState = ValidationState.validating;
+      _entryValidationStates[index] = ValidationState.validating;
       _validationErrorMessage = null;
     });
 
     try {
-      // 创建临时 AIKey 对象
+      // 创建临时 AIKey 对象（该把的独立地址覆盖到校验用的 base URL）
+      final entryEndpoint = _entries[index].endpointController.text.trim();
       final tempKey = AIKey(
         id: widget.editingKey?.id ?? 0,
         name: _nameController.text.trim().isEmpty
@@ -1705,10 +1981,14 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
             : _nameController.text.trim(),
         platform: (_selectedPlatform ?? PlatformType.custom).value,
         platformType: _selectedPlatform ?? PlatformType.custom,
-        keyValue: _keyValueController.text.trim(),
+        keyValue: value,
         apiEndpoint: _apiEndpointController.text.trim().isEmpty
             ? null
             : _apiEndpointController.text.trim(),
+        keyEntriesRaw: [
+          KeyEntry(value: value, endpoint: entryEndpoint.isEmpty ? null : entryEndpoint),
+        ],
+        activeKeyIndex: 0,
         tags: const [],
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -1720,7 +2000,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
             : _codexBaseUrlController.text.trim(),
         enableClaudeCode: _enableClaudeCode,
         enableCodex: _enableCodex,
-      );
+      ).projectedForEntry(0);
 
       final result = await _validationService.validateKey(
         key: tempKey,
@@ -1730,10 +2010,12 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           if (result.isValid) {
-            _validationState = ValidationState.success;
+            _entryValidationStates[index] = ValidationState.success;
+            _entries[index].validated = true;
             _validationErrorMessage = null;
           } else {
-            _validationState = ValidationState.failure;
+            _entryValidationStates[index] = ValidationState.failure;
+            _entries[index].validated = false;
             _validationErrorMessage = result.message ?? '校验失败';
           }
         });
@@ -1748,7 +2030,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
                 : _nameController.text.trim(),
             platform: (_selectedPlatform ?? PlatformType.custom).value,
             platformType: _selectedPlatform ?? PlatformType.custom,
-            keyValue: _keyValueController.text.trim(),
+            keyValue: value,
             apiEndpoint: _apiEndpointController.text.trim().isEmpty
                 ? null
                 : _apiEndpointController.text.trim(),
@@ -1764,7 +2046,7 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
             enableClaudeCode: _enableClaudeCode,
             enableCodex: _enableCodex,
           );
-          await _cacheService.saveValidationStatus(tempKey, true);
+          await _cacheService.saveValidationStatus(tempKey, true, entryIndex: index);
         }
 
         showKcToast(context, result.isValid
@@ -1774,7 +2056,8 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _validationState = ValidationState.failure;
+          _entryValidationStates[index] = ValidationState.failure;
+          _entries[index].validated = false;
           _validationErrorMessage = '校验失败：${e.toString()}';
         });
 
@@ -1783,6 +2066,46 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
       }
     }
   }
+
+  /// 追加一把空密钥（默认别名留空 → 展示为「密钥 N」），并展开它
+  void _addEntry() {
+    setState(() {
+      _entries.add(_KeyEntryForm(obscure: true));
+      _expandedEntries.add(_entries.length - 1);
+    });
+  }
+
+  /// 删除第 [index] 把（至少保留一把；删到当前密钥时下标左收敛）
+  void _removeEntry(int index) {
+    if (_entries.length <= 1) return;
+    setState(() {
+      _entries.removeAt(index).dispose();
+      _entryValidationStates.remove(index);
+      final next = <int, ValidationState>{};
+      _entryValidationStates.forEach((k, v) {
+        next[k > index ? k - 1 : k] = v;
+      });
+      _entryValidationStates
+        ..clear()
+        ..addAll(next);
+      // 展开态下标跟随前移，被删项收起
+      final nextExpanded = <int>{};
+      for (final i in _expandedEntries) {
+        if (i < index) nextExpanded.add(i);
+        if (i > index) nextExpanded.add(i - 1);
+      }
+      if (nextExpanded.isEmpty) nextExpanded.add(0);
+      _expandedEntries
+        ..clear()
+        ..addAll(nextExpanded);
+      if (_currentEntryIndex == index) {
+        _currentEntryIndex = 0;
+      } else if (_currentEntryIndex > index) {
+        _currentEntryIndex -= 1;
+      }
+    });
+  }
+
 
   /// 查看模型列表
   Future<void> _handleViewModels() async {
@@ -1897,7 +2220,22 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
 
       final now = DateTime.now();
       final platform = _selectedPlatform ?? PlatformType.custom;
-      
+
+      // 密钥项列表 → key_entries；当前那把的值镜像到 key_value，「校验态 / 最后使用」同样跟随当前那把
+      final keyEntries = <KeyEntry>[
+        for (final e in _entries)
+          KeyEntry(
+            value: e.valueController.text.trim(),
+            label: e.labelController.text.trim().isEmpty ? null : e.labelController.text.trim(),
+            endpoint: e.endpointController.text.trim().isEmpty ? null : e.endpointController.text.trim(),
+            notes: e.notesController.text.trim().isEmpty ? null : e.notesController.text.trim(),
+            validated: e.validated,
+            lastUsedAt: e.lastUsedAt,
+            createdAt: e.createdAt ?? now,
+          ),
+      ];
+      final activeEntry = keyEntries[_currentEntryIndex];
+
       final key = AIKey(
         id: widget.editingKey?.id,
         name: _nameController.text.trim(),
@@ -1909,7 +2247,11 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
         apiEndpoint: _apiEndpointController.text.trim().isEmpty
             ? null
             : _apiEndpointController.text.trim(),
-        keyValue: _keyValueController.text.trim(),
+        keyValue: activeEntry.value,
+        keyEntriesRaw: keyEntries,
+        activeKeyIndex: _currentEntryIndex,
+        isValidated: activeEntry.validated,
+        lastUsedAt: activeEntry.lastUsedAt ?? widget.editingKey?.lastUsedAt,
         expiryDate: _expiryDate,
         tags: tags,
         notes: _notesController.text.trim().isEmpty
@@ -2778,6 +3120,40 @@ class _KeyFormPageState extends State<KeyFormPage> with WidgetsBindingObserver {
     } catch (e) {
       return null;
     }
+  }
+}
+
+/// 表单里的一把密钥（多密钥）：值 / 别名 / 备注各一个 controller，
+/// 加上该把独立的校验态、掩码开关与时间戳。
+class _KeyEntryForm {
+  _KeyEntryForm({
+    String value = '',
+    String label = '',
+    String endpoint = '',
+    String notes = '',
+    this.validated = false,
+    this.obscure = true,
+    this.lastUsedAt,
+    this.createdAt,
+  })  : valueController = TextEditingController(text: value),
+        labelController = TextEditingController(text: label),
+        endpointController = TextEditingController(text: endpoint),
+        notesController = TextEditingController(text: notes);
+
+  final TextEditingController valueController;
+  final TextEditingController labelController;
+  final TextEditingController endpointController;
+  final TextEditingController notesController;
+  bool validated;
+  bool obscure;
+  DateTime? lastUsedAt;
+  DateTime? createdAt;
+
+  void dispose() {
+    valueController.dispose();
+    labelController.dispose();
+    endpointController.dispose();
+    notesController.dispose();
   }
 }
 

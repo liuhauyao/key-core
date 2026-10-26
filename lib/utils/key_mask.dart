@@ -7,16 +7,27 @@ import '../models/ai_key.dart';
 /// 现在：加密值只用 [KeyMaskCache] 里由解密结果算出的掩码；拿不到就只显示圆点，绝不显示密文片段。
 class KeyMaskCache {
   KeyMaskCache._();
-  static final Map<int, String> _byId = {};
 
-  static void put(int id, String plain) => _byId[id] = maskPlain(plain);
-  static String? get(int id) => _byId[id];
+  /// 键为 `id#entryIndex`：同一卡片的多把子密钥各自缓存掩码
+  static final Map<String, String> _byId = {};
+
+  static String _k(int id, int entryIndex) => '$id#$entryIndex';
+
+  static void put(int id, int entryIndex, String plain) =>
+      _byId[_k(id, entryIndex)] = maskPlain(plain);
+
+  static String? get(int id, int entryIndex) => _byId[_k(id, entryIndex)];
+
   static void clear() => _byId.clear();
 }
 
 const _dots = '••••';
 
-bool isEncryptedKeyValue(AIKey key) => key.keyNonce != null || key.keyValue.trimLeft().startsWith('{');
+/// 单个密钥值是否以密文形态存储（密文 JSON 以 `{` 开头，nonce 在 JSON 内）
+bool isEncryptedValue(String value) => value.trimLeft().startsWith('{');
+
+bool isEncryptedKeyValue(AIKey key) =>
+    key.keyNonce != null || isEncryptedValue(key.keyValue);
 
 /// 由明文算掩码：`sk-••••abcd`
 String maskPlain(String plain) {
@@ -27,10 +38,20 @@ String maskPlain(String plain) {
   return '$prefix$_dots${v.substring(v.length - 4)}';
 }
 
-/// 卡片 / 工具页 / 菜单使用的掩码
-String maskKeyForCard(AIKey key) {
-  if (isEncryptedKeyValue(key)) {
-    return (key.id != null ? KeyMaskCache.get(key.id!) : null) ?? '$_dots$_dots';
+/// 指定子密钥的掩码（[entryIndex] 缺省取卡片当前密钥）。
+///
+/// 加密值只用缓存里由解密结果算出的掩码；拿不到就只显示圆点。
+String maskKeyForKey(AIKey key, [int? entryIndex]) {
+  final idx = entryIndex ?? key.normalizedActiveIndex;
+  final entries = key.keyEntries;
+  final safeIdx = idx.clamp(0, entries.length - 1);
+  final value = entries[safeIdx].value;
+  if (isEncryptedKeyValue(key) || isEncryptedValue(value)) {
+    return (key.id != null ? KeyMaskCache.get(key.id!, safeIdx) : null) ??
+        '$_dots$_dots';
   }
-  return maskPlain(key.keyValue);
+  return maskPlain(value);
 }
+
+/// 卡片 / 工具页 / 菜单使用的掩码（默认取当前密钥）
+String maskKeyForCard(AIKey key) => maskKeyForKey(key);

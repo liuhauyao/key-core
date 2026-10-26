@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
+import '../models/ai_key.dart';
 import '../models/mcp_server.dart';
 import '../services/tool_enable_service.dart';
 import '../services/settings_service.dart';
@@ -84,6 +85,12 @@ class StatusBarMenuBridge {
            localizedValues['zh']!['official_config']!;
   }
 
+  /// 状态栏菜单里该卡片的展示名：卡片名 + （多密钥时）当前子密钥别名
+  static String _menuTitle(AIKey key) {
+    if (!key.hasMultipleKeys) return key.name;
+    return '${key.name} · ${key.activeEntry.displayLabel(key.normalizedActiveIndex)}';
+  }
+
   /// 获取 ClaudeCode 密钥列表（包括官方配置）
   static Future<List<Map<String, dynamic>>> _getClaudeCodeKeys(
       KeyManagerViewModel viewModel) async {
@@ -92,6 +99,7 @@ class StatusBarMenuBridge {
       'id': key.id,
       'name': key.name,
       'platform': key.platform,
+      'menu_title': _menuTitle(key),
     }).toList();
     
     // 在列表开头添加官方配置选项
@@ -99,6 +107,7 @@ class StatusBarMenuBridge {
       'id': -1, // 使用 -1 表示官方配置
       'name': _getOfficialConfigText(),
       'platform': 'official',
+      'menu_title': _getOfficialConfigText(),
     });
     
     return result;
@@ -112,6 +121,7 @@ class StatusBarMenuBridge {
       'id': key.id,
       'name': key.name,
       'platform': key.platform,
+      'menu_title': _menuTitle(key),
     }).toList();
     
     // 在列表开头添加官方配置选项
@@ -119,6 +129,7 @@ class StatusBarMenuBridge {
       'id': -1, // 使用 -1 表示官方配置
       'name': _getOfficialConfigText(),
       'platform': 'official',
+      'menu_title': _getOfficialConfigText(),
     });
     
     return result;
@@ -132,6 +143,7 @@ class StatusBarMenuBridge {
       'id': key.id,
       'name': key.name,
       'platform': key.platform,
+      'menu_title': _menuTitle(key),
     }).toList();
     
     // 在列表开头添加官方配置选项
@@ -139,6 +151,7 @@ class StatusBarMenuBridge {
       'id': -1, // 使用 -1 表示官方配置
       'name': _getOfficialConfigText(),
       'platform': 'official',
+      'menu_title': _getOfficialConfigText(),
     });
     
     return result;

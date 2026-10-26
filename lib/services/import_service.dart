@@ -219,6 +219,25 @@ class ImportService {
           // 检查是否已存在（根据 name + platform）
           final existingKey = await _databaseService.getKeyByNameAndPlatform(keyName, keyPlatform);
 
+          // 子密钥：导出文件带 key_entries 时逐把解析，并按当前应用的主密码状态重新加密；
+          // 无该字段（旧文件）→ 由 key_value 合成单把（与老数据零迁移一致）
+          final (parsedEntries, parsedActive) = AIKey.parseKeyEntries(keyMap['key_entries']);
+          List<KeyEntry>? finalEntries;
+          if (parsedEntries != null) {
+            finalEntries = <KeyEntry>[];
+            for (final e in parsedEntries) {
+              final plain = e.value;
+              final stored = (hasPassword && encryptionKey != null && !plain.startsWith('{'))
+                  ? await _cryptService.encrypt(plain, encryptionKey)
+                  : plain;
+              finalEntries.add(e.copyWith(value: stored));
+            }
+          }
+          final activeIndex = finalEntries == null
+              ? 0
+              : parsedActive.clamp(0, finalEntries.length - 1);
+          final activeEntry = finalEntries == null ? null : finalEntries[activeIndex];
+
           final key = AIKey(
             id: existingKey?.id, // 如果存在，保留原有ID
             name: keyName,
@@ -226,7 +245,11 @@ class ImportService {
             platformType: platformType,
             managementUrl: keyMap['management_url'] as String?,
             apiEndpoint: keyMap['api_endpoint'] as String?,
-            keyValue: finalKeyValue,
+            keyValue: activeEntry?.value ?? finalKeyValue,
+            keyEntriesRaw: finalEntries,
+            activeKeyIndex: activeIndex,
+            isValidated: activeEntry?.validated ?? false,
+            lastUsedAt: activeEntry?.lastUsedAt,
             expiryDate: expiryDate,
             tags: tags,
             notes: keyMap['notes'] as String?,

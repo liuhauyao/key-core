@@ -750,8 +750,9 @@ class _MainScreenState extends State<MainScreen> {
               }
             },
             onCopyApiEndpoint: () {
-              if (key.apiEndpoint != null) {
-                ClipboardService().copyToClipboard(key.apiEndpoint!);
+              final endpoint = key.activeEndpoint;
+              if (endpoint != null) {
+                ClipboardService().copyToClipboard(endpoint);
                 // 只写名称和类型，不回显内容（form_v3.md §14.3）
                 _showSnackBar(context, _copiedMessage(context, key.name, endpoint: true));
               }
@@ -762,6 +763,11 @@ class _MainScreenState extends State<MainScreen> {
               _showSnackBar(context, _copiedMessage(context, key.name));
             },
             currentKeyIds: currentIds,
+            // 主界面密钥卡片下拉切换当前密钥（生效中的工具联动改写配置）
+            onSelectEntry: (entryIndex) {
+              if (key.id == null) return;
+              viewModel.setActiveKeyEntry(key.id!, entryIndex);
+            },
             onSwitchTool: (tool) => _switchToolFromCard(key, tool),
             onEnableTool: (tool) => _enableToolFromCard(context, viewModel, key, tool),
             onMoveToTop: () async {
@@ -888,8 +894,8 @@ class _MainScreenState extends State<MainScreen> {
           final shown = text.length > 30 ? '${text.substring(0, 30)}...' : text;
           _showSnackBar(context, AppLocalizations.of(context)?.copiedText(shown) ?? '已复制：$shown');
         },
-        onCopyKey: () {
-          viewModel.copyKeyToClipboard(decryptedKey.id!);
+        onCopyKey: (entryIndex) {
+          viewModel.copyKeyToClipboard(decryptedKey.id!, entryIndex: entryIndex);
           final loc = AppLocalizations.of(context);
           _showSnackBar(context, loc?.keyCopiedToClipboard ?? '密钥已复制到剪贴板');
         },

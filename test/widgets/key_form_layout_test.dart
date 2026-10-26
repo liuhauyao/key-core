@@ -67,7 +67,7 @@ void main() {
     await pumpForm(tester, editId: 1);
     EditableText key() => tester.widgetList<EditableText>(find.byType(EditableText)).firstWhere((e) => e.obscureText);
     expect(key().obscureText, isTrue);
-    await tester.tap(byKey('keyForm.toggleObscure'));
+    await tester.tap(byKey('keyForm.toggleObscure.0'));
     await tester.pump();
     expect(tester.widgetList<EditableText>(find.byType(EditableText)).where((e) => e.obscureText), isEmpty);
   });

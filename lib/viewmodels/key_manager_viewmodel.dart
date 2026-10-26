@@ -41,22 +41,42 @@ class KeyManagerViewModel extends BaseViewModel {
   PlatformCategory? _filterPlatformCategory;
   KeyStatistics? _statistics;
 
-  // 当前使用的密钥ID
+  // 当前使用的密钥ID（卡片级）
   int? _currentClaudeCodeKeyId;
   int? _currentCodexKeyId;
   int? _currentGeminiKeyId;
   int? _currentClaudeDesktopKeyId;
 
+  // 当前生效的是卡片内的第几把子密钥
+  int? _currentClaudeCodeEntryIndex;
+  int? _currentCodexEntryIndex;
+  int? _currentGeminiEntryIndex;
+  int? _currentClaudeDesktopEntryIndex;
+
   bool _currentToolKeysLoaded = false;
 
-  /// 各工具当前生效的密钥 id（null = 官方配置 / 未配置）。供侧栏、卡片工具状态 chip 使用。
-  /// 由 [refreshCurrentToolKeys] 一次性并行读取，切换成功后由各 switch 方法增量更新。
-  Map<AiToolType, int?> get currentKeyIds => {
-        AiToolType.claudecode: _currentClaudeCodeKeyId,
-        AiToolType.claudeDesktop: _currentClaudeDesktopKeyId,
-        AiToolType.codex: _currentCodexKeyId,
-        AiToolType.gemini: _currentGeminiKeyId,
+  ActiveKeyRef? _refFor(int? keyId, int? entryIndex) => (keyId == null || entryIndex == null)
+      ? null
+      : ActiveKeyRef(keyId, entryIndex);
+
+  /// 取卡片中指定那把子密钥（[entryIndex] 为空时用卡片当前密钥）。
+  ///
+  /// 返回的卡片 `keyValue` 已镜像那把，且该把的独立地址已覆盖到各工具 base URL，
+  /// 工具侧服务无需感知多密钥 / 多地址。
+  AIKey _keyAtEntry(AIKey key, int? entryIndex) => key.projectedForEntry(entryIndex);
+
+  /// 各工具当前生效的密钥引用（卡片 + 子密钥下标）。供工具页 / 详情抽屉判断「哪把生效」。
+  Map<AiToolType, ActiveKeyRef?> get currentKeyRefs => {
+        AiToolType.claudecode: _refFor(_currentClaudeCodeKeyId, _currentClaudeCodeEntryIndex),
+        AiToolType.claudeDesktop: _refFor(_currentClaudeDesktopKeyId, _currentClaudeDesktopEntryIndex),
+        AiToolType.codex: _refFor(_currentCodexKeyId, _currentCodexEntryIndex),
+        AiToolType.gemini: _refFor(_currentGeminiKeyId, _currentGeminiEntryIndex),
       };
+
+  /// 各工具当前生效的密钥 id（null = 官方配置 / 未配置）。供侧栏、卡片工具状态 chip 使用。
+  /// 由 [currentKeyRefs] 派生：只关心「卡片是否生效」的旧调用点保持行为不变。
+  Map<AiToolType, int?> get currentKeyIds =>
+      currentKeyRefs.map((tool, ref) => MapEntry(tool, ref?.keyId));
 
   /// [currentKeyIds] 是否已经从配置文件读取过一次
   bool get currentToolKeysLoaded => _currentToolKeysLoaded;
@@ -159,28 +179,38 @@ class KeyManagerViewModel extends BaseViewModel {
 
           int reEncryptedCount = 0;
 
-          // 遍历所有密钥
+          // 遍历所有密钥（逐把判断是否明文）
           for (final key in _allKeys) {
-            // 检查是否是明文格式（不以{开头）
-            if (!key.keyValue.startsWith('{')) {
+            var changed = false;
+            final entries = <KeyEntry>[];
+            for (final entry in key.keyEntries) {
+              if (isEncryptedValue(entry.value)) {
+                entries.add(entry);
+                continue;
+              }
               try {
-                // 加密密钥值
                 final encryptedValue = await _cryptService.encrypt(
-                  key.keyValue,
+                  entry.value,
                   encryptionKey,
                 );
-
-                // 更新数据库
-                final updatedKey = key.copyWith(
-                  keyValue: encryptedValue,
-                  updatedAt: DateTime.now(),
-                );
-                await _databaseService.updateKey(updatedKey);
-                reEncryptedCount++;
+                entries.add(entry.copyWith(value: encryptedValue));
+                changed = true;
               } catch (e) {
                 print('重新加密密钥失败 - ID: ${key.id}, 名称: ${key.name}, 错误: $e');
-                // 继续处理其他密钥，不中断整个过程
+                entries.add(entry);
               }
+            }
+
+            if (!changed) continue;
+            try {
+              final updatedKey = key.copyWith(
+                keyEntries: entries,
+                updatedAt: DateTime.now(),
+              );
+              await _databaseService.updateKey(updatedKey);
+              reEncryptedCount++;
+            } catch (e) {
+              print('更新密钥失败 - ID: ${key.id}, 名称: ${key.name}, 错误: $e');
             }
           }
 
@@ -214,13 +244,21 @@ class KeyManagerViewModel extends BaseViewModel {
     }, showLoading: showLoading);
   }
 
-  /// 加密存储的密钥：解密后只把「前缀 + 后 4 位」掩码放进缓存（明文不保留），供卡片 / 工具页显示
+  /// 加密存储的密钥：解密后只把「前缀 + 后 4 位」掩码放进缓存（明文不保留），供卡片 / 工具页显示。
+  /// 逐把子密钥判断，缓存键为 `id#entryIndex`。
   Future<void> _refreshMaskCache() async {
     KeyMaskCache.clear();
     for (final k in _allKeys) {
-      if (k.id == null || !isEncryptedKeyValue(k)) continue;
-      final plain = await decryptKeyValue(k.keyValue);
-      if (plain != null && !plain.trimLeft().startsWith('{')) KeyMaskCache.put(k.id!, plain);
+      if (k.id == null) continue;
+      final entries = k.keyEntries;
+      for (var i = 0; i < entries.length; i++) {
+        final value = entries[i].value;
+        if (!isEncryptedValue(value)) continue;
+        final plain = await decryptKeyValue(value);
+        if (plain != null && !plain.trimLeft().startsWith('{')) {
+          KeyMaskCache.put(k.id!, i, plain);
+        }
+      }
     }
   }
 
@@ -383,30 +421,29 @@ class KeyManagerViewModel extends BaseViewModel {
     notifyListeners();
   }
 
-  /// 添加密钥
+  /// 添加密钥（逐把子密钥各自加密）
   Future<bool> addKey(AIKey key) async {
     return await executeAsync(() async {
-          String finalKeyValue = key.keyValue;
-
           // 检查是否设置了主密码
           final hasPassword = await _authService.hasMasterPassword();
-          if (hasPassword) {
-            // 如果设置了主密码，则加密存储
-            final encryptionKey = await _authService.getEncryptionKey();
-            if (encryptionKey != null) {
-              finalKeyValue = await _cryptService.encrypt(
-                key.keyValue,
-                encryptionKey,
-              );
-            }
-          }
-          // 如果没有设置主密码，则明文存储
+          final encryptionKey = hasPassword ? await _authService.getEncryptionKey() : null;
 
-          // 创建密钥对象
+          final now = DateTime.now();
+          final entries = <KeyEntry>[];
+          for (final entry in key.keyEntries) {
+            entries.add(entry.copyWith(
+              value: (encryptionKey != null && !isEncryptedValue(entry.value))
+                  ? await _cryptService.encrypt(entry.value, encryptionKey)
+                  : entry.value,
+              createdAt: entry.createdAt ?? now,
+            ));
+          }
+          // 没有设置主密码时明文存储
+
           final finalKey = key.copyWith(
-            keyValue: finalKeyValue,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
+            keyEntries: entries,
+            createdAt: now,
+            updatedAt: now,
           );
 
           // 保存到数据库
@@ -428,25 +465,19 @@ class KeyManagerViewModel extends BaseViewModel {
         return false;
       }
 
-      String finalKeyValue = key.keyValue;
-
-      // 检查是否设置了主密码
+      // 逐把加密：仅对明文形态的子密钥加密（表单未改动的已密文密钥保持原样，
+      // 避免二次加密破坏原值）
       final hasPassword = await _authService.hasMasterPassword();
-      if (hasPassword) {
-        // 如果设置了主密码，则加密存储
-        final encryptionKey = await _authService.getEncryptionKey();
-        if (encryptionKey != null) {
-          // 检查密钥值是否是加密格式（简单检查）
-          if (!key.keyValue.startsWith('{')) {
-            finalKeyValue = await _cryptService.encrypt(
-              key.keyValue,
-              encryptionKey,
-            );
-          } else {
-            finalKeyValue = key.keyValue; // 已经是加密格式，保持不变
-          }
-        }
+      final encryptionKey = hasPassword ? await _authService.getEncryptionKey() : null;
+      final encryptedEntries = <KeyEntry>[];
+      for (final entry in key.keyEntries) {
+        encryptedEntries.add(entry.copyWith(
+          value: (encryptionKey != null && !isEncryptedValue(entry.value))
+              ? await _cryptService.encrypt(entry.value, encryptionKey)
+              : entry.value,
+        ));
       }
+      final activeIdx = key.normalizedActiveIndex.clamp(0, encryptedEntries.length - 1);
       // 如果没有设置主密码，则明文存储
 
       // 表单不管理的字段沿用数据库中的值，避免编辑时被清空：
@@ -469,8 +500,10 @@ class KeyManagerViewModel extends BaseViewModel {
         platformType: key.platformType,
         managementUrl: key.managementUrl,
         apiEndpoint: key.apiEndpoint,
-        keyValue: finalKeyValue,
+        keyValue: encryptedEntries[activeIdx].value,
         keyNonce: key.keyNonce,
+        keyEntriesRaw: encryptedEntries,
+        activeKeyIndex: activeIdx,
         expiryDate: key.expiryDate,
         tags: key.tags,
         notes: key.notes,
@@ -549,6 +582,103 @@ class KeyManagerViewModel extends BaseViewModel {
           return true;
         }) ??
         false;
+  }
+
+  /// 主界面 / 工具页下拉：切换卡片的当前密钥。
+  ///
+  /// 若该卡片正被某工具使用（生效中），按已确认语义**立即用新密钥改写该工具的配置文件**：
+  /// 复用 [_refreshActiveConfigIfNeeded]（它对该卡片生效中的每个工具重写配置）。
+  Future<bool> setActiveKeyEntry(int keyId, int entryIndex) async {
+    try {
+      final key = await _databaseService.getKeyById(keyId);
+      if (key == null) return false;
+      if (entryIndex < 0 || entryIndex >= key.keyEntries.length) return false;
+      if (key.normalizedActiveIndex == entryIndex) return true;
+
+      final updated = key.withActiveKeyIndex(entryIndex).copyWith(updatedAt: DateTime.now());
+
+      // 先改内存，UI 立即响应
+      final allIndex = _allKeys.indexWhere((k) => k.id == keyId);
+      if (allIndex != -1) _allKeys[allIndex] = updated;
+      final filteredIndex = _filteredKeys.indexWhere((k) => k.id == keyId);
+      if (filteredIndex != -1) _filteredKeys[filteredIndex] = updated;
+      notifyListeners();
+
+      // 写库
+      await _databaseService.updateKey(updated);
+
+      // 工具联动改写 + 状态栏刷新
+      await _refreshActiveConfigIfNeeded(updated, previous: key);
+      // 卡片未被任何工具使用时也要刷新状态栏（菜单显示的是卡片当前密钥的别名）
+      await _notifyStatusBarMenuUpdate();
+      return true;
+    } catch (e) {
+      await loadKeys(showLoading: false);
+      setError(e.toString());
+      return false;
+    }
+  }
+
+  /// 删除卡片内的一把子密钥（至少保留一把）。
+  ///
+  /// 若删的是当前密钥，下标向左收敛；随后按 [setActiveKeyEntry] 的同一套联动改写处理。
+  Future<bool> deleteKeyEntry(int keyId, int entryIndex) async {
+    try {
+      final key = await _databaseService.getKeyById(keyId);
+      if (key == null) return false;
+      if (key.keyEntries.length <= 1) return false;
+      if (entryIndex < 0 || entryIndex >= key.keyEntries.length) return false;
+
+      final updated = key.removeEntry(entryIndex).copyWith(updatedAt: DateTime.now());
+      final newActive =
+          updated.normalizedActiveIndex != key.normalizedActiveIndex;
+
+      final allIndex = _allKeys.indexWhere((k) => k.id == keyId);
+      if (allIndex != -1) _allKeys[allIndex] = updated;
+      final filteredIndex = _filteredKeys.indexWhere((k) => k.id == keyId);
+      if (filteredIndex != -1) _filteredKeys[filteredIndex] = updated;
+      notifyListeners();
+
+      // 掩码缓存按 id#index 存，删除后原有下标会上移，直接整表重建
+      await _databaseService.updateKey(updated);
+      await _refreshMaskCache();
+
+      // 删除导致当前密钥变化时，同样要改写生效中的工具配置
+      if (newActive) {
+        await _refreshActiveConfigIfNeeded(updated, previous: key);
+      }
+      await _notifyStatusBarMenuUpdate();
+      return true;
+    } catch (e) {
+      await loadKeys(showLoading: false);
+      setError(e.toString());
+      return false;
+    }
+  }
+
+  /// 更新某把子密钥的校验状态（卡片徽章展示当前密钥的校验态）
+  Future<bool> updateEntryValidationStatus(int keyId, int entryIndex, bool validated) async {
+    try {
+      final allIndex = _allKeys.indexWhere((k) => k.id == keyId);
+      if (allIndex == -1) return false;
+      final key = _allKeys[allIndex];
+      if (entryIndex < 0 || entryIndex >= key.keyEntries.length) return false;
+
+      final updated = key.replaceEntry(
+        entryIndex,
+        key.keyEntries[entryIndex].copyWith(validated: validated),
+      );
+      _allKeys[allIndex] = updated;
+      final filteredIndex = _filteredKeys.indexWhere((k) => k.id == keyId);
+      if (filteredIndex != -1) _filteredKeys[filteredIndex] = updated;
+      notifyListeners();
+
+      await _databaseService.updateKey(updated);
+      return true;
+    } catch (e) {
+      await loadKeys(showLoading: false);
+      return false;
+    }
   }
 
   /// 切换收藏状态
@@ -645,31 +775,37 @@ class KeyManagerViewModel extends BaseViewModel {
     }
   }
 
-  /// 复制密钥到剪贴板
-  Future<bool> copyKeyToClipboard(int id) async {
+  /// 复制密钥到剪贴板（[entryIndex] 缺省为卡片当前密钥）
+  Future<bool> copyKeyToClipboard(int id, {int? entryIndex}) async {
     return await executeAsync(() async {
           final key = await _databaseService.getKeyById(id);
           if (key == null) {
             throw Exception('密钥不存在');
           }
 
+          final index = entryIndex ?? key.normalizedActiveIndex;
+          if (index < 0 || index >= key.keyEntries.length) {
+            throw Exception('密钥不存在');
+          }
+          final storedValue = key.keyEntries[index].value;
+
           String decryptedValue;
 
           // 检查是否是加密格式
           final hasPassword = await _authService.hasMasterPassword();
-          if (hasPassword && key.keyValue.startsWith('{')) {
+          if (hasPassword && isEncryptedValue(storedValue)) {
             // 加密格式，需要解密
             final encryptionKey = await _authService.getEncryptionKey();
             if (encryptionKey == null) {
               throw Exception('未找到加密密钥');
             }
             decryptedValue = await _cryptService.decrypt(
-              key.keyValue,
+              storedValue,
               encryptionKey,
             );
           } else {
             // 明文格式，直接使用
-            decryptedValue = key.keyValue;
+            decryptedValue = storedValue;
           }
 
           // 复制到剪贴板（带自动清空）
@@ -678,8 +814,8 @@ class KeyManagerViewModel extends BaseViewModel {
             delaySeconds: 30,
           );
 
-          // 更新最后使用时间
-          await _databaseService.updateLastUsed(id);
+          // 更新该把密钥的最后使用时间
+          await _databaseService.updateEntryLastUsed(id, index, DateTime.now());
           await loadKeys();
 
           return true;
@@ -713,63 +849,18 @@ class KeyManagerViewModel extends BaseViewModel {
       final key = await _databaseService.getKeyById(id);
       if (key == null) return null;
 
-      final decryptedValue = await decryptKeyValue(key.keyValue);
-      if (decryptedValue == null) return key;
-
-      // ⚠️ 重要：不要使用 copyWith，因为它会覆盖其他字段！
-      // 如果 keyValue 没有变化，直接返回 key；如果有变化，创建新的 AIKey
-      if (decryptedValue == key.keyValue) {
-        return key;
+      // 逐把解密：任一被锁无法解密时退回原始 key（与旧行为一致）
+      var changed = false;
+      final entries = <KeyEntry>[];
+      for (final e in key.keyEntries) {
+        final plain = await decryptKeyValue(e.value);
+        if (plain == null) return key;
+        if (plain != e.value) changed = true;
+        entries.add(plain == e.value ? e : e.copyWith(value: plain));
       }
-
-      // 创建新的 AIKey，只更新 keyValue
-      return AIKey(
-        id: key.id,
-        name: key.name,
-        platform: key.platform,
-        platformType: key.platformType,
-        managementUrl: key.managementUrl,
-        apiEndpoint: key.apiEndpoint,
-        keyValue: decryptedValue,
-        keyNonce: key.keyNonce,
-        expiryDate: key.expiryDate,
-        tags: key.tags,
-        notes: key.notes,
-        isActive: key.isActive,
-        createdAt: key.createdAt,
-        updatedAt: key.updatedAt,
-        lastUsedAt: key.lastUsedAt,
-        isFavorite: key.isFavorite,
-        icon: key.icon,
-        enableClaudeCode: key.enableClaudeCode,
-        claudeCodeApiEndpoint: key.claudeCodeApiEndpoint,
-        claudeCodeModel: key.claudeCodeModel,
-        claudeCodeHaikuModel: key.claudeCodeHaikuModel,
-        claudeCodeSonnetModel: key.claudeCodeSonnetModel,
-        claudeCodeOpusModel: key.claudeCodeOpusModel,
-        claudeCodeBaseUrl: key.claudeCodeBaseUrl,
-        enableCodex: key.enableCodex,
-        codexApiEndpoint: key.codexApiEndpoint,
-        codexModel: key.codexModel,
-        codexBaseUrl: key.codexBaseUrl,
-        codexConfig: key.codexConfig,
-        enableGemini: key.enableGemini,
-        geminiApiEndpoint: key.geminiApiEndpoint,
-        geminiModel: key.geminiModel,
-        geminiBaseUrl: key.geminiBaseUrl,
-        enableOpenclaw: key.enableOpenclaw,
-        openclawBaseUrl: key.openclawBaseUrl,
-        openclawModel: key.openclawModel,
-        enableClaudeDesktop: key.enableClaudeDesktop,
-        claudeDesktopBaseUrl: key.claudeDesktopBaseUrl,
-        claudeDesktopModel: key.claudeDesktopModel,
-        claudeDesktopSonnetModel: key.claudeDesktopSonnetModel,
-        claudeDesktopHaikuModel: key.claudeDesktopHaikuModel,
-        claudeDesktopOpusModel: key.claudeDesktopOpusModel,
-        claudeCodeConfig: key.claudeCodeConfig,
-        toolConfigs: key.toolConfigs,
-        isValidated: key.isValidated,
-      );
+      if (!changed) return key;
+      // copyWith(keyEntries:) 会把 keyValue 镜像为当前那把的解密值，其余字段原样保留
+      return key.copyWith(keyEntries: entries);
     } catch (e) {
       return null;
     }
@@ -844,22 +935,26 @@ class KeyManagerViewModel extends BaseViewModel {
     }
   }
 
-  /// 切换 ClaudeCode 使用的密钥
-  Future<bool> switchClaudeCodeProvider(int keyId) async {
+  /// 切换 ClaudeCode 使用的密钥（[entryIndex] 指定卡片内的第几把，缺省用当前密钥）
+  Future<bool> switchClaudeCodeProvider(int keyId, {int? entryIndex}) async {
     return await executeAsync(() async {
           final key = await _databaseService.getKeyById(keyId);
           if (key == null || !key.enableClaudeCode) {
             throw Exception('密钥不存在或未启用 ClaudeCode');
           }
 
+          // 目标那把子密钥：keyValue 已随 activeKeyIndex 镜像，工具侧服务无需改动
+          final target = _keyAtEntry(key, entryIndex);
+
           // 备份当前配置
           await _claudeConfigService.backupConfig();
 
           // 切换配置
-          final success = await _claudeConfigService.switchProvider(key);
+          final success = await _claudeConfigService.switchProvider(target);
           if (!success) throw ToolSwitchException(_claudeConfigService.lastSwitchError);
           if (success) {
             _currentClaudeCodeKeyId = keyId;
+            _currentClaudeCodeEntryIndex = target.normalizedActiveIndex;
             notifyListeners();
             // 通知状态栏菜单更新
             await _notifyStatusBarMenuUpdate();
@@ -869,22 +964,24 @@ class KeyManagerViewModel extends BaseViewModel {
         false;
   }
 
-  /// 切换 Codex 使用的密钥
-  Future<bool> switchCodexProvider(int keyId) async {
+  /// 切换 Codex 使用的密钥（[entryIndex] 指定卡片内的第几把，缺省用当前密钥）
+  Future<bool> switchCodexProvider(int keyId, {int? entryIndex}) async {
     return await executeAsync(() async {
           final key = await _databaseService.getKeyById(keyId);
           if (key == null || !key.enableCodex) {
             throw Exception('密钥不存在或未启用 Codex');
           }
+          final target = _keyAtEntry(key, entryIndex);
+
           final isChinaFilterEnabled =
               await RegionFilterService.isChinaRegionFilterEnabled();
           if (isChinaFilterEnabled &&
               RegionFilterService.isKeyRestrictedInChina(
                 platformId: key.platformType.id,
                 platformName: key.platform,
-                apiEndpoint: key.apiEndpoint,
-                codexBaseUrl: key.codexBaseUrl,
-                claudeCodeBaseUrl: key.claudeCodeBaseUrl,
+                apiEndpoint: target.apiEndpoint,
+                codexBaseUrl: target.codexBaseUrl,
+                claudeCodeBaseUrl: target.claudeCodeBaseUrl,
                 managementUrl: key.managementUrl,
               )) {
             throw Exception('当前地区不支持该供应商');
@@ -894,10 +991,11 @@ class KeyManagerViewModel extends BaseViewModel {
           await _codexConfigService.backupConfig();
 
           // 切换配置
-          final success = await _codexConfigService.switchProvider(key);
+          final success = await _codexConfigService.switchProvider(target);
           if (!success) throw ToolSwitchException(_codexConfigService.lastSwitchError);
           if (success) {
             _currentCodexKeyId = keyId;
+            _currentCodexEntryIndex = target.normalizedActiveIndex;
             notifyListeners();
             // 通知状态栏菜单更新
             await _notifyStatusBarMenuUpdate();
@@ -915,6 +1013,7 @@ class KeyManagerViewModel extends BaseViewModel {
     final isOfficial = await _claudeConfigService.isOfficialConfig();
     if (isOfficial) {
       _currentClaudeCodeKeyId = null; // 官方配置没有对应的密钥ID
+      _currentClaudeCodeEntryIndex = null;
       return null;
     }
 
@@ -923,28 +1022,35 @@ class KeyManagerViewModel extends BaseViewModel {
     final currentApiKey = await _claudeConfigService.getCurrentApiKey();
     if (currentApiKey != null && currentApiKey.isNotEmpty) {
       final keys = await getClaudeCodeKeys();
-
-      for (final key in keys) {
-        final decryptedValue = await decryptKeyValue(key.keyValue);
-        // 如果解密失败，跳过这个密钥
-        if (decryptedValue == null || decryptedValue.isEmpty) {
-          continue;
-        }
-
-        // 清理解密后的值（去除首尾空白）
-        final cleanedDecryptedValue = decryptedValue.trim();
-        final cleanedCurrentApiKey = currentApiKey.trim();
-
-        // 精确匹配
-        if (cleanedDecryptedValue == cleanedCurrentApiKey) {
-          _currentClaudeCodeKeyId = key.id;
-          return key;
-        }
+      final matched = await _matchKeyEntryByValue(keys, currentApiKey);
+      if (matched != null) {
+        _currentClaudeCodeKeyId = matched.id;
+        _currentClaudeCodeEntryIndex = matched.normalizedActiveIndex;
+        return matched;
       }
     }
 
     // 如果没有找到匹配的密钥，清除缓存
     _currentClaudeCodeKeyId = null;
+    _currentClaudeCodeEntryIndex = null;
+    return null;
+  }
+
+  /// 在候选卡片中逐把子密钥解密比对，返回「命中那把被置为当前密钥」的卡片副本。
+  ///
+  /// 返回值已用 [AIKey.withActiveKeyIndex] 调整成命中那把，调用方可直接读
+  /// `keyValue` / 掩码 / 别名；`id` 仍是卡片 id。
+  Future<AIKey?> _matchKeyEntryByValue(List<AIKey> keys, String currentApiKey) async {
+    final target = currentApiKey.trim();
+    if (target.isEmpty) return null;
+    for (final key in keys) {
+      final entries = key.keyEntries;
+      for (var i = 0; i < entries.length; i++) {
+        final plain = await decryptKeyValue(entries[i].value);
+        if (plain == null || plain.trim().isEmpty) continue;
+        if (plain.trim() == target) return key.withActiveKeyIndex(i);
+      }
+    }
     return null;
   }
 
@@ -959,6 +1065,7 @@ class KeyManagerViewModel extends BaseViewModel {
           if (!success) throw ToolSwitchException(_claudeConfigService.lastSwitchError);
           if (success) {
             _currentClaudeCodeKeyId = null; // 官方配置没有对应的密钥ID
+            _currentClaudeCodeEntryIndex = null;
             notifyListeners();
             // 通知状态栏菜单更新
             await _notifyStatusBarMenuUpdate();
@@ -997,6 +1104,7 @@ class KeyManagerViewModel extends BaseViewModel {
     final isOfficial = await _codexConfigService.isOfficialConfig();
     if (isOfficial) {
       _currentCodexKeyId = null; // 官方配置没有对应的密钥ID
+      _currentCodexEntryIndex = null;
       return null;
     }
 
@@ -1007,23 +1115,11 @@ class KeyManagerViewModel extends BaseViewModel {
     if (currentApiKey != null && currentApiKey.isNotEmpty) {
       // 情况1：使用 auth.json 的供应商（如 OpenAI、代理转发平台）
       final keys = await getCodexKeys();
-
-      for (final key in keys) {
-        final decryptedValue = await decryptKeyValue(key.keyValue);
-        // 如果解密失败，跳过这个密钥
-        if (decryptedValue == null || decryptedValue.isEmpty) {
-          continue;
-        }
-
-        // 清理解密后的值（去除首尾空白）
-        final cleanedDecryptedValue = decryptedValue.trim();
-        final cleanedCurrentApiKey = currentApiKey.trim();
-
-        // 精确匹配
-        if (cleanedDecryptedValue == cleanedCurrentApiKey) {
-          _currentCodexKeyId = key.id;
-          return key;
-        }
+      final matched = await _matchKeyEntryByValue(keys, currentApiKey);
+      if (matched != null) {
+        _currentCodexKeyId = matched.id;
+        _currentCodexEntryIndex = matched.normalizedActiveIndex;
+        return matched;
       }
     } else {
       // 情况2：使用环境变量的供应商（如 OpenRouter）
@@ -1047,6 +1143,7 @@ class KeyManagerViewModel extends BaseViewModel {
               keyBaseUrl == configBaseUrl &&
               key.enableCodex) {
             _currentCodexKeyId = key.id;
+            _currentCodexEntryIndex = key.normalizedActiveIndex;
             return key;
           }
         }
@@ -1055,6 +1152,7 @@ class KeyManagerViewModel extends BaseViewModel {
 
     // 如果没有找到匹配的密钥，清除缓存
     _currentCodexKeyId = null;
+    _currentCodexEntryIndex = null;
     return null;
   }
 
@@ -1075,6 +1173,7 @@ class KeyManagerViewModel extends BaseViewModel {
           if (!success) throw ToolSwitchException(_codexConfigService.lastSwitchError);
           if (success) {
             _currentCodexKeyId = null; // 官方配置没有对应的密钥ID
+            _currentCodexEntryIndex = null;
             notifyListeners();
             // 通知状态栏菜单更新
             await _notifyStatusBarMenuUpdate();
@@ -1165,22 +1264,25 @@ class KeyManagerViewModel extends BaseViewModel {
     }
   }
 
-  /// 切换 Gemini 使用的密钥
-  Future<bool> switchGeminiProvider(int keyId) async {
+  /// 切换 Gemini 使用的密钥（[entryIndex] 指定卡片内的第几把，缺省用当前密钥）
+  Future<bool> switchGeminiProvider(int keyId, {int? entryIndex}) async {
     return await executeAsync(() async {
           final key = await _databaseService.getKeyById(keyId);
           if (key == null || !key.enableGemini) {
             throw Exception('密钥不存在或未启用 Gemini');
           }
 
+          final target = _keyAtEntry(key, entryIndex);
+
           // 备份当前配置
           await _geminiConfigService.backupConfig();
 
           // 切换配置
-          final success = await _geminiConfigService.switchProvider(key);
+          final success = await _geminiConfigService.switchProvider(target);
           if (!success) throw ToolSwitchException(_geminiConfigService.lastSwitchError);
           if (success) {
             _currentGeminiKeyId = keyId;
+            _currentGeminiEntryIndex = target.normalizedActiveIndex;
             notifyListeners();
             // 通知状态栏菜单更新
             await _notifyStatusBarMenuUpdate();
@@ -1193,10 +1295,13 @@ class KeyManagerViewModel extends BaseViewModel {
   /// 获取当前 Gemini 使用的密钥
   /// 返回 null 表示当前是官方配置
   Future<AIKey?> getCurrentGeminiKey() async {
+    // 未命中任何密钥 / 官方态时，卡片与子密钥都要清空
+    _currentGeminiKeyId = null;
+    _currentGeminiEntryIndex = null;
+
     // 先检查是否是官方配置
     final isOfficial = await _geminiConfigService.isOfficialConfig();
     if (isOfficial) {
-      _currentGeminiKeyId = null;
       return null;
     }
 
@@ -1211,38 +1316,26 @@ class KeyManagerViewModel extends BaseViewModel {
       if (officialApiKey != null &&
           officialApiKey.isNotEmpty &&
           currentApiKey.trim() == officialApiKey.trim()) {
-        _currentGeminiKeyId = null;
         return null; // 官方配置返回 null
       }
 
-      // 如果不匹配官方存储，尝试匹配密钥列表
+      // 如果不匹配官方存储，尝试匹配密钥列表（逐把解密比对）
       final keys = await getGeminiKeys();
-
-      for (final key in keys) {
-        final decryptedValue = await decryptKeyValue(key.keyValue);
-        if (decryptedValue == null || decryptedValue.isEmpty) {
-          continue;
-        }
-
-        final cleanedDecryptedValue = decryptedValue.trim();
-        final cleanedCurrentApiKey = currentApiKey.trim();
-
-        if (cleanedDecryptedValue == cleanedCurrentApiKey) {
-          _currentGeminiKeyId = key.id;
-          return key;
-        }
+      final matched = await _matchKeyEntryByValue(keys, currentApiKey);
+      if (matched != null) {
+        _currentGeminiKeyId = matched.id;
+        _currentGeminiEntryIndex = matched.normalizedActiveIndex;
+        return matched;
       }
 
       // 如果未找到匹配的密钥，但 API Key 存在，可能是官方配置（但官方 API Key 未设置）
       // 这种情况下，应该重新检查是否是官方配置
       final isOfficialRetry = await _geminiConfigService.isOfficialConfig();
       if (isOfficialRetry) {
-        _currentGeminiKeyId = null;
         return null;
       }
     }
 
-    _currentGeminiKeyId = null;
     return null;
   }
 
@@ -1257,6 +1350,7 @@ class KeyManagerViewModel extends BaseViewModel {
           if (!success) throw ToolSwitchException(_geminiConfigService.lastSwitchError);
           if (success) {
             _currentGeminiKeyId = null;
+            _currentGeminiEntryIndex = null;
             notifyListeners();
             // 通知状态栏菜单更新
             await _notifyStatusBarMenuUpdate();
@@ -1314,6 +1408,8 @@ class KeyManagerViewModel extends BaseViewModel {
 
     try {
       final keyId = key.id!;
+      // 当前密钥的独立地址已覆盖到各工具 base URL，写配置时统一用这个副本
+      final target = key.projectedForEntry(key.normalizedActiveIndex);
 
       // 检查 ClaudeCode
       // 先检查内存中的 _currentClaudeCodeKeyId，如果匹配则说明该密钥是当前激活的
@@ -1327,9 +1423,10 @@ class KeyManagerViewModel extends BaseViewModel {
         if (isCurrent) {
           print('KeyManagerViewModel: 检测到当前保存的密钥是激活的 ClaudeCode 密钥，立即刷新配置');
           await _claudeConfigService.backupConfig();
-          final success = await _claudeConfigService.switchProvider(key);
+          final success = await _claudeConfigService.switchProvider(target);
           if (success) {
             _currentClaudeCodeKeyId = keyId;
+            _currentClaudeCodeEntryIndex = key.normalizedActiveIndex;
             notifyListeners();
             await _notifyStatusBarMenuUpdate();
           }
@@ -1346,9 +1443,9 @@ class KeyManagerViewModel extends BaseViewModel {
             RegionFilterService.isKeyRestrictedInChina(
               platformId: key.platformType.id,
               platformName: key.platform,
-              apiEndpoint: key.apiEndpoint,
-              codexBaseUrl: key.codexBaseUrl,
-              claudeCodeBaseUrl: key.claudeCodeBaseUrl,
+              apiEndpoint: target.apiEndpoint,
+              codexBaseUrl: target.codexBaseUrl,
+              claudeCodeBaseUrl: target.claudeCodeBaseUrl,
               managementUrl: key.managementUrl,
             );
         if (!isRestrictedInChina) {
@@ -1360,9 +1457,10 @@ class KeyManagerViewModel extends BaseViewModel {
           if (isCurrent) {
             print('KeyManagerViewModel: 检测到当前保存的密钥是激活的 Codex 密钥，立即刷新配置');
             await _codexConfigService.backupConfig();
-            final success = await _codexConfigService.switchProvider(key);
+            final success = await _codexConfigService.switchProvider(target);
             if (success) {
               _currentCodexKeyId = keyId;
+              _currentCodexEntryIndex = key.normalizedActiveIndex;
               notifyListeners();
               await _notifyStatusBarMenuUpdate();
             }
@@ -1382,9 +1480,10 @@ class KeyManagerViewModel extends BaseViewModel {
         if (isCurrent) {
           print('KeyManagerViewModel: 检测到当前保存的密钥是激活的 Gemini 密钥，立即刷新配置');
           await _geminiConfigService.backupConfig();
-          final success = await _geminiConfigService.switchProvider(key);
+          final success = await _geminiConfigService.switchProvider(target);
           if (success) {
             _currentGeminiKeyId = keyId;
+            _currentGeminiEntryIndex = key.normalizedActiveIndex;
             notifyListeners();
             await _notifyStatusBarMenuUpdate();
           }
@@ -1400,9 +1499,10 @@ class KeyManagerViewModel extends BaseViewModel {
         if (isCurrent) {
           print('KeyManagerViewModel: 检测到当前保存的密钥是激活的 Claude Desktop 密钥，立即刷新配置');
           await _claudeDesktopConfigService.backupConfig();
-          final success = await _claudeDesktopConfigService.switchProvider(key);
+          final success = await _claudeDesktopConfigService.switchProvider(target);
           if (success) {
             _currentClaudeDesktopKeyId = keyId;
+            _currentClaudeDesktopEntryIndex = key.normalizedActiveIndex;
             notifyListeners();
             await _notifyStatusBarMenuUpdate();
           }
@@ -1437,22 +1537,25 @@ class KeyManagerViewModel extends BaseViewModel {
     }
   }
 
-  /// 切换 Claude Desktop 使用的密钥
-  Future<bool> switchClaudeDesktopProvider(int keyId) async {
+  /// 切换 Claude Desktop 使用的密钥（[entryIndex] 指定卡片内的第几把，缺省用当前密钥）
+  Future<bool> switchClaudeDesktopProvider(int keyId, {int? entryIndex}) async {
     return await executeAsync(() async {
           final key = await _databaseService.getKeyById(keyId);
           if (key == null || !key.enableClaudeDesktop) {
             throw Exception('密钥不存在或未启用 Claude Desktop');
           }
 
+          final target = _keyAtEntry(key, entryIndex);
+
           // 备份当前配置
           await _claudeDesktopConfigService.backupConfig();
 
           // 切换配置
-          final success = await _claudeDesktopConfigService.switchProvider(key);
+          final success = await _claudeDesktopConfigService.switchProvider(target);
           if (!success) throw ToolSwitchException(_claudeDesktopConfigService.lastSwitchError);
           if (success) {
             _currentClaudeDesktopKeyId = keyId;
+            _currentClaudeDesktopEntryIndex = target.normalizedActiveIndex;
             notifyListeners();
             // 通知状态栏菜单更新
             await _notifyStatusBarMenuUpdate();
@@ -1465,10 +1568,13 @@ class KeyManagerViewModel extends BaseViewModel {
   /// 获取当前 Claude Desktop 使用的密钥
   /// 返回 null 表示当前是官方配置
   Future<AIKey?> getCurrentClaudeDesktopKey() async {
+    // 未命中任何密钥 / 官方态时，卡片与子密钥都要清空
+    _currentClaudeDesktopKeyId = null;
+    _currentClaudeDesktopEntryIndex = null;
+
     // 先检查是否是官方配置
     final isOfficial = await _claudeDesktopConfigService.isOfficialConfig();
     if (isOfficial) {
-      _currentClaudeDesktopKeyId = null;
       return null;
     }
 
@@ -1477,24 +1583,14 @@ class KeyManagerViewModel extends BaseViewModel {
 
     if (currentApiKey != null && currentApiKey.isNotEmpty) {
       final keys = await getClaudeDesktopKeys();
-
-      for (final key in keys) {
-        final decryptedValue = await decryptKeyValue(key.keyValue);
-        if (decryptedValue == null || decryptedValue.isEmpty) {
-          continue;
-        }
-
-        final cleanedDecryptedValue = decryptedValue.trim();
-        final cleanedCurrentApiKey = currentApiKey.trim();
-
-        if (cleanedDecryptedValue == cleanedCurrentApiKey) {
-          _currentClaudeDesktopKeyId = key.id;
-          return key;
-        }
+      final matched = await _matchKeyEntryByValue(keys, currentApiKey);
+      if (matched != null) {
+        _currentClaudeDesktopKeyId = matched.id;
+        _currentClaudeDesktopEntryIndex = matched.normalizedActiveIndex;
+        return matched;
       }
     }
 
-    _currentClaudeDesktopKeyId = null;
     return null;
   }
 
@@ -1509,6 +1605,7 @@ class KeyManagerViewModel extends BaseViewModel {
           if (!success) throw ToolSwitchException(_claudeDesktopConfigService.lastSwitchError);
           if (success) {
             _currentClaudeDesktopKeyId = null;
+            _currentClaudeDesktopEntryIndex = null;
             notifyListeners();
             // 通知状态栏菜单更新
             await _notifyStatusBarMenuUpdate();
@@ -1572,15 +1669,18 @@ class KeyManagerViewModel extends BaseViewModel {
     return true;
   }
 
-  /// 把密钥写入新工具（[makeDefault]：同时设为该工具默认；Grok Build 总是切换）
-  Future<bool> applyKeyToTool(AiToolType tool, int keyId, {bool makeDefault = true}) async {
+  /// 把密钥写入新工具（[entryIndex] 指定卡片内的第几把，缺省用当前密钥；
+  /// [makeDefault]：同时设为该工具默认；Grok Build 总是切换）
+  Future<bool> applyKeyToTool(AiToolType tool, int keyId,
+      {int? entryIndex, bool makeDefault = true}) async {
     lastToolProviderError = null;
     try {
       final key = await _databaseService.getKeyById(keyId);
       if (key == null) throw ToolProviderException('密钥不存在');
-      final plain = await decryptKeyValue(key.keyValue);
+      final target = _keyAtEntry(key, entryIndex);
+      final plain = await decryptKeyValue(target.keyValue);
       if (plain == null || plain.isEmpty) throw ToolProviderException('无法解密密钥');
-      await _toolProviderService.apply(tool, key, plain, makeDefault: makeDefault);
+      await _toolProviderService.apply(tool, target, plain, makeDefault: makeDefault);
       notifyListeners();
       return true;
     } catch (e) {
@@ -1625,7 +1725,9 @@ class KeyManagerViewModel extends BaseViewModel {
     final current = await _toolProviderService.currentGrokApiKey();
     if (current == null || current.isEmpty) return null;
     for (final key in _allKeys) {
-      if (await decryptKeyValue(key.keyValue) == current) return key.id;
+      for (final entry in key.keyEntries) {
+        if (await decryptKeyValue(entry.value) == current) return key.id;
+      }
     }
     return null;
   }
@@ -1634,6 +1736,7 @@ class KeyManagerViewModel extends BaseViewModel {
   Future<void> _refreshToolProvidersIfApplied(AIKey key, {AIKey? previous}) async {
     if (key.id == null) return;
     final plain = await decryptKeyValue(key.keyValue);
+    final target = key.projectedForEntry(key.normalizedActiveIndex);
     if (plain == null || plain.isEmpty) return;
     for (final tool in ToolProviderService.tools) {
       try {
@@ -1641,7 +1744,7 @@ class KeyManagerViewModel extends BaseViewModel {
           final current = await _toolProviderService.currentGrokApiKey();
           final before = previous == null ? null : await decryptKeyValue(previous.keyValue);
           if (current != null && (current == plain || (before != null && current == before))) {
-            await _toolProviderService.apply(tool, key, plain);
+            await _toolProviderService.apply(tool, target, plain);
           }
           continue;
         }
@@ -1661,7 +1764,7 @@ class KeyManagerViewModel extends BaseViewModel {
           keyId: key.id!,
           decryptedKey: plain,
           platformId: key.platformType.id,
-          openclawBaseUrl: key.openclawBaseUrl,
+          openclawBaseUrl: target.openclawBaseUrl,
           openclawModel: key.openclawModel,
         );
       }
@@ -1700,6 +1803,24 @@ class KeyManagerViewModel extends BaseViewModel {
       }
     }
   }
+}
+
+/// 某工具当前生效的密钥引用：卡片 id + 卡片内子密钥下标
+class ActiveKeyRef {
+  final int keyId;
+  final int entryIndex;
+
+  const ActiveKeyRef(this.keyId, this.entryIndex);
+
+  @override
+  bool operator ==(Object other) =>
+      other is ActiveKeyRef && other.keyId == keyId && other.entryIndex == entryIndex;
+
+  @override
+  int get hashCode => Object.hash(keyId, entryIndex);
+
+  @override
+  String toString() => 'ActiveKeyRef($keyId#$entryIndex)';
 }
 
 /// 切换失败：携带配置服务给出的原因（文件、行号等），由 executeAsync 写入 errorMessage。

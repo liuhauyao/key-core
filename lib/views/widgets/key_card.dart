@@ -20,6 +20,7 @@ import 'package:provider/provider.dart';
 import 'model_list_dialog.dart';
 import 'kc_logo.dart';
 import 'kc_menu.dart';
+import 'kc_key_entry_picker.dart';
 import '../../models/mcp_server.dart' show AiToolType;
 import 'kc_toast.dart';
 import '../../theme/kc_tokens.dart';
@@ -60,6 +61,14 @@ class KeyCard extends StatefulWidget {
   /// 各工具当前生效的密钥 id；不传时从 KeyManagerViewModel 读取
   final Map<AiToolType, int?>? currentKeyIds;
 
+  /// 头部「平台 · 密钥选择器」下拉选中子密钥：
+  /// 主界面写当前密钥（`setActiveKeyEntry`，生效中的工具联动改写配置）；工具页只改本页选中项。
+  /// 为 null 时不渲染选择器。
+  final ValueChanged<int>? onSelectEntry;
+
+  /// 工具页本页选中的子密钥下标；null = 用卡片当前密钥
+  final int? selectedEntryIndex;
+
   /// 工具页 lens（§5.5）：底栏改为「该工具下的模型 + 也用于」。为 null 时是钥匙包的工具状态 chip
   final AiToolType? lens;
 
@@ -84,6 +93,8 @@ class KeyCard extends StatefulWidget {
     this.onEnableTool,
     this.lens,
     this.currentKeyIds,
+    this.onSelectEntry,
+    this.selectedEntryIndex,
   });
 
   @override
@@ -984,16 +995,33 @@ class _KeyCardState extends State<KeyCard> {
                         ],
                       ],
                     ),
-                    Text.rich(
-                      TextSpan(children: [
-                        TextSpan(text: key.platform),
-                        const TextSpan(text: '  ·  '),
-                        TextSpan(text: maskKeyForCard(key), style: KcType.mono.copyWith(fontSize: 11.5)),
-                      ]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: KcType.caption.copyWith(color: cs.mutedForeground, height: 1.25),
-                    ),
+                    Row(children: [
+                      Flexible(
+                        child: Text.rich(
+                          TextSpan(children: [
+                            TextSpan(text: key.platform),
+                            const TextSpan(text: '  ·  '),
+                            TextSpan(
+                              text: maskKeyForKey(key, widget.selectedEntryIndex ?? key.normalizedActiveIndex),
+                              style: KcType.mono.copyWith(fontSize: 11.5),
+                            ),
+                          ]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: KcType.caption.copyWith(color: cs.mutedForeground, height: 1.25),
+                        ),
+                      ),
+                      if (key.hasMultipleKeys && widget.onSelectEntry != null) ...[
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: KcKeyEntryPicker(
+                            aiKey: key,
+                            activeIndex: widget.selectedEntryIndex ?? key.normalizedActiveIndex,
+                            onSelected: (i) => widget.onSelectEntry!(i),
+                          ),
+                        ),
+                      ],
+                    ]),
                   ],
                 ),
               ),
@@ -1074,11 +1102,29 @@ class _KeyCardState extends State<KeyCard> {
                       ),
                     ],
                   ]),
-                  Text(key.platform,
-                      key: const ValueKey('keyCard.platform'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: KcType.caption.copyWith(color: cs.mutedForeground, height: 1.25)),
+                  if (key.hasMultipleKeys && widget.onSelectEntry != null)
+                    Row(children: [
+                      Flexible(
+                        child: Text(key.platform,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: KcType.caption.copyWith(color: cs.mutedForeground, height: 1.25)),
+                      ),
+                      Text('  ·  ', style: KcType.caption.copyWith(color: cs.mutedForeground, height: 1.25)),
+                      Flexible(
+                        child: KcKeyEntryPicker(
+                          aiKey: key,
+                          activeIndex: widget.selectedEntryIndex ?? key.normalizedActiveIndex,
+                          onSelected: (i) => widget.onSelectEntry!(i),
+                        ),
+                      ),
+                    ])
+                  else
+                    Text(key.platform,
+                        key: const ValueKey('keyCard.platform'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KcType.caption.copyWith(color: cs.mutedForeground, height: 1.25)),
                 ],
               ),
             ),
@@ -1109,6 +1155,7 @@ class _KeyCardState extends State<KeyCard> {
           child: _V3ToolRow(
             aiKey: key,
             currentKeyIds: widget.currentKeyIds ?? _maybeCurrentKeyIds(context),
+            currentEntryIndexes: _maybeCurrentEntryIndexes(context),
             manage: widget.isEditMode,
             onSwitchTool: widget.onSwitchTool,
             onEnableTool: widget.onEnableTool,
@@ -1172,7 +1219,7 @@ class _KeyCardState extends State<KeyCard> {
             color: kc.dangerText)),
       ]);
     }
-    final hasEndpoint = (key.apiEndpoint ?? '').trim().isNotEmpty;
+    final hasEndpoint = (key.endpointFor(widget.selectedEntryIndex ?? key.normalizedActiveIndex) ?? '').trim().isNotEmpty;
     final hasConsole = (key.managementUrl ?? '').trim().isNotEmpty;
     return Row(children: [
       _labeledSlot(context,
@@ -1321,7 +1368,7 @@ class _KeyCardState extends State<KeyCard> {
   Widget _buildMoreMenu(BuildContext context, AppLocalizations? localizations) {
     final key = widget.aiKey;
     // 分组（form_v3.md §14.3）：查看 / 复制 / 置顶·删除；null 项为分隔线
-    final hasEndpoint = (key.apiEndpoint ?? '').trim().isNotEmpty;
+    final hasEndpoint = (key.endpointFor(widget.selectedEntryIndex ?? key.normalizedActiveIndex) ?? '').trim().isNotEmpty;
     final items = <(String, IconData, String, VoidCallback?)?>[
       ('view', Icons.visibility_outlined, localizations?.details ?? '查看', widget.onView ?? widget.onTap),
       if (_supportsModelList == true && (_cachedModels?.isNotEmpty ?? false))
@@ -1445,6 +1492,7 @@ class _KeyCardState extends State<KeyCard> {
     return _ToolStatusChips(
       aiKey: widget.aiKey,
       currentKeyIds: ids,
+      currentEntryIndexes: _maybeCurrentEntryIndexes(context),
       cardHovered: _isHovering,
       onSwitchTool: widget.cardMode == KeyCardMode.view ? widget.onSwitchTool : null,
       onEnableTool: widget.cardMode == KeyCardMode.view ? widget.onEnableTool : null,
@@ -1454,6 +1502,15 @@ class _KeyCardState extends State<KeyCard> {
   Map<AiToolType, int?> _maybeCurrentKeyIds(BuildContext context) {
     try {
       return Provider.of<KeyManagerViewModel>(context).currentKeyIds;
+    } on ProviderNotFoundException {
+      return const {};
+    }
+  }
+
+  /// 各工具当前生效的是卡片的哪一把子密钥（下标）；多密钥时 chip 追加该把别名
+  Map<AiToolType, int?> _maybeCurrentEntryIndexes(BuildContext context) {
+    try {
+      return Provider.of<KeyManagerViewModel>(context).currentKeyRefs.map((tool, ref) => MapEntry(tool, ref?.entryIndex));
     } on ProviderNotFoundException {
       return const {};
     }
@@ -1701,15 +1758,27 @@ class _ToolStatusChips extends StatelessWidget {
     required this.aiKey,
     required this.currentKeyIds,
     required this.cardHovered,
+    this.currentEntryIndexes = const {},
     this.onSwitchTool,
     this.onEnableTool,
   });
 
   final AIKey aiKey;
   final Map<AiToolType, int?> currentKeyIds;
+
+  /// 各工具当前生效子密钥下标（多密钥时生效 chip 追加别名）
+  final Map<AiToolType, int?> currentEntryIndexes;
   final bool cardHovered;
   final ValueChanged<AiToolType>? onSwitchTool;
   final ValueChanged<AiToolType>? onEnableTool;
+
+  /// 多密钥时该工具生效那把的别名；单密钥或下标缺失返回 null
+  String? _aliasOf(AiToolType t) {
+    if (!aiKey.hasMultipleKeys) return null;
+    final i = currentEntryIndexes[t];
+    if (i == null || i < 0 || i >= aiKey.keyEntries.length) return null;
+    return aiKey.keyEntries[i].displayLabel(i);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1721,7 +1790,7 @@ class _ToolStatusChips extends StatelessWidget {
     final notEnabled = kcKeyTools.where((t) => !enabled.contains(t)).toList();
 
     final chips = <Widget>[
-      for (final t in active) _ActiveChip(tool: t),
+      for (final t in active) _ActiveChip(tool: t, alias: _aliasOf(t)),
       for (final t in rest)
         _EnabledChip(
           tool: t,
@@ -1770,13 +1839,31 @@ class _ToolStatusChips extends StatelessWidget {
 /// 正在生效 = 1.5px 绿色描边 + 光晕 + 右下 8px 绿点；右侧文字「生效于 Claude · Codex」或「已启用 N 个工具」；
 /// 末尾虚线「+」；没有任何工具时显示虚线 chip「+ 用到工具」。
 class _V3ToolRow extends StatelessWidget {
-  const _V3ToolRow({required this.aiKey, required this.currentKeyIds, required this.manage, this.onSwitchTool, this.onEnableTool});
+  const _V3ToolRow({
+    required this.aiKey,
+    required this.currentKeyIds,
+    required this.manage,
+    this.currentEntryIndexes = const {},
+    this.onSwitchTool,
+    this.onEnableTool,
+  });
 
   final AIKey aiKey;
   final Map<AiToolType, int?> currentKeyIds;
+
+  /// 各工具当前生效子密钥下标（多密钥时摘要追加别名）
+  final Map<AiToolType, int?> currentEntryIndexes;
   final bool manage;
   final ValueChanged<AiToolType>? onSwitchTool;
   final ValueChanged<AiToolType>? onEnableTool;
+
+  /// 多密钥时该工具生效那把的别名；单密钥或下标缺失返回 null
+  String? _aliasOf(AiToolType t) {
+    if (!aiKey.hasMultipleKeys) return null;
+    final i = currentEntryIndexes[t];
+    if (i == null || i < 0 || i >= aiKey.keyEntries.length) return null;
+    return aiKey.keyEntries[i].displayLabel(i);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1798,7 +1885,12 @@ class _V3ToolRow extends StatelessWidget {
     }
 
     final summary = active.isNotEmpty
-        ? (l?.tr('active_in_tools', '生效于 {tools}') ?? '生效于 {tools}').replaceAll('{tools}', active.map(kcToolShortName).join(' · '))
+        ? (l?.tr('active_in_tools', '生效于 {tools}') ?? '生效于 {tools}').replaceAll(
+            '{tools}',
+            active.map((t) {
+              final alias = _aliasOf(t);
+              return alias == null ? kcToolShortName(t) : '${kcToolShortName(t)} · $alias';
+            }).join(' · '))
         : (l?.tr('enabled_n_tools', '已启用 {n} 个工具') ?? '已启用 {n} 个工具').replaceAll('{n}', '${enabled.length}');
 
     return Row(children: [
@@ -1906,8 +1998,11 @@ class _V3ToolIconState extends State<_V3ToolIcon> {
 }
 
 class _ActiveChip extends StatelessWidget {
-  const _ActiveChip({required this.tool});
+  const _ActiveChip({required this.tool, this.alias});
   final AiToolType tool;
+
+  /// 多密钥时该工具生效那把的别名（如「主号」）；单密钥为 null
+  final String? alias;
 
   @override
   Widget build(BuildContext context) {
@@ -1926,6 +2021,10 @@ class _ActiveChip extends StatelessWidget {
             KcToolLogo(tool: tool, size: 18),
             const SizedBox(width: 5),
             Text(kcToolShortName(tool), style: KcType.badge.copyWith(color: kc.okText)),
+            if (alias != null) ...[
+              const SizedBox(width: 5),
+              Text('· ${alias!}', style: KcType.badge.copyWith(color: kc.okText, fontWeight: FontWeight.w400)),
+            ],
             const SizedBox(width: 5),
             Container(width: 6, height: 6, decoration: BoxDecoration(color: kc.ok, shape: BoxShape.circle)),
           ],

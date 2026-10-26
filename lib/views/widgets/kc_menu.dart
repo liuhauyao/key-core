@@ -12,6 +12,9 @@ const double kcMenuRadius = 10;
 const double kcMenuPadding = 6;
 const double kcMenuRowHeight = 32;
 
+/// 带第二行说明的条目行高
+const double kcMenuRowHeightTwoLine = 44;
+
 /// 菜单条目
 sealed class KcMenuEntry<T> {
   const KcMenuEntry();
@@ -21,6 +24,7 @@ class KcMenuItem<T> extends KcMenuEntry<T> {
   const KcMenuItem({
     required this.value,
     required this.label,
+    this.subtitle,
     this.icon,
     this.leading,
     this.trailing,
@@ -30,6 +34,9 @@ class KcMenuItem<T> extends KcMenuEntry<T> {
   });
   final T value;
   final String label;
+
+  /// 第二行说明（有值时行高增至 [kcMenuRowHeightTwoLine]）
+  final String? subtitle;
   final IconData? icon;
 
   /// 自定义前置（工具 / 供应商 logo），优先于 [icon]
@@ -308,7 +315,7 @@ class _KcMenuPanelState<T> extends State<KcMenuPanel<T>> {
             onTap: e.enabled ? () => widget.onSelected(e.value) : null,
             child: Container(
               key: ValueKey('kcMenu.row.$i'),
-              height: kcMenuRowHeight,
+              height: e.subtitle == null ? kcMenuRowHeight : kcMenuRowHeightTwoLine,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
                 color: active ? (e.danger ? kc.dangerSoft : kc.subtle) : null,
@@ -324,7 +331,22 @@ class _KcMenuPanelState<T> extends State<KcMenuPanel<T>> {
                 ],
                 Flexible(
                   fit: FlexFit.tight,
-                  child: Text(e.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: KcType.body.copyWith(color: fg)),
+                  child: e.subtitle == null
+                      ? Text(e.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: KcType.body.copyWith(color: fg))
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(e.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: KcType.body.copyWith(color: fg)),
+                            const SizedBox(height: 1),
+                            Text(
+                              e.subtitle!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: KcType.caption.copyWith(color: cs.mutedForeground),
+                            ),
+                          ],
+                        ),
                 ),
                 if (e.trailing != null) ...[
                   const SizedBox(width: 12),

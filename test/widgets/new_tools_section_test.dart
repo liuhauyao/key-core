@@ -26,7 +26,7 @@ class _VM extends FakeKeyManagerViewModel {
     return true;
   }
   @override
-  Future<bool> applyKeyToTool(AiToolType tool, int keyId, {bool makeDefault = true}) async {
+  Future<bool> applyKeyToTool(AiToolType tool, int keyId, {int? entryIndex, bool makeDefault = true}) async {
     calls.add('apply ${tool.value}');
     (applied[tool] ??= {}).add(keyId);
     if (tool == AiToolType.grokBuild) grokDefault = keyId;

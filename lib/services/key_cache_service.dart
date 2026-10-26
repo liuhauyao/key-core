@@ -14,7 +14,9 @@ class KeyCacheService {
   /// 获取缓存键（基于密钥ID）
   String _getModelsKey(int? keyId) => '$_modelsPrefix${keyId ?? 0}';
   String _getBalanceKey(int? keyId) => '$_balancePrefix${keyId ?? 0}';
-  String _getValidationKey(int? keyId) => '$_validationPrefix${keyId ?? 0}';
+  /// 校验状态按**子密钥**缓存：`key_validation_<卡片 id>#<下标>`（下标缺省 = 当前那把）
+  String _getValidationKey(AIKey key, [int? entryIndex]) =>
+      '$_validationPrefix${key.id ?? 0}#${entryIndex ?? key.normalizedActiveIndex}';
   String _getTimestampKey(int? keyId) => '$_cacheTimestampPrefix${keyId ?? 0}';
 
   /// 保存模型列表到缓存
@@ -79,12 +81,12 @@ class KeyCacheService {
     }
   }
 
-  /// 保存校验状态到缓存
-  Future<void> saveValidationStatus(AIKey key, bool isValidated) async {
+  /// 保存校验状态到缓存（[entryIndex] 缺省 = 当前那把子密钥）
+  Future<void> saveValidationStatus(AIKey key, bool isValidated, {int? entryIndex}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final keyId = key.id ?? 0;
-      await prefs.setBool(_getValidationKey(keyId), isValidated);
+      await prefs.setBool(_getValidationKey(key, entryIndex), isValidated);
       await prefs.setInt(_getTimestampKey(keyId), DateTime.now().millisecondsSinceEpoch);
       print('KeyCacheService: 已缓存校验状态，密钥ID: $keyId, 状态: $isValidated');
     } catch (e) {
@@ -92,12 +94,11 @@ class KeyCacheService {
     }
   }
 
-  /// 从缓存读取校验状态
-  Future<bool?> getValidationStatus(AIKey key) async {
+  /// 从缓存读取校验状态（[entryIndex] 缺省 = 当前那把子密钥）
+  Future<bool?> getValidationStatus(AIKey key, {int? entryIndex}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final keyId = key.id ?? 0;
-      final isValidated = prefs.getBool(_getValidationKey(keyId));
+      final isValidated = prefs.getBool(_getValidationKey(key, entryIndex));
       return isValidated;
     } catch (e) {
       print('KeyCacheService: 读取校验状态失败: $e');
@@ -112,7 +113,7 @@ class KeyCacheService {
       final keyId = key.id ?? 0;
       await prefs.remove(_getModelsKey(keyId));
       await prefs.remove(_getBalanceKey(keyId));
-      await prefs.remove(_getValidationKey(keyId));
+      await prefs.remove(_getValidationKey(key));
       await prefs.remove(_getTimestampKey(keyId));
       print('KeyCacheService: 已清除缓存，密钥ID: $keyId');
     } catch (e) {

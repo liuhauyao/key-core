@@ -36,6 +36,9 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
   List<AIKey> _filteredKeys = []; // 过滤后的密钥列表
   AIKey? _currentKey;
   bool _isLoading = false; // 初始状态为 false，等待页面切换时加载
+
+  /// 多密钥卡片在本页选中的子密钥下标（keyId → entryIndex）；点卡片时用该把写入配置
+  final Map<int, int> _selectedEntry = {};
   bool _isOfficial = false;
   bool _isRefreshing = false; // 防止重复刷新
   bool _configExists = true; // 配置文件是否存在
@@ -207,7 +210,15 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
     }
   }
 
-  Future<void> _switchProvider(AIKey key) async {
+  /// 工具页下拉切换子密钥：记录选中项；若该卡片已是本工具的当前密钥，
+  /// 立即按这把密钥（含其独立地址）写回配置，省掉「先选再点卡片」的二次确认。
+  void _selectEntry(AIKey key, int i) {
+    if (key.id == null) return;
+    setState(() => _selectedEntry[key.id!] = i);
+    if (_configExists && _currentKey?.id == key.id) _switchProvider(key, entryIndex: i);
+  }
+
+  Future<void> _switchProvider(AIKey key, {int? entryIndex}) async {
     if (key.id == null) return;
 
     final viewModel = context.read<KeyManagerViewModel>();
@@ -221,7 +232,7 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
       return;
     }
     
-    final success = await viewModel.switchGeminiProvider(key.id!);
+    final success = await viewModel.switchGeminiProvider(key.id!, entryIndex: entryIndex);
     
     if (success) {
       if (mounted) {
@@ -498,7 +509,9 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
               isCurrent: isCurrent,
               cardMode: KeyCardMode.switchKey,
               lens: AiToolType.gemini, // 工具切换页面使用切换模式
-              onTap: () => _switchProvider(key),
+              onTap: () => _switchProvider(key, entryIndex: _selectedEntry[key.id]),
+              selectedEntryIndex: _selectedEntry[key.id],
+              onSelectEntry: (i) => _selectEntry(key, i),
               onView: () => _showKeyDetails(context, key),
               onEdit: () => _showEditKeyPage(context, key),
               onDelete: () {},
@@ -508,15 +521,16 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
                 }
               },
               onCopyApiEndpoint: () {
-                if (key.apiEndpoint != null) {
-                  ClipboardService().copyToClipboard(key.apiEndpoint!);
+                final endpoint = key.endpointFor(_selectedEntry[key.id] ?? key.normalizedActiveIndex);
+                if (endpoint != null) {
+                  ClipboardService().copyToClipboard(endpoint);
                   showKcToast(context, AppLocalizations.of(context)?.apiUrlCopied ?? 'API Endpoint 已复制', kind: KcToastKind.success);
                 }
               },
               onCopyApiKey: () {
                 final viewModel = context.read<KeyManagerViewModel>();
                 if (key.id != null) {
-                  viewModel.copyKeyToClipboard(key.id!);
+                  viewModel.copyKeyToClipboard(key.id!, entryIndex: _selectedEntry[key.id]);
                   showKcToast(context, localizations?.keyCopied ?? '密钥已复制', kind: KcToastKind.success);
                 }
               },
@@ -1178,8 +1192,8 @@ class GeminiConfigScreenState extends State<GeminiConfigScreen> {
           Navigator.pop(context);
           _showEditKeyPage(context, decryptedKey);
         },
-        onCopyKey: () {
-          viewModel.copyKeyToClipboard(decryptedKey.id!);
+        onCopyKey: (entryIndex) {
+          viewModel.copyKeyToClipboard(decryptedKey.id!, entryIndex: entryIndex);
           final loc = AppLocalizations.of(context);
           showKcToast(context, loc?.keyCopiedToClipboard ?? '密钥已复制到剪贴板', kind: KcToastKind.success);
         },

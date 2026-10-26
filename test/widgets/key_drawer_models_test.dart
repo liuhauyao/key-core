@@ -32,7 +32,7 @@ void main() {
             aiKey: keys.first,
             viewModel: vm,
             onEdit: () {},
-            onCopyKey: () {},
+            onCopyKey: (_) {},
             onOpenManagementUrl: () {},
             onCopyText: copied.add,
             initialTab: tab,

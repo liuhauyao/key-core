@@ -64,6 +64,9 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
 
   List<_CompatibleKey> _compatibleKeys = [];
 
+  /// 多密钥卡片在本页选中的子密钥下标（keyId → entryIndex）；写入 OpenClaw 时用该把
+  final Map<int, int> _selectedEntry = {};
+
   KeyManagerViewModel? _viewModel;
 
   @override
@@ -164,6 +167,13 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
     }
   }
 
+  /// 本页该卡片选中那把密钥的值（未选中则用卡片当前密钥）
+  String _entryValueOf(AIKey key) {
+    final entries = key.keyEntries;
+    final i = (_selectedEntry[key.id] ?? key.normalizedActiveIndex).clamp(0, entries.length - 1);
+    return entries[i].value;
+  }
+
   Future<void> _toggleKey(_CompatibleKey item) async {
     final vm = _viewModel;
     if (vm == null) return;
@@ -199,7 +209,7 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
       return;
     }
 
-    final decrypted = await vm.decryptKeyValue(item.aiKey.keyValue);
+    final decrypted = await vm.decryptKeyValue(_entryValueOf(item.aiKey));
     if (decrypted == null || decrypted.isEmpty) {
       if (mounted) {
         showKcToast(context, l?.keyDecryptFailed ?? '密钥解密失败', kind: KcToastKind.error);
@@ -476,6 +486,8 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
               cardMode: KeyCardMode.switchKey,
               lens: AiToolType.openclaw,
               onTap: () => _toggleKey(item),
+              selectedEntryIndex: _selectedEntry[item.aiKey.id],
+              onSelectEntry: (i) => setState(() => _selectedEntry[item.aiKey.id!] = i),
               onToggle: (_) => _toggleKey(item),
               onView: () => _showKeyDetails(context, item.aiKey),
               onEdit: () => _showEditKeyPage(context, item.aiKey),
@@ -486,15 +498,16 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
                 }
               },
               onCopyApiEndpoint: () {
-                if (item.aiKey.apiEndpoint != null) {
-                  ClipboardService().copyToClipboard(item.aiKey.apiEndpoint!);
+                final endpoint = item.aiKey.endpointFor(_selectedEntry[item.aiKey.id] ?? item.aiKey.normalizedActiveIndex);
+                if (endpoint != null) {
+                  ClipboardService().copyToClipboard(endpoint);
                   showKcToast(context, AppLocalizations.of(context)?.apiUrlCopied ?? 'API Endpoint 已复制', kind: KcToastKind.success);
                 }
               },
               onCopyApiKey: () {
                 final vm = context.read<KeyManagerViewModel>();
                 if (item.aiKey.id != null) {
-                  vm.copyKeyToClipboard(item.aiKey.id!);
+                  vm.copyKeyToClipboard(item.aiKey.id!, entryIndex: _selectedEntry[item.aiKey.id]);
                   showKcToast(context, AppLocalizations.of(context)?.keyCopied ?? '密钥已复制', kind: KcToastKind.success);
                 }
               },
@@ -531,8 +544,8 @@ class OpenClawConfigScreenState extends State<OpenClawConfigScreen> {
           Navigator.pop(context);
           _showEditKeyPage(context, decryptedKey);
         },
-        onCopyKey: () {
-          vm.copyKeyToClipboard(decryptedKey.id!);
+        onCopyKey: (entryIndex) {
+          vm.copyKeyToClipboard(decryptedKey.id!, entryIndex: entryIndex);
           showKcToast(context, AppLocalizations.of(context)?.keyCopiedToClipboard ?? '密钥已复制到剪贴板', kind: KcToastKind.success);
         },
         onOpenManagementUrl: () {
