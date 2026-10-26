@@ -1,6 +1,6 @@
 name: key_core
 description: A secure cross-platform application for managing AI API keys (Key Core / 密枢)
-version: 2.0.0+11
+version: 2.0.1+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -57,6 +57,11 @@ dev_dependencies:
   build_runner: ^2.4.7
   mockito: ^5.4.3
   json_serializable: ^6.7.1
+
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
 
 flutter:
   uses-material-design: true

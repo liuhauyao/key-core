@@ -17,6 +17,8 @@ class KeyCacheService {
   /// 校验状态按**子密钥**缓存：`key_validation_<卡片 id>#<下标>`（下标缺省 = 当前那把）
   String _getValidationKey(AIKey key, [int? entryIndex]) =>
       '$_validationPrefix${key.id ?? 0}#${entryIndex ?? key.normalizedActiveIndex}';
+  /// v23 之前的缓存键（整张卡片一个状态），仅用于升级后回读老卡片的校验结果
+  String _getLegacyValidationKey(int? keyId) => '$_validationPrefix${keyId ?? 0}';
   String _getTimestampKey(int? keyId) => '$_cacheTimestampPrefix${keyId ?? 0}';
 
   /// 保存模型列表到缓存
@@ -99,7 +101,12 @@ class KeyCacheService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final isValidated = prefs.getBool(_getValidationKey(key, entryIndex));
-      return isValidated;
+      if (isValidated != null) return isValidated;
+      // 升级兼容：老数据只有卡片级缓存键，第 1 把与它对应，回读一次避免校验徽标丢失
+      if ((entryIndex ?? key.normalizedActiveIndex) == 0) {
+        return prefs.getBool(_getLegacyValidationKey(key.id));
+      }
+      return null;
     } catch (e) {
       print('KeyCacheService: 读取校验状态失败: $e');
       return null;
@@ -114,6 +121,7 @@ class KeyCacheService {
       await prefs.remove(_getModelsKey(keyId));
       await prefs.remove(_getBalanceKey(keyId));
       await prefs.remove(_getValidationKey(key));
+      await prefs.remove(_getLegacyValidationKey(keyId));
       await prefs.remove(_getTimestampKey(keyId));
       print('KeyCacheService: 已清除缓存，密钥ID: $keyId');
     } catch (e) {
